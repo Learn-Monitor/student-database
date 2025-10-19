@@ -133,11 +133,30 @@ public class Student extends User {
     }
 
     private void fetchTasks() throws SQLException {
-        Server.getInstance().processRequest((t) -> selectedTasks.add(Task.get(Integer.parseInt(t[0]))), "get_selected_tasks_by_student", INTERESTING_TASKSTAT_FIELDS, String.valueOf(id));
-        Server.getInstance().processRequest((t) -> completedTasks.add(Task.get(Integer.parseInt(t[0]))), "get_completed_tasks_by_student", INTERESTING_TASKSTAT_FIELDS, String.valueOf(id));
-        Server.getInstance().processRequest((t) -> lockedTasks.add(Task.get(Integer.parseInt(t[0]))), "get_locked_tasks_by_student", INTERESTING_TASKSTAT_FIELDS, String.valueOf(id));
+        Server.getInstance().processRequest((t) -> {
+            Task task = Task.get(Integer.parseInt(t[0]));
+            if (task != null) selectedTasks.add(task);
+        }, "get_selected_tasks_by_student", INTERESTING_TASKSTAT_FIELDS, String.valueOf(id));
 
-        Server.getInstance().processRequest((t) -> completedTasks.add(SpecialTask.get(Integer.parseInt(t[0]))), "get_completed_special_tasks_by_student", INTERESTING_SPECIAL_TASK_STAT_FIELDS, String.valueOf(id));
+        Server.getInstance().processRequest((t) -> {
+            Task task = Task.get(Integer.parseInt(t[0]));
+            if (task != null) completedTasks.add(task);
+        }, "get_completed_tasks_by_student", INTERESTING_TASKSTAT_FIELDS, String.valueOf(id));
+
+        Server.getInstance().processRequest((t) -> {
+            Task task = Task.get(Integer.parseInt(t[0]));
+            if (task != null) lockedTasks.add(task);
+        }, "get_locked_tasks_by_student", INTERESTING_TASKSTAT_FIELDS, String.valueOf(id));
+
+        Server.getInstance().processRequest((t) -> {
+            SpecialTask st = SpecialTask.get(Integer.parseInt(t[0]));
+            if (st != null) completedTasks.add(st);
+        }, "get_completed_special_tasks_by_student", INTERESTING_SPECIAL_TASK_STAT_FIELDS, String.valueOf(id));
+
+        // Defensive cleanup: ensure no nulls remained
+        selectedTasks.removeIf(Objects::isNull);
+        completedTasks.removeIf(Objects::isNull);
+        lockedTasks.removeIf(Objects::isNull);
     }
 
     /**
@@ -358,9 +377,9 @@ public class Student extends User {
 
     /**
      * Returns the set of locked tasks.
-     * @return completed tasks
+     * @return locked tasks
      */
-    public Set<Task> getLockedTasks() { return new HashSet<>(completedTasks); }
+    public Set<Task> getLockedTasks() { return new HashSet<>(lockedTasks); }
 
     /**
      * Returns the current requests.
@@ -634,10 +653,11 @@ public class Student extends User {
     /**
      * Returns the current progress of the student for a given subject.
      * @param subject the subject to get the current progress for
-     * @return the current progress as a percentage (0-100)
+     * @return the current progress as a percentage (0-1)
      */
     public double getCurrentProgress(Subject subject) {
         return completedTasks.stream()
+            .filter(Objects::nonNull)
             .filter(task -> task.getSubject() != null && task.getSubject().equals(subject))
             .mapToDouble(Task::getRatio)
             .sum();
