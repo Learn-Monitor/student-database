@@ -10,7 +10,7 @@ import de.igslandstuhl.database.api.Topic;
 import de.igslandstuhl.database.holidays.Holiday;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.commands.Command;
-import de.igslandstuhl.database.server.webserver.PostRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.PostRequestHandler;
 import de.igslandstuhl.database.utils.CommandLineUtils;
 
 /**
@@ -92,6 +92,12 @@ public final class Application {
 
     public static void main(String[] args) throws Exception {
         instance = new Application(args);
+        
+        if (!getInstance().suppressCmd()) {
+            Command.registerCommands();
+            CommandLineUtils.setup();
+        }
+        
         Server.getInstance().getConnection().createTables();
 
         Holiday.setupCurrentSchoolYear();
@@ -99,10 +105,6 @@ public final class Application {
 
         if (getInstance().runsWebServer()) {
             Server.getInstance().getWebServer().start();
-        }
-        if (!getInstance().suppressCmd()) {
-            Command.registerCommands();
-            CommandLineUtils.setup();
         }
 
         while (true) {

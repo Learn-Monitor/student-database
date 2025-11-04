@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
+import de.igslandstuhl.database.server.webserver.handlers.WebResourceHandler;
 
 public class ContentTypeTest {
     private User student;

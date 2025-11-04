@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.server.webserver;
+package de.igslandstuhl.database.server.webserver.handlers;
 
 import java.util.Arrays;
 

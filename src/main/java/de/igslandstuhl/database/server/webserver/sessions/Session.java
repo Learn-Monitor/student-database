@@ -1,10 +1,11 @@
-package de.igslandstuhl.database.server.webserver;
+package de.igslandstuhl.database.server.webserver.sessions;
 
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
+import de.igslandstuhl.database.server.webserver.Cookie;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 
 public class Session {

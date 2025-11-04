@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import com.google.gson.JsonSyntaxException;
 
+import de.igslandstuhl.database.server.webserver.requests.HttpHeader;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
 
 public class PostRequestTest {
