@@ -14,7 +14,7 @@ public final class WebResourceHandler {
     private static final String[] SQL_WEB_RESOURCES = {"/mydata", "/rooms", "/mysubjects", "/myclasses", "/teachers", "/students", "/subjects", "/classes"};
     private static String[] userOnlySpace = {"dashboard", "build_dashboard.js", "results", "build_results.js", "partner_search", "build_partner_search.js"};
     private static String[] teacherOnlySpace = {"dashboard", "build_dashboard.js", "student", "build_student.js", "student-results", "build_results.js"};
-    private static String[] adminOnlySpace = {"dashboard", "build_dashboard.js", "manage_students", "manage_teachers", "manage_classes", "manage_subjects", "manage_rooms", "student", "student-results", "teacher", "build_teacher.js", "room", "build_room.js", "subject", "build_subject.js", "class", "build_class.js", "teacher-classes", "teacher-subjects", "teacher-students", "teacher-results", "teacher-dashboard", "build_teacher_dashboard.js"};
+    private static String[] adminOnlySpace = {"dashboard", "modules", "build_modules.js", "build_dashboard.js", "manage_students", "manage_teachers", "manage_classes", "manage_subjects", "manage_rooms", "student", "student-results", "teacher", "build_teacher.js", "room", "build_room.js", "subject", "build_subject.js", "class", "build_class.js", "teacher-classes", "teacher-subjects", "teacher-students", "teacher-results", "teacher-dashboard", "build_teacher_dashboard.js"};
 
     private WebResourceHandler(){}
 
