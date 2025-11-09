@@ -35,5 +35,15 @@ public class ModuleSetting<T> {
     public void setValue(T value) {
         this.value = value;
     }
+
+    public String toJSON() {
+        return "{" +
+                "\"key\":\"" + key + "\"," +
+                "\"name\":\"" + name + "\"," +
+                "\"description\":\"" + description + "\"," +
+                "\"defaultValue\":\"" + defaultValue + "\"," +
+                "\"value\":\"" + value + "\"" +
+                "}";
+    }
     
 }

@@ -34,6 +34,25 @@ public abstract class WebModule {
         return enabled;
     }
 
+    public String toJSON() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        sb.append("\"id\":\"").append(id).append("\",");
+        sb.append("\"name\":\"").append(name).append("\",");
+        sb.append("\"description\":\"").append(description).append("\",");
+        sb.append("\"enabled\":").append(enabled).append(",");
+        sb.append("\"settings\":{");
+        for (int i = 0; i < settings.size(); i++) {
+            sb.append("\"").append(settings.get(i).getKey()).append("\":").append(settings.get(i).toJSON());
+            if (i < settings.size() - 1) {
+                sb.append(",");
+            }
+        }
+        sb.append("}");
+        sb.append("}");
+        return sb.toString();
+    }
+
     public List<ModuleSetting<?>> getSettings() {
         return settings;
     }
@@ -67,8 +86,19 @@ public abstract class WebModule {
         onDisable();
         enabled = false;
     }
+    public void toggle() {
+        if (enabled) {
+            disable();
+        } else {
+            enable();
+        }
+    }
     public void load() {
         onLoad();
+    }
+
+    public void toggleSetting(String key) {
+        getBoolSetting(key).toggle();
     }
 
     private static class DummyModule extends WebModule {
@@ -103,4 +133,5 @@ public abstract class WebModule {
             new BoolSetting("show_current_grade", "Show Currently Achieved Grade", "Whether to display the grade the student would achieve when they decide to immediately stop working", false)
         )));
     }
+
 }

@@ -399,5 +399,18 @@ public class PostRequestHandler {
         HttpHandler.registerPostRequestHandler("/change-graduation-level", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<Student>() {}, PostResponse.ok("Successfully changed graduation level", ContentType.TEXT_PLAIN, rq), (student) -> student.changeGraduationLevel(rq.getInt("graduationLevel")))
         );
+
+        HttpHandler.registerPostRequestHandler("/get-module", AccessLevel.USER, (rq) -> {
+            return PostResponse.ok(Registry.moduleRegistry().get(rq.getString("key")).toJSON(), ContentType.JSON, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/toggle-module", AccessLevel.ADMIN, (rq) -> {
+            Registry.moduleRegistry().get(rq.getString("key")).toggle();
+            return PostResponse.ok("Module toggled", ContentType.TEXT_PLAIN, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/toggle-module-setting", AccessLevel.ADMIN, (rq) -> {
+            String[] key = rq.getString("key").split(":");
+            Registry.moduleRegistry().get(key[0]).toggleSetting(key[1]);
+            return PostResponse.ok("Module setting toggled", ContentType.TEXT_PLAIN, rq);
+        });
     }
 }
