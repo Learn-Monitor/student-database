@@ -81,22 +81,22 @@ public class SQLHelper {
     }
 
     /**
-     * Gets an SQL add statement for a specific object and replaces placeholders with provided arguments.
-     *
-     * @param object the name of the object to add (e.g., "student", "course")
-     * @param args   the arguments to replace in the SQL statement
-     * @return the SQL add statement as a String with placeholders replaced
+     * Gets an SQL statement for a specific type and object.
+     * @param type the type of SQL operation (e.g., "add", "delete", "update")
+     * @param object the name of the object (e.g., "student", "course")
+     * @return the SQL statement as a String
      */
-    public static String getSQLAddStatement(String object) {
-        ResourceLocation location = new ResourceLocation(CONTEXT, PUSHES, "add_" + object + ".sql");
+    private static String getSQLStatement(String type, String object) {
+        ResourceLocation location = new ResourceLocation(CONTEXT, PUSHES, type + "_" + object + ".sql");
         String statement;
         try {
             statement = ResourceHelper.readResourceCompletely(location);
         } catch (FileNotFoundException e) {
-            throw new SQLCommandNotFoundException("add_" + object, e);
+            throw new SQLCommandNotFoundException(type + "_" + object, e);
         }
         return statement;
     }
+
     /**
      * Gets an SQL process for adding an object to the database.
      *
@@ -105,25 +105,7 @@ public class SQLHelper {
      * @return a SQLVoidProcess that executes the add statement
      */
     public static SQLVoidProcess getAddObjectProcess(String object, String... args) {
-        return SQLVoidProcess.update(getSQLAddStatement(object), args);
-    }
-
-    /**
-     * Gets an SQL delete statement for a specific object and replaces placeholders with provided arguments.
-     *
-     * @param object the name of the object to add (e.g., "student", "course")
-     * @param args   the arguments to replace in the SQL statement
-     * @return the SQL add statement as a String with placeholders replaced
-     */
-    public static String getSQLDeleteStatement(String object) {
-        ResourceLocation location = new ResourceLocation(CONTEXT,PUSHES, "delete_" + object + ".sql");
-        String statement;
-        try {
-            statement = ResourceHelper.readResourceCompletely(location);
-        } catch (FileNotFoundException e) {
-            throw new SQLCommandNotFoundException("delete_" + object, e);
-        }
-        return statement;
+        return SQLVoidProcess.update(getSQLStatement("add", object), args);
     }
 
     /**
@@ -134,25 +116,7 @@ public class SQLHelper {
      * @return a SQLVoidProcess that executes the add statement
      */
     public static SQLVoidProcess getDeleteObjectProcess(String object, String... args) {
-        return SQLVoidProcess.update(getSQLDeleteStatement(object), args);
-    }
-
-        /**
-     * Gets an SQL delete statement for a specific object and replaces placeholders with provided arguments.
-     *
-     * @param object the name of the object to add (e.g., "student", "course")
-     * @param args   the arguments to replace in the SQL statement
-     * @return the SQL add statement as a String with placeholders replaced
-     */
-    public static String getSQLUpdateStatement(String object) {
-        ResourceLocation location = new ResourceLocation(CONTEXT,PUSHES, "update_" + object + ".sql");
-        String statement;
-        try {
-            statement = ResourceHelper.readResourceCompletely(location);
-        } catch (FileNotFoundException e) {
-            throw new SQLCommandNotFoundException("update_" + object, e);
-        }
-        return statement;
+        return SQLVoidProcess.update(getSQLStatement("delete", object), args);
     }
 
     /**
@@ -163,6 +127,6 @@ public class SQLHelper {
      * @return a SQLVoidProcess that executes the add statement
      */
     public static SQLVoidProcess getUpdateObjectProcess(String object, String... args) {
-        return SQLVoidProcess.update(getSQLUpdateStatement(object), args);
+        return SQLVoidProcess.update(getSQLStatement("update", object), args);
     }
 }
