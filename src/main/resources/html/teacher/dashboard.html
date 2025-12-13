@@ -1,82 +1,9 @@
-<!DOCTYPE html>
-<html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Lehrer Dashboard</title>
-        <link rel="stylesheet" href="/style.css">
-        <script src="build_dashboard.js" defer></script>
-    </head>
-    <body>
-        <div id="dashboard">
-            <header>
-                <h1>Willkommen, Lehrer</h1>
-            </header>
-            <section id="class-info">
-                <h2>Klassenübersicht</h2>
-                <section id="class-selection">
-                    <label for="classSelect">Wählen Sie eine Klasse:</label>
-                    <select id="classSelect"></select>
-                </section>
-                <section id="student-list">
-                    <h3>Schüler in der Klasse:</h3>
-                    <table id="studentTable">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Raum</th>
-                                <th>Graduierung</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="studentTableBody"></tbody>
-                    </table>
-                </section>
-            </section>
-            <section id="subject-info">
-                <h2>Fächerübersicht</h2>
-                <section id="subject-selection">
-                    <label for="subjectSelect">Wählen Sie ein Fach:</label>
-                    <select id="subjectSelect"></select>
-                    <label for="classSelectSubject">Wählen Sie eine Klasse:</label>
-                    <select id="classSelectSubject"></select>
-                </section>
-                <section id="subject-student-list">
-                    <h3>Schüler in der Klasse:</h3>
-                    <table id="subjectStudentTable">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Braucht Unterstützung</th>
-                                <th>Braucht Betreuung für Experiment</th>
-                                <th>Sucht Partner</th>
-                                <th>Ist bereit für den Gelingensnachweis</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="subjectStudentTableBody"></tbody>
-                    </table>
-            </section>
-            <section id="room-info">
-                <h2>Raumübersicht</h2>
-                <section id="subject-selection">
-                    <label for="roomSelect">Wählen Sie einen Raum:</label>
-                    <select id="roomSelect"></select>
-                </section>
-                <section id="room-student-list">
-                    <h3>Schüler im Raum:</h3>
-                    <table id="roomStudentTable">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Braucht Unterstützung</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="roomStudentTableBody"></tbody>
-                    </table>
-                </section>
-            </section>
-        </div>
-    </body>
-</html>
+%[site;title=Lehrer-Dashboard;content=!FOLLOWS]
+<div id="dashboard">
+    <header>
+        <h1>Willkommen, Lehrer</h1>
+    </header>
+    %[class_info]
+    %[subject_info]
+    %[room_info]
+</div>

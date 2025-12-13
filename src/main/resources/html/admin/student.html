@@ -1,22 +1,6 @@
-%[site;title=Schüler-Dashboard;content=!FOLLOWS]
-<div id="dashboard">
-    <header>
-        <h1>Schüler: <span id="student-name"></span></h1>
-        <p>Klasse: <span id="student-class"></span> | E-Mail: <span id="student-email"></span> | Graduierung: <span id="student-graduation"></span></p>
-    </header>
-    <section id="room-selection">
-        <label for="room">Der Schüler befindet sich gerade im Raum:</label>
-        <select id="room"></select>
-    </section>
-    <section id="subjects">
-        <h2>Fächer</h2>
-        <div id="subject-list"></div>
-    </section>
-    <nav>
-        <a href="/student-results"><button id="results-button">Ergebnisse anzeigen</button></a>
-        <a href="/teacher"><button id="teacher-button">Zurück zur Lehrer-Ansicht</button></a>
-        <a href="/class"><button id="class-button">Zurück zur Klassen-Ansicht</button></a>
-        <a href="/dashboard"><button id="dashboard-button">Zurück zum Admin-Dashboard</button></a>
-    </nav>
-</div>
-<script src="build_student.js"></script>
+%[student_dashboard;script=build_student.js;nav=
+    <a href="/student-results"><button id="results-button">Ergebnisse anzeigen</button></a>
+    <a href="/teacher"><button id="teacher-button">Zurück zur Lehrer-Ansicht</button></a>
+    <a href="/class"><button id="class-button">Zurück zur Klassen-Ansicht</button></a>
+    <a href="/dashboard"><button id="dashboard-button">Zurück zum Admin-Dashboard</button></a>
+]
