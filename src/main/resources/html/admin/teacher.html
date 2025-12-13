@@ -28,11 +28,4 @@
         <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
     </nav>
 </section>
-<script>
-    teacher = JSON.parse(sessionStorage.getItem("currentTeacher"));
-    console.log(teacher);
-    document.getElementById("teacher-name").textContent = teacher.firstName + " " + teacher.lastName;
-    teacherId = teacher.id;
-    Array.from(document.getElementsByClassName("teacherId")).forEach(e => e.value = teacherId);
-</script>
 <script src="build_teacher.js"></script>
