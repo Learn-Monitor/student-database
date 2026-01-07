@@ -3,4 +3,20 @@
     <a href="teacher"><button id="teacher-button">Zurück zum Lehrer-Profil</button></a>
     <a href="class"><button id="class-button">Zurück zur Klassenübersicht</button></a>
     <a href="student"><button id="student-button">Zurück zum Schüler-Profil</button></a>
+    <form id="download-student-results-csv" method="post" action="/student-results-csv">
+        <input type="hidden" name="studentId" id="studentId">
+        <button type="submit" id="download-student-results-button">Schülerergebnisse als CSV herunterladen</button>
+    </form>
+    <script>
+        document.getElementById('download-student-results-csv').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const studentId = Number(form['studentId'].value);
+
+            postDataAndDownload('/student-results-csv', JSON.stringify({ studentId }), 'schueler_ergebnisse_' + studentId + '.csv');
+        });
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('studentId').value = studentId;
+        })
+    </script>
 ]

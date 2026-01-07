@@ -17,5 +17,39 @@
             </thead>
             <tbody id="studentTableBody"></tbody>
         </table>
+        <form id="download-class-results-form" method="post" action="/class-results">
+            <input type="hidden" class="classId" name="classId">
+            <label for="subjectSelectClass">Fach:</label>
+            <select id="subjectSelectClass" name="subject"><!-- content generated automatically --></select>
+            <button type="submit">Ergebnisse für diese Klasse herunterladen</button>
+        </form>
+        <form id="download-completed-tasks-form" method="post" action="/completed-tasks">
+            <input type="hidden" class="classId" name="classId">
+            <label for="subjectSelectTasks">Fach:</label>
+            <select id="subjectSelectTasks" name="subject"><!-- content generated automatically --></select>
+            <button type="submit">Abgeschlossene Aufgaben für diese Klasse herunterladen</button>
+        </form>
+        <script>
+        document.getElementById('download-class-results-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const classId = Number(document.getElementById('classSelect').value);
+            const subjectId = Number(form['subject'].value);
+
+            postDataAndDownload('/class-results', JSON.stringify({ classId, subjectId }), 'schueler_ergebnisse_' + classId + '_' + subjectId + '.csv');
+        });
+        document.getElementById('download-completed-tasks-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const classId = Number(document.getElementById('classSelect').value);
+            const subjectId = Number(form['subject'].value);
+
+            postDataAndDownload('/completed-tasks', JSON.stringify({ classId, subjectId }), 'abgeschlossene_etappen_' + classId + '_' + subjectId + '.csv');
+        });
+        document.addEventListener('DOMContentLoaded', async function() {
+            populateSubjectSelect('subjectSelectClass', await fetchAllSubjects());
+            populateSubjectSelect('subjectSelectTasks', await fetchAllSubjects());
+        });
+        </script>
     </section>
 </section>

@@ -16,6 +16,7 @@
     "admin_locations": [
         "students",
         "teachers",
-        "classes"
+        "classes",
+        "all-student-results"
     ]
 }
