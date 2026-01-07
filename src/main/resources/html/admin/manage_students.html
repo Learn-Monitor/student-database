@@ -14,7 +14,17 @@
         </section>
         <section id="student-list">
             <h2>Schülerliste</h2>
-            <a href="/students" download="schueler.json"><button id="download-students">Schülerliste herunterladen</button></a>
+            <section id="student-downloads">
+                <a href="/students" download="schueler.json"><button id="download-students">Schülerliste herunterladen</button></a>
+                <a href="/all-student-results" download="schueler_ergebnisse.csv"><button id="download-student-results">Schülerergebnisse herunterladen</button></a>
+                <form id="download-grade-results-form" method="post" action="/grade-results">
+                    <label for="grade-input">Abschlussstufe:</label>
+                    <input type="number" id="grade-input" name="grade" min="1" max="13" required>
+                    <label for="subjectSelect">Fach:</label>
+                    <select id="subjectSelect" name="subject"><!-- content generated automatically --></select>
+                    <button type="submit">Ergebnisse für Abschlussstufe herunterladen</button>
+                </form>
+            </section>
             <section id="class-selection">
                 <label for="classSelect">Wählen Sie eine Klasse:</label>
                 <select id="classSelect"></select>
@@ -43,6 +53,14 @@
         const csv = form['csv'].value;
 
         postDataAndDownload('/add-students', csv, 'schueler.csv');
+    });
+    document.getElementById('download-grade-results-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const grade = Number(form['grade'].value);
+        const subjectId = Number(form['subject'].value);
+
+        postDataAndDownload('/grade-results', JSON.stringify({ grade, subjectId }), 'schueler_ergebnisse_' + grade + '_' + subjectId + '.csv');
     });
 
     async function onClassChange(event) {
@@ -79,5 +97,6 @@
         populateClassSelect(classSelect, classes);
         classSelect.addEventListener('change', onClassChange);
         onClassChange({ target: classSelect }); // Trigger initial load
+        populateSubjectSelect('subjectSelect', await fetchAllSubjects());
     });
 </script>

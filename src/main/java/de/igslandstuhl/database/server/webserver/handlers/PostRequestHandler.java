@@ -415,5 +415,30 @@ public class PostRequestHandler {
             Registry.moduleRegistry().get(key[0]).toggleSetting(key[1]);
             return PostResponse.ok("Module setting toggled", ContentType.TEXT_PLAIN, rq);
         });
+
+        HttpHandler.registerPostRequestHandler("/student-results-csv", AccessLevel.TEACHER, (rq) -> {
+            Student student = rq.getCurrentStudent();
+            if (student == null) return PostResponse.badRequest("There is no current student", rq);
+            return PostResponse.ok(student.getResultsCSV(), ContentType.CSV, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/completed-tasks", AccessLevel.TEACHER, (rq) -> {
+            SchoolClass schoolClass = rq.getSchoolClass();
+            Subject subject = rq.getSubject();
+            if (schoolClass == null) return PostResponse.badRequest("No school class specified", rq);
+            if (subject == null) return PostResponse.badRequest("No subject specified", rq);
+            return PostResponse.ok(schoolClass.getCompletedTasksCSV(subject), ContentType.CSV, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/class-results", AccessLevel.TEACHER, (rq) -> {
+            SchoolClass schoolClass = rq.getSchoolClass();
+            Subject subject = rq.getSubject();
+            if (schoolClass == null) return PostResponse.badRequest("No school class specified", rq);
+            if (subject == null) return PostResponse.badRequest("No subject specified", rq);
+            return PostResponse.ok(schoolClass.getResultsCSV(subject), ContentType.CSV, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/grade-results", AccessLevel.ADMIN, (rq) -> {
+            int grade = rq.getInt("grade");
+            Subject subject = rq.getSubject(); 
+            return PostResponse.ok(SchoolClass.getResultsCSV(grade, subject), ContentType.CSV, rq);
+        });
     }
 }
