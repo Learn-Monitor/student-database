@@ -28,26 +28,26 @@ select {
   margin-left: 10px;
 }
 
-.subject-panel {
+.panel {
   border: 1px solid #ccc;
   border-radius: 5px;
   margin-bottom: 10px;
   background: #f8f9fa;
 }
 
-.subject-panel h3 {
+.panel h3 {
   margin: 0;
   padding: 10px;
   cursor: pointer;
   background: #dee2e6;
 }
 
-.subject-panel .panel-body {
+.panel .panel-body {
   display: none;
   padding: 10px;
 }
 
-.subject-panel.active .panel-body {
+.panel.active .panel-body {
   display: block;
 }
 

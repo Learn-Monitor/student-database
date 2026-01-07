@@ -1,0 +1,21 @@
+{
+    "public_spaces": [
+        "error",
+        "site",
+        "icons"
+    ],
+    "user_space": "user",
+    "teacher_space": "teacher",
+    "admin_space": "admin",
+    "public_locations": [
+        "rooms",
+        "subjects"
+    ],
+    "user_locations": [],
+    "teacher_locations": [],
+    "admin_locations": [
+        "students",
+        "teachers",
+        "classes"
+    ]
+}

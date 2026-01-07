@@ -17,11 +17,15 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 import de.igslandstuhl.database.server.Server;
 
@@ -274,6 +278,15 @@ public class ResourceHelper {
             return Server.getInstance().getSQLResource(user, location.resource());
         } else {
             return null;
+        }
+    }
+
+    public static Map<String,?> readJsonResourceAsMap(ResourceLocation location) throws IOException {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(openResourceAsStream(location), StandardCharsets.UTF_8))) {
+            Gson gson = new Gson();
+            java.lang.reflect.Type mapType = new TypeToken<Map<String, Object>>(){}.getType();
+            Map<String, Object> json = gson.fromJson(in, mapType);
+            return json;
         }
     }
 }

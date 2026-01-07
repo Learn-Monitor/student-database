@@ -1,112 +1,31 @@
-<!DOCTYPE html>
-<html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Lehrerverwaltung</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body>
-        <section id="dashboard">
-            <header>
-                <h1>Lehrerverwaltung - <span id="teacher-name"></span></h1>
-            </header>
-            <main>
-                <section id="edit-teacher">
-                    <h2>Lehrer bearbeiten</h2>
-                    <form id="addSubjectToTeacherForm" method="POST" action="/add-subject-to-teacher">
-                        <label for="editSubjectSelect">Fach auswählen:</label>
-                        <input type="hidden" name="teacherId" class="teacherId">
-                        <select id="editSubjectSelect" name="subjectId" required></select>
-                        <button type="submit">Fach hinzufügen</button>
-                    </form>
-                    <form id="addClassToTeacherForm" method="POST" action="/add-class-to-teacher">
-                        <input type="hidden" name="teacherId" class="teacherId">
-                        <label for="editClassSelect">Klasse auswählen:</label>
-                        <select id="editClassSelect" name="classId" required></select>
-                        <button type="submit">Klasse hinzufügen</button>
-                    </form>
-                </section>
-                <section id="class-info">
-                    <h2>Klassenübersicht</h2>
-                    <section id="class-selection">
-                        <label for="classSelect">Wählen Sie eine Klasse:</label>
-                        <select id="classSelect"></select>
-                    </section>
-                    <section id="student-list">
-                        <h3>Schüler in der Klasse:</h3>
-                        <table id="studentTable">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Raum</th>
-                                    <th>Graduierung</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody id="studentTableBody"></tbody>
-                        </table>
-                    </section>
-                </section>
-                <section id="subject-info">
-                    <h2>Fächerübersicht</h2>
-                    <section id="subject-selection">
-                        <label for="subjectSelect">Wählen Sie ein Fach:</label>
-                        <select id="subjectSelect"></select>
-                        <label for="classSelectSubject">Wählen Sie eine Klasse:</label>
-                        <select id="classSelectSubject"></select>
-                    </section>
-                    <section id="subject-student-list">
-                        <h3>Schüler in der Klasse:</h3>
-                        <table id="subjectStudentTable">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Braucht Unterstützung</th>
-                                    <th>Braucht Betreuung für Experiment</th>
-                                    <th>Sucht Partner</th>
-                                    <th>Ist bereit für den Gelingensnachweis</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody id="subjectStudentTableBody"></tbody>
-                        </table>
-                    </section>
-                    
-                    <section id="room-info">
-                        <h2>Raumübersicht</h2>
-                        <section id="subject-selection">
-                            <label for="roomSelect">Wählen Sie einen Raum:</label>
-                            <select id="roomSelect"></select>
-                        </section>
-                        <section id="room-student-list">
-                            <h3>Schüler im Raum:</h3>
-                            <table id="roomStudentTable">
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Braucht Unterstützung</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="roomStudentTableBody"></tbody>
-                            </table>
-                        </section>
-                    </section>
-                </section>
-            </main>
-            <nav>
-                <a href="/manage_teachers"><button>Zurück zur Lehrerverwaltung</button></a>
-                <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
-            </nav>
+%[site;title=Lehrerverwaltung;content=!FOLLOWS]
+<section id="dashboard">
+    <header>
+        <h1>Lehrerverwaltung - <span id="teacher-name"></span></h1>
+    </header>
+    <main>
+        <section id="edit-teacher">
+            <h2>Lehrer bearbeiten</h2>
+            <form id="addSubjectToTeacherForm" method="POST" action="/add-subject-to-teacher">
+                <label for="editSubjectSelect">Fach auswählen:</label>
+                <input type="hidden" name="teacherId" class="teacherId">
+                <select id="editSubjectSelect" name="subjectId" required></select>
+                <button type="submit">Fach hinzufügen</button>
+            </form>
+            <form id="addClassToTeacherForm" method="POST" action="/add-class-to-teacher">
+                <input type="hidden" name="teacherId" class="teacherId">
+                <label for="editClassSelect">Klasse auswählen:</label>
+                <select id="editClassSelect" name="classId" required></select>
+                <button type="submit">Klasse hinzufügen</button>
+            </form>
         </section>
-        <script>
-            teacher = JSON.parse(sessionStorage.getItem("currentTeacher"));
-            console.log(teacher);
-            document.getElementById("teacher-name").textContent = teacher.firstName + " " + teacher.lastName;
-            teacherId = teacher.id;
-            Array.from(document.getElementsByClassName("teacherId")).forEach(e => e.value = teacherId);
-        </script>
-        <script src="build_teacher.js"></script>
-    </body>
-</html>
+        %[class_info]
+        %[subject_info]
+        %[room_info]
+    </main>
+    <nav>
+        <a href="/manage_teachers"><button>Zurück zur Lehrerverwaltung</button></a>
+        <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
+    </nav>
+</section>
+<script src="build_teacher.js"></script>

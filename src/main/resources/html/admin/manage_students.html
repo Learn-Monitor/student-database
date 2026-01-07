@@ -1,167 +1,83 @@
-<!DOCTYPE html>
-<html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Schülerverwaltung</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body>
-        <section id="students">
-            <header>
-                <h1>Schülerverwaltung</h1>
-            </header>
-            <main>
-                <section id="add-students">
-                    <h2>Schüler hinzufügen aus edu.sys</h2>
-                    <form id="add-students-form" method="post" action="/add-students">
-                        <label for="csv-input">CSV-Datei:</label>
-                        <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="ID,Vorname,Nachname,Klasse,Abschlussstufe,E-Mail"></textarea>
-                        <button type="submit">Schüler hinzufügen</button>
-                    </form>
-                </section>
-                <section id="student-list">
-                    <h2>Schülerliste</h2>
-                    <a href="/students" download="schueler.json"><button id="download-students">Schülerliste herunterladen</button></a>
-                    <section id="class-selection">
-                        <label for="classSelect">Wählen Sie eine Klasse:</label>
-                        <select id="classSelect"></select>
-                    </section>
-                    <table id="studentTable">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Raum</th>
-                                <th>Graduierung</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="studentTableBody"></tbody>
-                    </table>
-                </section>
-            </main>
-            <nav>
-                <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
-            </nav>
+%[site;title=Schülerverwaltung;content=!FOLLOWS]
+<section id="students">
+    <header>
+        <h1>Schülerverwaltung</h1>
+    </header>
+    <main>
+        <section id="add-students">
+            <h2>Schüler hinzufügen aus edu.sys</h2>
+            <form id="add-students-form" method="post" action="/add-students">
+                <label for="csv-input">CSV-Datei:</label>
+                <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="ID,Vorname,Nachname,Klasse,Abschlussstufe,E-Mail"></textarea>
+                <button type="submit">Schüler hinzufügen</button>
+            </form>
         </section>
-        <script>
-            document.getElementById('add-students-form').addEventListener('submit', async function(e) {
-                e.preventDefault();
-                const form = e.target;
-                const csv = form['csv'].value;
+        <section id="student-list">
+            <h2>Schülerliste</h2>
+            <a href="/students" download="schueler.json"><button id="download-students">Schülerliste herunterladen</button></a>
+            <section id="class-selection">
+                <label for="classSelect">Wählen Sie eine Klasse:</label>
+                <select id="classSelect"></select>
+            </section>
+            <table id="studentTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Raum</th>
+                        <th>Graduierung</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="studentTableBody"></tbody>
+            </table>
+        </section>
+    </main>
+    <nav>
+        <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
+    </nav>
+</section>
+<script>
+    document.getElementById('add-students-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const csv = form['csv'].value;
 
-                const response = await fetch('/add-students', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: csv
-                });
+        postDataAndDownload('/add-students', csv, 'schueler.csv');
+    });
 
-                if (response.ok) {
-                    const blob = await response.blob();
-                    // Try to get filename from Content-Disposition header
-                    let filename = "schüler.csv";
-                    const disposition = response.headers.get('Content-Disposition');
-                    if (disposition && disposition.includes('filename=')) {
-                        filename = disposition.split('filename=')[1].replace(/["']/g, "");
-                    }
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    window.location.reload();
-                } else if (response.status === 401) {
-                    alert("Nicht autorisiert! Bitte melden Sie sich an.");
-                    window.location.href = "/login";
-                } else {
-                    alert("Fehler beim Hochladen der Datei!");
+    async function onClassChange(event) {
+        const selectedClassId = Number(event.target.value);
+        populateStudentTable(selectedClassId, "studentTable", (newRow, student) => {
+            newRow.innerHTML = `
+                <td class="student-name">${student.name}</td>
+                <td class="student-room">${student.room}</td>
+                <td class="student-graduation-level"></td>
+                <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
+            `;
+            const graduationLevelSelect = document.createElement('select');
+            for (let i = 0;i<graduationLevels.length;i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = graduationLevels[i];
+                option.selected = (i == student.graduationLevel);
+                graduationLevelSelect.appendChild(option);
+            }
+            graduationLevelSelect.addEventListener('change',  async e => {
+                const result = await changeGraduationLevel(student.id, Number(e.target.value));
+                if (!result.ok) {
+                    graduationLevelSelect.value = student.graduationLevel;
+                    alert("An error occured while trying to change the student's graduation");
                 }
             });
-            async function fetchJson(url, options) {
-                const res = await fetch(url, options);
-                if (res.ok) {
-                    return await res.json();
-                } else {
-                    return []
-                }
-            }
+            newRow.getElementsByClassName('student-graduation-level')[0].appendChild(graduationLevelSelect);
+        });
+    }
 
-            async function fetchClasses() {
-                const classes = await fetchJson('/classes');
-                return classes;
-            }
-            function populateClassSelect(classSelect, classes) {
-                classSelect.innerHTML = ""; // clear previous options if any
-                classes.forEach(cls => {
-                    const option = document.createElement('option');
-                    option.value = cls.classId || cls.id;
-                    option.textContent = cls.name || cls.label;
-                    classSelect.appendChild(option);
-                });
-            }
-
-            async function onClassChange(event) {
-                const selectedClassId = event.target.value;
-                const students = await fetchJson("/student-list", {
-                    method: 'POST',
-                    body: JSON.stringify({ classId: Number(selectedClassId) }),
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                const studentTable = document.getElementById("studentTableBody");
-                studentTable.innerHTML = ""; // clear previous rows
-                students.forEach(student => {
-                    const row = document.createElement('tr');
-                    const graduationLevels = ["Neustarter", "Starter", "Durchstarter", "Lernprofi"];
-                    row.innerHTML = `
-                        <td class="student-name">${student.name}</td>
-                        <td class="student-room">${student.room}</td>
-                        <td class="student-graduation-level"></td>
-                        <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
-                    `;
-                    const graduationLevelSelect = document.createElement('select');
-                    for (let i = 0;i<graduationLevels.length;i++) {
-                        const option = document.createElement('option');
-                        option.value = i;
-                        option.textContent = graduationLevels[i];
-                        option.selected = (i == student.graduationLevel);
-                        graduationLevelSelect.appendChild(option);
-                    }
-                    graduationLevelSelect.addEventListener('change',  async e => {
-                        const result = await fetch('/change-graduation-level', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body : JSON.stringify({ graduationLevel: Number(e.target.value), studentId: student.id })
-                        });
-                        if (!result.ok) {
-                            graduationLevelSelect.value = student.graduationLevel;
-                            alert("An error occured while trying to change the student's graduation");
-                        }
-                    });
-                    row.getElementsByClassName('student-graduation-level')[0].appendChild(graduationLevelSelect);
-                    studentTable.appendChild(row);
-                });
-            }
-            function viewStudent(studentId) {
-                // Add studentId to session storage
-                sessionStorage.setItem('selectedStudentId', studentId);
-                // Redirect to student dashboard
-                window.location.href = `/student`;
-            }
-
-            document.addEventListener('DOMContentLoaded', async () => {
-                const classSelect = document.getElementById('classSelect');
-                const classes = await fetchClasses();
-                populateClassSelect(classSelect, classes);
-                classSelect.addEventListener('change', onClassChange);
-                onClassChange({ target: classSelect }); // Trigger initial load
-            });
-        </script>
-    </body>
-</html>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const classSelect = document.getElementById('classSelect');
+        const classes = await fetchClasses();
+        populateClassSelect(classSelect, classes);
+        classSelect.addEventListener('change', onClassChange);
+        onClassChange({ target: classSelect }); // Trigger initial load
+    });
+</script>

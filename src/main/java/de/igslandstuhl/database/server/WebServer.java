@@ -22,11 +22,11 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import de.igslandstuhl.database.server.webserver.handlers.GetRequestHandler;
 import de.igslandstuhl.database.server.webserver.handlers.PostRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
 import de.igslandstuhl.database.server.webserver.requests.HttpHeader;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
-import de.igslandstuhl.database.server.webserver.responses.GetResponse;
 import de.igslandstuhl.database.server.webserver.responses.HttpResponse;
 import de.igslandstuhl.database.server.webserver.responses.PostResponse;
 import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
@@ -129,15 +129,8 @@ public class WebServer implements Runnable {
         }
 
         void handleGet(String headerString, PrintStream out) {
-            SessionManager sessionManager = Server.getInstance().getWebServer().getSessionManager();
             GetRequest get = new GetRequest(headerString, clientIp, secure);
-            GetResponse response;
-            if (!sessionManager.validateSession(get)) {
-                response = GetResponse.forbidden(get);
-            } else {
-                String user = sessionManager.getSessionUser(get).getUsername();
-                response = GetResponse.getResource(get, get.toResourceLocation(user), user);
-            }
+            HttpResponse response = GetRequestHandler.getInstance().handleRequest(get);
             response.respond(out);
         }
 

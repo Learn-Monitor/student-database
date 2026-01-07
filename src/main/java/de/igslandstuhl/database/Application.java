@@ -11,6 +11,8 @@ import de.igslandstuhl.database.api.modules.WebModule;
 import de.igslandstuhl.database.holidays.Holiday;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.commands.Command;
+import de.igslandstuhl.database.server.webserver.WebPath;
+import de.igslandstuhl.database.server.webserver.handlers.GetRequestHandler;
 import de.igslandstuhl.database.server.webserver.handlers.PostRequestHandler;
 import de.igslandstuhl.database.utils.CommandLineUtils;
 
@@ -104,6 +106,9 @@ public final class Application {
         Holiday.setupCurrentSchoolYear();
         PostRequestHandler.registerHandlers();
         WebModule.registerModules();
+
+        WebPath.registerPaths();
+        GetRequestHandler.getInstance().registerHandlers();
 
         if (getInstance().runsWebServer()) {
             Server.getInstance().getWebServer().start();

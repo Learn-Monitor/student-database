@@ -1,73 +1,53 @@
-<!DOCTYPE html>
-<html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Klassen verwalten</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body>
-        <section id="classes">
-            <header>
-                <h1>Klassen verwalten</h1>
-            </header>
-            <main>
-                <section id="addClass">
-                    <h2>Klasse hinzufügen</h2>
-                    <form id="addClassForm" method="post" action="/add-class">
-                        <label for="className">Name der Klasse:</label>
-                        <input type="text" id="className" name="className" required>
-                        <label for="grade">Stufe:</label>
-                        <input type="number" id="grade" name="grade" required>
-                        <button type="submit">Hinzufügen</button>
-                    </form>
-                </section>
-                <section id="classList">
-                    <h2>Klassenübersicht</h2>
-                    <table id="classTable">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Name</th>
-                                <th>Stufe</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- class rows will be inserted here -->
-                        </tbody>
-                    </table>
-                </section>
-            </main>
-            <nav>
-                <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
-            </nav>
+%[site;title=Klassen verwalten;content=!FOLLOWS]
+<section id="classes">
+    <header>
+        <h1>Klassen verwalten</h1>
+    </header>
+    <main>
+        <section id="addClass">
+            <h2>Klasse hinzufügen</h2>
+            <form id="addClassForm" method="post" action="/add-class">
+                <label for="className">Name der Klasse:</label>
+                <input type="text" id="className" name="className" required>
+                <label for="grade">Stufe:</label>
+                <input type="number" id="grade" name="grade" required>
+                <button type="submit">Hinzufügen</button>
+            </form>
         </section>
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                loadClasses();
-            });
+        <section id="classList">
+            <h2>Klassenübersicht</h2>
+            <table id="classTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Stufe</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- class rows will be inserted here -->
+                </tbody>
+            </table>
+        </section>
+    </main>
+    <nav>
+        <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
+    </nav>
+</section>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadClasses();
+    });
 
-            async function loadClasses() {
-                const classes = await fetch('/classes')
-                    .then(response => response.json())
-                    .catch(error => console.error('Error fetching classes:', error));
-
-                const classTable = document.getElementById('classTable').getElementsByTagName('tbody')[0];
-                classes.forEach(cls => {
-                    const newRow = classTable.insertRow();
-                    newRow.innerHTML = `
-                        <td>${cls.id}</td>
-                        <td>${cls.label}</td>
-                        <td>${cls.grade}</td>
-                        <td><button class="edit" onclick="editClass(${JSON.stringify(cls).replaceAll('"',"'")})">Bearbeiten</button></td>
-                    `;
-                });
-            }
-            function editClass(cls) {
-                sessionStorage.setItem('currentClass', JSON.stringify(cls));
-                window.location.href = '/class';
-            }
-        </script>
-    </body>
-</html>
+    async function loadClasses() {
+        populateTable("/classes", "classTable", (newRow, cls) => {
+            newRow.innerHTML = `
+                <td>${cls.id}</td>
+                <td>${cls.label}</td>
+                <td>${cls.grade}</td>
+                <td><button class="edit" onclick='viewClass(${JSON.stringify(cls)})'>Bearbeiten</button></td>
+            `;
+        });
+    }
+</script>

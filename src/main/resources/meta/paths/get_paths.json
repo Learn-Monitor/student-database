@@ -1,0 +1,319 @@
+{
+    "/mydata": {
+        "type": "GET",
+        "handler_type": "SQLRequestHandler",
+        "namespaces": ["sql"],
+        "context": "virtual",
+        "access_level": "user"
+    },
+    "/rooms": {
+        "type": "GET",
+        "handler_type": "SQLRequestHandler",
+        "namespaces": ["sql"],
+        "context": "virtual",
+        "access_level": "public"
+    },
+    "/mysubjects": {
+        "type": "GET",
+        "handler_type": "SQLRequestHandler",
+        "namespaces": ["sql"],
+        "context": "virtual",
+        "access_level": "user"
+    },
+    "/myclasses": {
+        "type": "GET",
+        "handler_type": "SQLRequestHandler",
+        "namespaces": ["sql"],
+        "context": "virtual",
+        "access_level": "user"
+    },
+    "/teachers": {
+        "type": "GET",
+        "handler_type": "SQLRequestHandler",
+        "namespaces": ["sql"],
+        "context": "virtual",
+        "access_level": "admin"
+    },
+    "/students": {
+        "type": "GET",
+        "handler_type": "SQLRequestHandler",
+        "namespaces": ["sql"],
+        "context": "virtual",
+        "access_level": "admin"
+    },
+    "/subjects": {
+        "type": "GET",
+        "handler_type": "SQLRequestHandler",
+        "namespaces": ["sql"],
+        "context": "virtual",
+        "access_level": "public"
+    },
+    "/classes": {
+        "type": "GET",
+        "handler_type": "SQLRequestHandler",
+        "namespaces": ["sql"],
+        "context": "virtual",
+        "access_level": "admin"
+    },
+
+    "/": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["site"],
+        "context": "html",
+        "access_level": "public"
+    },
+    "/login": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["site"],
+        "context": "html",
+        "access_level": "public"
+    },
+
+    "/dashboard": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin", "teacher", "user"],
+        "context": "html",
+        "access_level": "user"
+    },
+    "/results": {
+        "type": "GET",
+        "handler_type":"TemplatingFileRequestHandler",
+        "namespaces": ["user"],
+        "context": "html",
+        "access_level": "student"
+    },
+    "/partner_search": {
+        "type": "GET",
+        "handler_type":"TemplatingFileRequestHandler",
+        "namespaces": ["user"],
+        "context": "html",
+        "access_level": "student"
+    },
+
+    "/student": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["teacher", "admin"],
+        "context": "html",
+        "access_level": "teacher"
+    },
+    "/student-results": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["teacher", "admin"],
+        "context": "html",
+        "access_level": "teacher"
+    },
+    
+    "/modules": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/manage_students": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/manage_teachers": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/manage_classes": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/manage_subjects": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/manage_rooms": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/teacher": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/room": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/subject": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/class": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/teacher-classes": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/teacher-subjects": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/teacher-students": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/teacher-results": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+    "/teacher-dashboard": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+
+    "/student-database.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["site"],
+        "context": "js",
+        "access_level": "public"
+    },
+
+    "/build_dashboard.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["user", "teacher", "admin"],
+        "context": "js",
+        "access_level": "user"
+    },
+    "/build_results.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["user", "teacher"],
+        "context": "js",
+        "access_level": "user"
+    },
+    "/build_partner_search.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["user", "teacher", "admin"],
+        "context": "js",
+        "access_level": "user"
+    },
+    
+    "/build_student.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["teacher"],
+        "context": "js",
+        "access_level": "teacher"
+    },
+
+    "/build_modules.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
+    "/build_teacher.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
+    "/build_room.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
+    "/build_subject.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
+    "/build_class.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
+    "/build_teacher_dashboard.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
+
+    "/style.css": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["site"],
+        "context": "css",
+        "access_level": "public"
+    },
+    "/results.css": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["site"],
+        "context": "css",
+        "access_level": "public"
+    },
+    "/favicon.ico": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["icons"],
+        "context": "imgs",
+        "access_level": "public"
+    }
+}

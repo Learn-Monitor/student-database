@@ -1,55 +1,40 @@
-<!DOCTYPE html>
-<html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Fächer verwalten</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body>
-        <section id="subjects">
-            <header>
-                <h1>Fächer verwalten</h1>
-            </header>
-            <main>
-                <section id="manage-subjects">
-                    <form id="manage-subjects-form" method="post" action="/add-subject">
-                        <label for="subject-name">Fachname:</label>
-                        <input type="text" id="subject-name" name="name" required>
-                        <button type="submit">Fach hinzufügen</button>
-                    </form>
-                </section>
-                <section id="subject-list">
-                    <h2>Vorhandene Fächer</h2>
-                    <ul id="subjectList">
-                        <!-- Dynamically populated list of subjects -->
-                    </ul>
-                </section>
-            </main>
-            <nav>
-                <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
-            </nav>
+%[site;title=Fächer verwalten;content=!FOLLOWS]
+<section id="subjects">
+    <header>
+        <h1>Fächer verwalten</h1>
+    </header>
+    <main>
+        <section id="manage-subjects">
+            <form id="manage-subjects-form" method="post" action="/add-subject">
+                <label for="subject-name">Fachname:</label>
+                <input type="text" id="subject-name" name="name" required>
+                <button type="submit">Fach hinzufügen</button>
+            </form>
         </section>
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                fetch('/subjects')
-                    .then(response => response.json())
-                    .then(data => {
-                        const subjectList = document.getElementById('subjectList');
-                        data.forEach(subject => {
-                            const li = document.createElement('li');
-                            li.textContent = subject.name;
-                            li.style.cursor = 'pointer';
-                            li.title = 'Bearbeiten';
-                            li.addEventListener('click', (e) => {
-                                sessionStorage.setItem('currentSubject', JSON.stringify(subject));
-                                window.location.href = '/subject';
-                            })
-                            subjectList.appendChild(li);
-                        });
-                    })
-                    .catch(error => console.error('Error fetching subjects:', error));
-            });
-        </script>
-    </body>
-</html>
+        <section id="subject-list">
+            <h2>Vorhandene Fächer</h2>
+            <ul id="subjectList">
+                <!-- Dynamically populated list of subjects -->
+            </ul>
+        </section>
+    </main>
+    <nav>
+        <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
+    </nav>
+</section>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchJson('/subjects').then(data => {
+                const subjectList = document.getElementById('subjectList');
+                data.forEach(subject => {
+                    const li = document.createElement('li');
+                    li.textContent = subject.name;
+                    li.style.cursor = 'pointer';
+                    li.title = 'Bearbeiten';
+                    li.addEventListener('click', (e) => viewSubject(subject));
+                    subjectList.appendChild(li);
+                });
+            })
+            .catch(error => console.error('Error fetching subjects:', error));
+    });
+</script>
