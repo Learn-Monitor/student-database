@@ -1,0 +1,19 @@
+%[site;title=Schüler-Dashboard;content=!FOLLOWS]
+<div id="dashboard">
+    <header>
+        <h1>Schüler: <span id="student-name"></span></h1>
+        <p>Klasse: <span id="student-class"></span> | E-Mail: <span id="student-email"></span> | Graduierung: <span id="student-graduation"></span></p>
+    </header>
+    <section id="room-selection">
+        <label for="room">Der Schüler befindet sich gerade im Raum:</label>
+        <select id="room"></select>
+    </section>
+    <section id="subjects">
+        <h2>Fächer</h2>
+        <div id="subject-list"></div>
+    </section>
+    <nav>
+        %{nav}
+    </nav>
+</div>
+<script src="%{script}"></script>

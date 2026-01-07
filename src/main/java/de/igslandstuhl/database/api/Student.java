@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -405,6 +406,15 @@ public class Student extends User {
     public SchoolClass getSchoolClass() { return schoolClass; }
 
     /**
+     * Checks if the student has completed a specific task.
+     * @param task the task to check
+     * @return true if the student has completed the task, false otherwise
+     */
+    public boolean hasCompletedTask(Task task) {
+        return completedTasks.contains(task);
+    }
+
+    /**
      * Adds a subject request for this student.
      * @param subjectId the subject ID
      * @param type the request type
@@ -800,5 +810,54 @@ public class Student extends User {
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("password_hash_for_student", passHash(password), String.valueOf(getId())));
         students.remove(id);
         return get(id);
+    }
+
+    /**
+     * Generates a CSV string containing the student's results.
+     * @return a CSV string of the student's results
+     */
+    public String getResultsCSV() {
+        StringBuilder csvBuilder = new StringBuilder();
+        csvBuilder.append("Subject,Current Progress (%),Predicted Progress (%),Currently Achieved Grade,Predicted Grade\n");
+        for (Subject subject : getSchoolClass().getSubjects()) {
+            double currentProgress = getCurrentProgress(subject) * 100;
+            double predictedProgress = getPredictedProgress(subject) * 100;
+            int currentGrade = getCurrentlyAchievedGrade(subject);
+            int predictedGrade = getPredictedGrade(subject);
+            csvBuilder.append(String.format(Locale.US, "%s,%.2f,%.2f,%d,%d\n",
+                    subject.getName(),
+                    currentProgress,
+                    predictedProgress,
+                    currentGrade,
+                    predictedGrade));
+        }
+        return csvBuilder.toString();
+    }
+    /**
+     * Generates a CSV string containing all students' results.
+     * @return a CSV string of all students' results
+     */
+    public static String getAllResultsCSV() {
+        StringBuilder csvBuilder = new StringBuilder();
+        csvBuilder.append("Student ID,First Name,Last Name,Email,Subject,Current Progress (%),Predicted Progress (%),Currently Achieved Grade,Predicted Grade\n");
+        for (Student student : getAll()) {
+            for (Subject subject : student.getSchoolClass().getSubjects()) {
+                double currentProgress = student.getCurrentProgress(subject) * 100;
+                double predictedProgress = student.getPredictedProgress(subject) * 100;
+                int currentGrade = student.getCurrentlyAchievedGrade(subject);
+                int predictedGrade = student.getPredictedGrade(subject);
+                csvBuilder.append(String.format(Locale.US, "%d,%s,%s,%s,%s,%.2f,%.2f,%d,%d\n",
+                        student.getId(),
+                        student.getFirstName(),
+                        student.getLastName(),
+                        student.getEmail(),
+                        subject.getName(),
+                        currentProgress,
+                        predictedProgress,
+                        currentGrade,
+                        predictedGrade));
+            }
+        }
+        return csvBuilder.toString();
     }
 }

@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 
 import de.igslandstuhl.database.api.PreConditions;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
+import de.igslandstuhl.database.server.webserver.sessions.Session;
+import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
 
 public class SessionManagerTest {
     private static final String LOCALHOST = "127.0.0.1";

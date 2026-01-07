@@ -101,6 +101,9 @@ public class Room implements APIObject {
         } else {
             try {
                 Room room = Server.getInstance().processSingleRequest(Room::fromSQLFields, "get_room_by_label", SQL_FIELDS, label);
+                if (room == null) {
+                    return null;
+                }
                 rooms.put(label, room);
                 return room;
             } catch (SQLException e) {

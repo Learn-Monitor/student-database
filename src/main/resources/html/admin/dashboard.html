@@ -1,60 +1,19 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <section id="dashboard">
-        <header>
-            <h1>Admin Dashboard</h1>
-        </header>
-        <p>Willkommen im Admin-Dashboard!</p>
-        <section id="admin-options">
-            <h2>Admin Optionen</h2>
-            <ul>
-                <li><a href="/manage_students">Schüler verwalten</a></li>
-                <li><a href="/manage_teachers">Lehrer verwalten</a></li>
-                <li><a href="/manage_classes">Klassen verwalten</a></li>
-                <li><a href="/manage_subjects">Fächer verwalten</a></li>
-                <li><a href="/manage_rooms">Räume verwalten</a></li>
-            </ul>
-        </section>
-        <section id="data-import">
-            <h2>Datenimport aus Lehrerplanungstool</h2>
-            <p>Hinweis: Stellen Sie sicher, dass das jeweilige Fach bereits existiert, und der jeweiligen Klassenstufe zugeordnet ist.</p>
-            <form id="importFile">
-                <input type="file" name="file" id="lptFile">
-                <button type="submit">Hochladen</button>
-            </form>
-            <script>
-                document.getElementById('importFile').addEventListener('submit', async function(e) {
-                    e.preventDefault();
-                    const fileInput = document.getElementById('lptFile');
-                    if (!fileInput.files.length) {
-                        alert("Bitte wählen Sie eine Datei aus.");
-                        return;
-                    }
-                    const file = fileInput.files[0];
-                    const text = await file.text();
-
-                    // Send the file content as plain text (or JSON if needed)
-                    const response = await fetch('/lpt-file', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: text
-                    });
-
-                    if (response.ok) {
-                        alert("Datei erfolgreich hochgeladen!");
-                    } else {
-                        alert("Fehler beim Hochladen der Datei.");
-                    }
-                });
-            </script>
-        </section>
+%[site;title=Dashboard;content=!FOLLOWS]
+<section id="dashboard">
+    <header>
+        <h1>Admin Dashboard</h1>
+    </header>
+    <p>Willkommen im Admin-Dashboard!</p>
+    <section id="admin-options">
+        <h2>Admin Optionen</h2>
+        <ul>
+            <li><a href="/manage_students">Schüler verwalten</a></li>
+            <li><a href="/manage_teachers">Lehrer verwalten</a></li>
+            <li><a href="/manage_classes">Klassen verwalten</a></li>
+            <li><a href="/manage_subjects">Fächer verwalten</a></li>
+            <li><a href="/manage_rooms">Räume verwalten</a></li>
+            <li><a href="/modules">Module verwalten</a></li>
+        </ul>
     </section>
-</body>
-</html>
+    %[file_import;header=Datenimport aus Lehrerplanungstool;note=Hinweis: Stellen Sie sicher, dass das jeweilige Fach bereits existiert, und der jeweiligen Klassenstufe zugeordnet ist.;uploadUrl=/lpt-file]
+</section>

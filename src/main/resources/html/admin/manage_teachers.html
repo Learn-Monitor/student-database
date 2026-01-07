@@ -1,123 +1,68 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Lehrer verwalten</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <section id="teachers">
-        <header>
-            <h1>Lehrer verwalten</h1>
-        </header>
-        <main>
-            <section id="add-teacher">
-                <h2>Lehrer hinzufügen</h2>
-                <form id="add-teacher-form" method="POST" action="/add-teacher">
-                    <label for="teacher-first-name">Vorname:</label>
-                    <input type="text" id="teacher-first-name" name="firstName" required>
-                    <label for="teacher-last-name">Nachname:</label>
-                    <input type="text" id="teacher-last-name" name="lastName" required>
-                    <label for="teacher-email">Email:</label>
-                    <input type="email" id="teacher-email" name="email" required>
-                    <button type="submit">Lehrer hinzufügen</button>
-                </form>
-            </section>
-            <section id="add-teachers-csv">
-                <h2>Lehrer aus CSV hinzufügen</h2>
-                <form id="add-teachers-csv-form" method="post" action="/add-teachers">
-                    <label for="csv-input">CSV-Datei:</label>
-                    <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="Vorname,Nachname,Email"></textarea>
-                    <button type="submit">Lehrer hinzufügen</button>
-                </form>
-            </section>
-            <section id="teacher-list">
-                <h2>Lehrer-Liste</h2>
-                <a href="/teachers" download="lehrer.json"><button id="download-teachers">Lehrer herunterladen</button></a>
-                <table id="teacherTable">
-                    <thead>
-                        <tr>
-                            <th>Vorname</th>
-                            <th>Nachname</th>
-                            <th>Email</th>
-                            <th>Aktionen</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Teacher rows will be dynamically inserted here -->
-                    </tbody>
-                </table>
-            </section>
-        </main>
-        <nav>
-            <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
-        </nav>
-    </section>
-    <script>
-        document.getElementById('add-teachers-csv-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const form = e.target;
-            const csv = form['csv'].value;
-
-            const response = await fetch('/add-teachers', {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: csv
-            });
-
-            if (response.ok) {
-                const blob = await response.blob();
-                // Try to get filename from Content-Disposition header
-                let filename = "lehrer.csv";
-                const disposition = response.headers.get('Content-Disposition');
-                if (disposition && disposition.includes('filename=')) {
-                    filename = disposition.split('filename=')[1].replace(/["']/g, "");
-                }
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                window.location.reload()
-            } else if (response.status === 400) {
-                alert('Invalid CSV format.');
-            } else if (response.status == 401) {
-                alert('Unauthorized access. Try logging in again.');
-                window.location.href = '/login';
-            } else {
-                alert('Error adding teachers from CSV.');
-            }
+%[site;title=Lehrer verwalten;content=!FOLLOWS]
+<section id="teachers">
+    <header>
+        <h1>Lehrer verwalten</h1>
+    </header>
+    <main>
+        <section id="add-teacher">
+            <h2>Lehrer hinzufügen</h2>
+            <form id="add-teacher-form" method="POST" action="/add-teacher">
+                <label for="teacher-first-name">Vorname:</label>
+                <input type="text" id="teacher-first-name" name="firstName" required>
+                <label for="teacher-last-name">Nachname:</label>
+                <input type="text" id="teacher-last-name" name="lastName" required>
+                <label for="teacher-email">Email:</label>
+                <input type="email" id="teacher-email" name="email" required>
+                <button type="submit">Lehrer hinzufügen</button>
+            </form>
+        </section>
+        <section id="add-teachers-csv">
+            <h2>Lehrer aus CSV hinzufügen</h2>
+            <form id="add-teachers-csv-form" method="post" action="/add-teachers">
+                <label for="csv-input">CSV-Datei:</label>
+                <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="Vorname,Nachname,Email"></textarea>
+                <button type="submit">Lehrer hinzufügen</button>
+            </form>
+        </section>
+        <section id="teacher-list">
+            <h2>Lehrer-Liste</h2>
+            <a href="/teachers" download="lehrer.json"><button id="download-teachers">Lehrer herunterladen</button></a>
+            <table id="teacherTable">
+                <thead>
+                    <tr>
+                        <th>Vorname</th>
+                        <th>Nachname</th>
+                        <th>Email</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Teacher rows will be dynamically inserted here -->
+                </tbody>
+            </table>
+        </section>
+    </main>
+    <nav>
+        <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
+    </nav>
+</section>
+<script>
+    document.getElementById('add-teachers-csv-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const csv = form['csv'].value;
+        postDataAndDownload('/add-teachers', csv, 'lehrer.csv');
+    });
+    document.addEventListener('DOMContentLoaded', async function() {
+        populateTable('/teachers', 'teacherTable', (newRow, teacher) => {
+            newRow.innerHTML = `
+                <td>${teacher.firstName}</td>
+                <td>${teacher.lastName}</td>
+                <td>${teacher.email}</td>
+                <td>
+                    <button class="view-teacher" onclick="viewTeacher(${JSON.stringify(teacher).replaceAll('"', "'")})">Ansehen</button>
+                </td>
+            `;
         });
-        document.addEventListener('DOMContentLoaded', async function() {
-            const response = await fetch('/teachers');
-            if (response.ok) {
-                const teachers = await response.json();
-                const tbody = document.querySelector('#teacherTable tbody');
-                tbody.innerHTML = '';
-                teachers.forEach(teacher => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${teacher.firstName}</td>
-                        <td>${teacher.lastName}</td>
-                        <td>${teacher.email}</td>
-                        <td>
-                            <button class="view-teacher" onclick="viewTeacher(${JSON.stringify(teacher).replaceAll('"', "'")})">Ansehen</button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            } else {
-                alert('Error loading teachers.');
-            }
-        });
-        function viewTeacher(teacher) {
-            sessionStorage.setItem('currentTeacher', JSON.stringify(teacher));
-            window.location.href = '/teacher';
-        }
-    </script>
-</body>
-</html>
+    });
+</script>

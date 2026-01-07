@@ -22,28 +22,28 @@ public class GetResponse implements HttpResponse {
      * @return the GetResponse object
      */
     public static GetResponse notFound(HttpRequest request) {
-        return new GetResponse(request, Status.NOT_FOUND, new ResourceLocation("html", "errors", "404.html"), ContentType.HTML, "");
+        return new GetResponse(request, Status.NOT_FOUND, new ResourceLocation("html", "errors", "404.html"), ContentType.HTML, "", false);
     }
     /**
      * Returns a response for a GET request that resulted in an internal error.
      * @return the GetResponse object
      */
     public static GetResponse internalServerError(HttpRequest request) {
-        return new GetResponse(request, Status.INTERNAL_SERVER_ERROR, new ResourceLocation("html", "errors", "500.html"), ContentType.HTML, "");
+        return new GetResponse(request, Status.INTERNAL_SERVER_ERROR, new ResourceLocation("html", "errors", "500.html"), ContentType.HTML, "", false);
     }
     /**
      * Returns a response for a GET request the user has no access to.
      * @return the HttpRequest object
      */
     public static GetResponse forbidden(HttpRequest request) {
-        return new GetResponse(request, Status.FORBIDDEN, new ResourceLocation("html", "errors", "403.html"), ContentType.HTML, "");
+        return new GetResponse(request, Status.FORBIDDEN, new ResourceLocation("html", "errors", "403.html"), ContentType.HTML, "", false);
     }
     /**
      * Returns a response for a GET request the user must be logged in for.
      * @return the GetResponse object
      */
     public static GetResponse unauthorized(HttpRequest request) {
-        return new GetResponse(request, Status.UNAUTHORIZED, new ResourceLocation("html", "errors", "401.html"), ContentType.HTML, "");
+        return new GetResponse(request, Status.UNAUTHORIZED, new ResourceLocation("html", "errors", "401.html"), ContentType.HTML, "", false);
     }
     /**
      * The HTTP status of this response
@@ -71,6 +71,8 @@ public class GetResponse implements HttpResponse {
     private final String user;
     private final HttpRequest request;
 
+    private final boolean isTemplating;
+
     /**
      * Creates a new GetResponse with the given parameters.
      * This constructor is used to create a response for a GET request.
@@ -78,13 +80,15 @@ public class GetResponse implements HttpResponse {
      * @param resourceLocation the location of the resource to be returned
      * @param contentType the HTTP content type of the resource
      * @param user the user who made the request
+     * @param isTemplating whether the resource is a templated resource
      */
-    public GetResponse(HttpRequest request, Status status, ResourceLocation resourceLocation, ContentType contentType, String user) {
+    public GetResponse(HttpRequest request, Status status, ResourceLocation resourceLocation, ContentType contentType, String user, boolean isTemplating) {
         this.status = status;
         this.resourceLocation = resourceLocation;
         this.contentType = contentType;
         this.user = user;
         this.request = request;
+        this.isTemplating = isTemplating;
     }
     /**
      * Returns a response for a GET request for the given resource.
@@ -92,10 +96,10 @@ public class GetResponse implements HttpResponse {
      * @param user the user who made the request
      * @return the GetResponse object
      */
-    public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user) {
+    public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating) {
         try {
-            if (AccessManager.hasAccess(user, resourceLocation)) {
-                return new GetResponse(request, Status.OK, resourceLocation, ContentType.ofResourceLocation(resourceLocation), user);
+            if (AccessManager.getInstance().hasAccess(user, resourceLocation)) {
+                return new GetResponse(request, Status.OK, resourceLocation, ContentType.ofResourceLocation(resourceLocation), user, isTemplating);
             } else {
                 return unauthorized(request);
             }
@@ -130,6 +134,9 @@ public class GetResponse implements HttpResponse {
                         resource = ResourceHelper.readVirtualResource(user, resourceLocation);
                         if (resource == null) throw new NullPointerException();
                     }
+                }
+                if (isTemplating) {
+                    resource = TemplatingPreprocessor.getInstance().executeTemplating(resource);
                 }
                 out.println(resource);
             } else {

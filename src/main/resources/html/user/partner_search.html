@@ -1,32 +1,22 @@
-<!DOCTYPE html>
-<html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Partnersuche</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body>
-        <section id="dashboard">
-            <header>
-                <h1>Partnersuche</h1>
-            </header>
-            <main>
-                <select id="subjectSelect"></select>
-                <table>
-                    <thead>
-                        <th>Name</th>
-                        <th>Raum</th>
-                    </thead>
-                    <tbody id="studentTableBody">
-                        <!-- Will be filled dynamically -->
-                    </tbody>
-                </table>
-            </main>
-            <nav>
-                <a href="dashboard"><button id="dashboard-button">Zurück zum Dashboard</button></a>
-            </nav>
-            <script src="build_partner_search.js"></script>
-        </section>
-    </body>
-</html>
+%[site;title=Partnersuche;content=!FOLLOWS]
+<section id="dashboard">
+    <header>
+        <h1>Partnersuche</h1>
+    </header>
+    <main>
+        <select id="subjectSelect"></select>
+        <table>
+            <thead>
+                <th>Name</th>
+                <th>Raum</th>
+            </thead>
+            <tbody id="studentTableBody">
+                <!-- Will be filled dynamically -->
+            </tbody>
+        </table>
+    </main>
+    <nav>
+        <a href="dashboard"><button id="dashboard-button">Zurück zum Dashboard</button></a>
+    </nav>
+    <script src="build_partner_search.js"></script>
+</section>

@@ -17,7 +17,6 @@ import de.igslandstuhl.database.api.Teacher;
 import de.igslandstuhl.database.api.Topic;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.Server;
-import de.igslandstuhl.database.server.webserver.HttpHeader;
 
 public class APIPostRequest extends PostRequest {
     public APIPostRequest(HttpHeader header, String body, String ipAddress, boolean secureConnection) {

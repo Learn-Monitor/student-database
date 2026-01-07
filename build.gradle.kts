@@ -5,7 +5,9 @@ plugins {
 }
 
 group = "igs-landstuhl"
-version = "v1.0-PATCH-3"
+
+version = "v1.0.1-SNAPSHOT-1"
+
 application {
     mainClass.set("de.igslandstuhl.database.Application")
 }
@@ -19,8 +21,10 @@ dependencies {
     implementation("com.google.code.gson:gson:2.13.1")
     implementation("commons-codec:commons-codec:1.19.0")
     implementation("com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20240325.1")
+    implementation("org.jline:jline:3.30.6") // for better console input handling
 
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0") // using JUnit 5 (latest)
+    testImplementation("org.junit.jupiter:junit-jupiter:5.13.4") // using JUnit 5 (latest)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {

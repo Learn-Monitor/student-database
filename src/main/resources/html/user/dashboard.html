@@ -1,34 +1,4 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard – Lernsystem</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div id="dashboard">
-    <header>
-      <h1>Willkommen, <span id="student-name"></span></h1>
-      <p>Klasse: <span id="student-class"></span> | E-Mail: <span id="student-email"></span> | Graduierung: <span id="student-graduation"></span></p>
-    </header>
-
-    <section id="room-selection">
-      <label for="room">Ich befinde mich gerade im Raum:</label>
-      <select id="room"></select>
-    </section>
-
-    <section id="subjects">
-      <h2>Fächer</h2>
-      <div id="subject-list"></div>
-    </section>
-
-    <nav>
-      <a href="results"><button id="results-button">Ergebnisse anzeigen</button></a>
-      <a href="partner_search"><button id="partner-button">Partnersuche</button></a>
-    </nav>
-  </div>
-
-  <script src="build_dashboard.js"></script>
-</body>
-</html>
+%[student_dashboard;script=build_dashboard.js;nav=
+    <a href="results"><button id="results-button">Ergebnisse anzeigen</button></a>
+    <a href="partner_search"><button id="partner-button">Partnersuche</button></a>
+]

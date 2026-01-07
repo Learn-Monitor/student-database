@@ -7,10 +7,13 @@ import java.util.List;
 import de.igslandstuhl.database.api.SerializationException;
 import de.igslandstuhl.database.api.Subject;
 import de.igslandstuhl.database.api.Topic;
+import de.igslandstuhl.database.api.modules.WebModule;
 import de.igslandstuhl.database.holidays.Holiday;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.commands.Command;
-import de.igslandstuhl.database.server.webserver.PostRequestHandler;
+import de.igslandstuhl.database.server.webserver.WebPath;
+import de.igslandstuhl.database.server.webserver.handlers.GetRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.PostRequestHandler;
 import de.igslandstuhl.database.utils.CommandLineUtils;
 
 /**
@@ -92,17 +95,23 @@ public final class Application {
 
     public static void main(String[] args) throws Exception {
         instance = new Application(args);
+        
+        if (!getInstance().suppressCmd()) {
+            Command.registerCommands();
+            CommandLineUtils.setup();
+        }
+        
         Server.getInstance().getConnection().createTables();
 
         Holiday.setupCurrentSchoolYear();
         PostRequestHandler.registerHandlers();
+        WebModule.registerModules();
+
+        WebPath.registerPaths();
+        GetRequestHandler.getInstance().registerHandlers();
 
         if (getInstance().runsWebServer()) {
             Server.getInstance().getWebServer().start();
-        }
-        if (!getInstance().suppressCmd()) {
-            Command.registerCommands();
-            CommandLineUtils.setup();
         }
 
         while (true) {

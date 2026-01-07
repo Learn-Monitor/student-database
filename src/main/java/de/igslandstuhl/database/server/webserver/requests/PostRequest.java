@@ -11,7 +11,6 @@ import com.google.gson.reflect.TypeToken;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.server.webserver.Cookie;
-import de.igslandstuhl.database.server.webserver.HttpHeader;
 
 /**
  * Represents a POST request in the web server.
@@ -198,6 +197,6 @@ public class PostRequest implements HttpRequest {
      * @return a ResourceLocation object representing the path of the POST request
      */
     public ResourceLocation toResourceLocation(String username) {
-        return de.igslandstuhl.database.server.webserver.WebResourceHandler.locationFromPath(path, User.getUser(username));
+        return de.igslandstuhl.database.server.webserver.handlers.WebResourceHandler.locationFromPath(path, User.getUser(username));
     }
 }

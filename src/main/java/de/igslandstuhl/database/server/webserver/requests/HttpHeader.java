@@ -1,7 +1,9 @@
-package de.igslandstuhl.database.server.webserver;
+package de.igslandstuhl.database.server.webserver.requests;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import de.igslandstuhl.database.server.webserver.Cookie;
 
 public class HttpHeader {
     /**

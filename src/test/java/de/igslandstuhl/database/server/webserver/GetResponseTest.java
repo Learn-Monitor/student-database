@@ -36,19 +36,19 @@ public class GetResponseTest {
 
     @Test
     void testGetResource() throws FileNotFoundException {
-        assertTrue(GetResponse.getResource(request, ResourceLocation.get("html", "site:login.html"), null).getResponseBody().contains("login"));
+        assertTrue(GetResponse.getResource(request, ResourceLocation.get("html", "site:login.html"), null, false).getResponseBody().contains("login"));
     }
 
     @Test
     void testGetResponseBody() {
-        assertNotNull(GetResponse.getResource(request, ResourceLocation.get("html", "site:login.html"), null));
+        assertNotNull(GetResponse.getResource(request, ResourceLocation.get("html", "site:login.html"), null, false));
     }
 
     @Test
     void testRespond() throws FileNotFoundException {
         ByteArrayOutputStream testStream = new ByteArrayOutputStream();
         PrintStream printWriter = new PrintStream(testStream);
-        GetResponse response = GetResponse.getResource(request, ResourceLocation.get("html", "site:login.html"), null);
+        GetResponse response = GetResponse.getResource(request, ResourceLocation.get("html", "site:login.html"), null, false);
         response.respond(printWriter);
         String responseString = testStream.toString();
         String responseBody = response.getResponseBody();

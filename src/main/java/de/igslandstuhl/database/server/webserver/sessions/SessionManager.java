@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.server.webserver;
+package de.igslandstuhl.database.server.webserver.sessions;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import de.igslandstuhl.database.api.User;
+import de.igslandstuhl.database.server.webserver.Cookie;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 
 public class SessionManager {

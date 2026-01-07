@@ -1,93 +1,46 @@
-<!DOCTYPE html>
-<html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Raumverwaltung</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body>
-        <section id="rooms">
-            <header>
-                <h1>Raumverwaltung</h1>
-            </header>
-            <main>
-                <section id="add-rooms">
-                    <h2>Räume hinzufügen</h2>
-                    <form id="add-rooms-form" method="post" action="/add-rooms">
-                        <label for="csv-input">CSV-Datei:</label>
-                        <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="Raumname,Mindestlevel"></textarea>
-                        <button type="submit">Räume hinzufügen</button>
-                    </form>
-                </section>
-                <section id="room-list">
-                    <h2>Raumliste</h2>
-                    <table id="roomTable">
-                        <thead>
-                            <tr>
-                                <th>Raumname</th>
-                                <th>Mindestlevel</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Dynamically populated room rows will go here -->
-                        </tbody>
-                    </table>
-                </section>
-            </main>
-            <nav>
-                <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
-            </nav>
+%[site;title=Raumverwaltung;content=!FOLLOWS]
+<section id="rooms">
+    <header>
+        <h1>Raumverwaltung</h1>
+    </header>
+    <main>
+        <section id="add-rooms">
+            <h2>Räume hinzufügen</h2>
+            <form id="add-rooms-form" method="post" action="/add-rooms">
+                <label for="csv-input">CSV-Datei:</label>
+                <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="Raumname,Mindestlevel"></textarea>
+                <button type="submit">Räume hinzufügen</button>
+            </form>
         </section>
-        <script>
-            document.getElementById('add-rooms-form').addEventListener('submit', async function(e) {
-                e.preventDefault();
-                const form = e.target;
-                const csv = form['csv'].value;
-
-                const response = await fetch('/add-rooms', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: csv
-                });
-
-                if (response.ok) {
-                    const blob = await response.blob();
-                    let filename = "räume.json";
-                    const disposition = response.headers.get('Content-Disposition');
-                    if (disposition && disposition.includes('filename=')) {
-                        filename = disposition.split('filename=')[1].split(';')[0].trim();
-                    }
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = filename
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    window.location.reload()
-                } else if (response.status === 401) {
-                    alert("Nicht autorisiert! Bitte melden Sie sich an.");
-                    window.location.href = "/login";
-                } else {
-                    alert("Fehler beim Hochladen der Datei!");
-                }
-            });
-            document.addEventListener('DOMContentLoaded', async () => {
-                const response = await fetch('/rooms');
-                if (response.ok) {
-                    const rooms = await response.json();
-                    const tbody = document.querySelector('#roomTable tbody');
-                    tbody.innerHTML = '';
-                    rooms.forEach(room => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `<td>${room.label}</td><td>${room.minimumLevel}</td>`;
-                        tbody.appendChild(row);
-                    });
-                } else {
-                    alert("Fehler beim Laden der Räume!");
-                }
-            });
-        </script>
-</html>
+        <section id="room-list">
+            <h2>Raumliste</h2>
+            <table id="roomTable">
+                <thead>
+                    <tr>
+                        <th>Raumname</th>
+                        <th>Mindestlevel</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Dynamically populated room rows will go here -->
+                </tbody>
+            </table>
+        </section>
+    </main>
+    <nav>
+        <a href="/dashboard"><button>Zurück zum Admin-Dashboard</button></a>
+    </nav>
+</section>
+<script>
+    document.getElementById('add-rooms-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const csv = form['csv'].value;
+        await postDataAndDownload('/add-rooms', csv, 'räume.json');
+    });
+    document.addEventListener('DOMContentLoaded', async () => {
+        populateTable("/rooms", "roomTable", (newRow, room) => {
+            newRow.innerHTML = `<td>${room.label}</td><td>${room.minimumLevel}</td>`;
+        });
+    });
+</script>

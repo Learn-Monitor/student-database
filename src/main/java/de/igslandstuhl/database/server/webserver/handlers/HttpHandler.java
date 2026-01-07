@@ -1,11 +1,14 @@
-package de.igslandstuhl.database.server.webserver.requests;
+package de.igslandstuhl.database.server.webserver.handlers;
 
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.AccessLevel;
-import de.igslandstuhl.database.server.webserver.SessionManager;
 import de.igslandstuhl.database.server.webserver.Status;
+import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
+import de.igslandstuhl.database.server.webserver.requests.GetRequest;
+import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 import de.igslandstuhl.database.server.webserver.responses.HttpResponse;
+import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
 import de.igslandstuhl.database.utils.ThrowingFunction;
 
 public class HttpHandler<Rq extends HttpRequest> {

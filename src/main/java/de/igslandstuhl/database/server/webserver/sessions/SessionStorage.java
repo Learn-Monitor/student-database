@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.server.webserver;
+package de.igslandstuhl.database.server.webserver.sessions;
 
 import java.util.HashMap;
 import java.util.Map;

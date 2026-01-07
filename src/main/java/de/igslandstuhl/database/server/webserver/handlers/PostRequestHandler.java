@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.server.webserver;
+package de.igslandstuhl.database.server.webserver.handlers;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -31,11 +31,14 @@ import de.igslandstuhl.database.api.Topic;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.api.results.GenerationResult;
 import de.igslandstuhl.database.server.Server;
+import de.igslandstuhl.database.server.webserver.AccessLevel;
+import de.igslandstuhl.database.server.webserver.ContentType;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
-import de.igslandstuhl.database.server.webserver.requests.HttpHandler;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
 import de.igslandstuhl.database.server.webserver.responses.HttpResponse;
 import de.igslandstuhl.database.server.webserver.responses.PostResponse;
+import de.igslandstuhl.database.server.webserver.sessions.Session;
+import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
 import de.igslandstuhl.database.utils.JSONUtils;
 import de.igslandstuhl.database.utils.ThrowingConsumer;
 
@@ -399,5 +402,43 @@ public class PostRequestHandler {
         HttpHandler.registerPostRequestHandler("/change-graduation-level", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<Student>() {}, PostResponse.ok("Successfully changed graduation level", ContentType.TEXT_PLAIN, rq), (student) -> student.changeGraduationLevel(rq.getInt("graduationLevel")))
         );
+
+        HttpHandler.registerPostRequestHandler("/get-module", AccessLevel.USER, (rq) -> {
+            return PostResponse.ok(Registry.moduleRegistry().get(rq.getString("key")).toJSON(), ContentType.JSON, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/toggle-module", AccessLevel.ADMIN, (rq) -> {
+            Registry.moduleRegistry().get(rq.getString("key")).toggle();
+            return PostResponse.ok("Module toggled", ContentType.TEXT_PLAIN, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/toggle-module-setting", AccessLevel.ADMIN, (rq) -> {
+            String[] key = rq.getString("key").split(":");
+            Registry.moduleRegistry().get(key[0]).toggleSetting(key[1]);
+            return PostResponse.ok("Module setting toggled", ContentType.TEXT_PLAIN, rq);
+        });
+
+        HttpHandler.registerPostRequestHandler("/student-results-csv", AccessLevel.TEACHER, (rq) -> {
+            Student student = rq.getCurrentStudent();
+            if (student == null) return PostResponse.badRequest("There is no current student", rq);
+            return PostResponse.ok(student.getResultsCSV(), ContentType.CSV, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/completed-tasks", AccessLevel.TEACHER, (rq) -> {
+            SchoolClass schoolClass = rq.getSchoolClass();
+            Subject subject = rq.getSubject();
+            if (schoolClass == null) return PostResponse.badRequest("No school class specified", rq);
+            if (subject == null) return PostResponse.badRequest("No subject specified", rq);
+            return PostResponse.ok(schoolClass.getCompletedTasksCSV(subject), ContentType.CSV, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/class-results", AccessLevel.TEACHER, (rq) -> {
+            SchoolClass schoolClass = rq.getSchoolClass();
+            Subject subject = rq.getSubject();
+            if (schoolClass == null) return PostResponse.badRequest("No school class specified", rq);
+            if (subject == null) return PostResponse.badRequest("No subject specified", rq);
+            return PostResponse.ok(schoolClass.getResultsCSV(subject), ContentType.CSV, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/grade-results", AccessLevel.ADMIN, (rq) -> {
+            int grade = rq.getInt("grade");
+            Subject subject = rq.getSubject(); 
+            return PostResponse.ok(SchoolClass.getResultsCSV(grade, subject), ContentType.CSV, rq);
+        });
     }
 }
