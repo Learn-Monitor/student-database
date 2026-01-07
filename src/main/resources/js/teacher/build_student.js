@@ -7,5 +7,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     studentData = await fetchStudentData(studentId);
     const subjects = await fetchStudentSubjects(studentId);
 
-    loadStudentDashboard(studentData, subjects);
+    loadStudentDashboard(studentData, subjects, true);
 });

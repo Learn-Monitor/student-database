@@ -39,7 +39,7 @@
         await postDataAndDownload('/add-rooms', csv, 'räume.json');
     });
     document.addEventListener('DOMContentLoaded', async () => {
-        populateTable("roomTable", "/rooms", (newRow, room) => {
+        populateTable("/rooms", "roomTable", (newRow, room) => {
             newRow.innerHTML = `<td>${room.label}</td><td>${room.minimumLevel}</td>`;
         });
     });

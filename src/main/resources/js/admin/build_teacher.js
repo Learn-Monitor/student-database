@@ -5,7 +5,7 @@ let teacherId = teacher.id;
 Array.from(document.getElementsByClassName("teacherId")).forEach(e => e.value = teacherId);
 
 document.addEventListener('DOMContentLoaded', async () => {
-    buildTeacherDashboard(fetchTeacherClasses(teacherId), fetchSubjects(teacherId));
+    buildTeacherDashboard(await fetchTeacherClasses(teacherId), await fetchSubjects(teacherId));
     populateSubjectSelect('editSubjectSelect', await fetchAllSubjects());
     const editClassSelect = document.getElementById('editClassSelect');
     const allClasses = await fetchClasses();

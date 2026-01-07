@@ -232,7 +232,7 @@
     "/build_results.js": {
         "type": "GET",
         "handler_type": "FileRequestHandler",
-        "namespaces": ["user", "teacher", "admin"],
+        "namespaces": ["user", "teacher"],
         "context": "js",
         "access_level": "user"
     },
@@ -247,7 +247,7 @@
     "/build_student.js": {
         "type": "GET",
         "handler_type": "FileRequestHandler",
-        "namespaces": ["teacher", "admin"],
+        "namespaces": ["teacher"],
         "context": "js",
         "access_level": "teacher"
     },

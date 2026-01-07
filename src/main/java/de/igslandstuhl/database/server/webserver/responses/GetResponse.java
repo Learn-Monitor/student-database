@@ -135,6 +135,9 @@ public class GetResponse implements HttpResponse {
                         if (resource == null) throw new NullPointerException();
                     }
                 }
+                if (isTemplating) {
+                    resource = TemplatingPreprocessor.getInstance().executeTemplating(resource);
+                }
                 out.println(resource);
             } else {
                 try (InputStream in = ResourceHelper.openResourceAsStream(resourceLocation)) {

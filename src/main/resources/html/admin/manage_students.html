@@ -46,8 +46,8 @@
     });
 
     async function onClassChange(event) {
-        const selectedClassId = event.target.value;
-        populateStudentTable(selectedClassId, "studentTableBody", (newRow, student) => {
+        const selectedClassId = Number(event.target.value);
+        populateStudentTable(selectedClassId, "studentTable", (newRow, student) => {
             newRow.innerHTML = `
                 <td class="student-name">${student.name}</td>
                 <td class="student-room">${student.room}</td>
@@ -63,7 +63,7 @@
                 graduationLevelSelect.appendChild(option);
             }
             graduationLevelSelect.addEventListener('change',  async e => {
-                const result = changeGraduationLevel(student.id, Number(e.target.value));
+                const result = await changeGraduationLevel(student.id, Number(e.target.value));
                 if (!result.ok) {
                     graduationLevelSelect.value = student.graduationLevel;
                     alert("An error occured while trying to change the student's graduation");

@@ -75,7 +75,7 @@ async function fetchAllSubjects() {
     return subjects;
 }
 async function fetchStudentData(studentId) {
-    getJsonWithPost('/student-data', { studentId });
+    return await getJsonWithPost('/student-data', { studentId });
 }
 async function fetchMyData() {
     return await fetchJson('/mydata');
@@ -92,6 +92,9 @@ async function fetchTopicList(subjectId, grade) {
 async function fetchTasks(taskIds, studentId) {
     return await getJsonWithPost('/tasks', { ids: taskIds, studentId });
 }
+async function fetchModuleSettings(moduleKey) {
+    return (await getJsonWithPost('/get-module', { key: moduleKey })).settings;
+}
 
 async function getStudents(classId) {
     return await getJsonWithPost('/student-list', { classId });
@@ -104,6 +107,12 @@ async function getStudentsByRoom(room) {
 }
 async function searchPartner(subjectId, topicId, classId, studentId) {
     return await getJsonWithPost('/search-partner', { subjectId, topicId, classId, studentId});
+}
+async function addSubjectRequest(subjectId, subjectRequest, studentId) {
+    return await post('/subject-request', { subjectId, subjectRequest, studentId });
+}
+async function removeSubjectRequest(subjectId, subjectRequest, studentId) {
+    return await post('/subject-request', { subjectId, subjectRequest, studentId, remove: true });
 }
 function viewStudent(studentId) {
     // Add studentId to session storage
@@ -119,8 +128,12 @@ function viewTeacher(teacher) {
     sessionStorage.setItem('currentTeacher', JSON.stringify(teacher));
     window.location.href = '/teacher';
 }
+function viewClass(cls) {
+    sessionStorage.setItem('currentClass', JSON.stringify(cls));
+    window.location.href = '/class';
+}
 async function changeGraduationLevel(studentId, newLevel) {
-    return await getJsonWithPost('/change-graduation-level', { studentId: studentId, graduationLevel: newLevel });
+    return await post('/change-graduation-level', { studentId: studentId, graduationLevel: newLevel });
 }
 async function changeCurrentTopic(studentId, subjectId, topicId) {
     return await post('/change-current-topic', { studentId, subjectId, topicId });
@@ -229,8 +242,8 @@ async function populatePartnerSubjectStudentList(subjectId, studentData) {
         studentTable.appendChild(row);
     });
 }
-async function populateTopicTable(table, subjectId, grade) {
-    const table = document.querySelector("#topicTable tbody");
+async function populateTopicTable(tableId, subjectId, grade) {
+    const table = document.getElementById(tableId).getElementsByTagName("tbody")[0];
     table.innerHTML = '';
     const topics = await getJsonWithPost('/topic-list', { subjectId, grade});
     topics.forEach(topic => {
@@ -263,14 +276,14 @@ async function populateSubjectSelect(subjectSelectId, subjects) {
         subjectSelect.appendChild(option);
     });
 }
-async function populateTopicSelect(topicSelect, subjectId, grade) {
+async function populateTopicSelect(topicSelect, subjectId, grade, currentTopic) {
     const topics = await fetchTopicList(subjectId, grade);
     topicSelect.innerHTML = ''; // Clear existing options
     topics.forEach(t => {
       const option = document.createElement('option');
       option.value = t.id;
       option.textContent = `${t.name} (${t.number})`;
-      option.selected = (topic && topic.id == t.id);
+      option.selected = (currentTopic && currentTopic.id == t.id);
       topicSelect.appendChild(option);
     });
 }
@@ -390,7 +403,7 @@ function createList(items, textBuilder, labelText, onClick) {
     return { label, list };
 }
 function createTaskList(tasks, titleText, onClick) {
-    createList(tasks, task => `${task.number} ${decodeEntities(task.name)} (Niveau ${task.niveau}, Gesamtanteil: ${Math.round(task.ratio * 10000) / 100}%)`, titleText, onClick);
+    return createList(tasks, task => `${task.number} ${decodeEntities(task.name)} (Niveau ${task.niveau}, Gesamtanteil: ${Math.round(task.ratio * 10000) / 100}%)`, titleText, onClick);
 }
 async function buildTeacherDashboard(classes, subjects) {
     async function onClassChange(event) {
@@ -415,11 +428,11 @@ async function buildTeacherDashboard(classes, subjects) {
     const subjectSelect = document.getElementById('subjectSelect');
     populateSubjectSelect('subjectSelect', subjects);
     subjectSelect.addEventListener('change', (_) => populateSubjectStudentList('subjectSelect', 'classSelectSubject', 'subjectStudentTable'));
-    populateSubjectStudentList({ target: subjectSelect }); // Trigger initial load
+    populateSubjectStudentList('subjectSelect', 'classSelectSubject', 'subjectStudentTable'); // Trigger initial load
 
-    populateRoomSelect('roomSelect');
-    roomSelect.addEventListener('change', (e) => populateRoomStudentList(e.target.value));
-    populateRoomStudentList({target: roomSelect});
+    await populateRoomSelect('roomSelect');
+    document.getElementById('roomSelect').addEventListener('change', (e) => populateRoomStudentList(e.target.value));
+    populateRoomStudentList(document.getElementById('roomSelect').value); // Trigger initial load
 }
 function createRequestButton(subject, type, label) {
     const btn = document.createElement('button');
@@ -446,12 +459,7 @@ function createRequestButton(subject, type, label) {
 
     btn.addEventListener('click', async () => {
         if (isActive()) {
-            // Remove request
-            await fetch('/subject-request', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ subjectId: subject.id, subjectRequest: type, remove: true, studentId })
-            });
+            await removeSubjectRequest(subject.id, type, studentData.id);
             // Update local state
             if (studentData.currentRequests[subject.id]) {
                 studentData.currentRequests[subject.id] = studentData.currentRequests[subject.id].filter(t => t !== type);
@@ -460,12 +468,7 @@ function createRequestButton(subject, type, label) {
                 }
             }
         } else {
-            // Add request
-            await fetch('/subject-request', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ subjectId: subject.id, subjectRequest: type, studentId })
-            });
+            await addSubjectRequest(subject.id, type, studentData.id);
             // Update local state
             if (!studentData.currentRequests[subject.id]) {
                 studentData.currentRequests[subject.id] = [];
@@ -521,7 +524,7 @@ function createGradeScale() {
     return scale;
 }
 
-function createBarChart(subject, subjectName, studentData) {
+function createBarChart(subject, subjectName, studentData, settings) {
     const chart = document.createElement('div');
     chart.className = 'bar-chart';
 
@@ -616,10 +619,10 @@ function createPanel(header, bodyContent, loadCallback) {
     panel.appendChild(body);
 
     function refreshPanel() {
-        body.innerHTML = '';
-        header.click(); // Re-trigger the header click to close the panel
+        bodyContent.innerHTML = '';
+        headerElem.click(); // Re-trigger the header click to close the panel
         panel.classList.remove('loaded'); // Reset loaded state
-        header.click(); // Re-trigger the header click to load tasks
+        headerElem.click(); // Re-trigger the header click to load tasks
     }
     headerElem.addEventListener('click', async () => {
         panel.classList.toggle('active');
@@ -630,9 +633,9 @@ function createPanel(header, bodyContent, loadCallback) {
     panel.refresh = refreshPanel;
     return panel;
 }
-function createSubjectPanel(subject, studentData) {
+function createSubjectPanel(subject, studentData, teacherPerms) {
     const body = document.createElement('div');
-    function createRequestButtons() {
+    function createRequestButtons(body) {
         ['hilfe', 'partner', 'betreuung', 'gelingensnachweis'].forEach(type => {
             const label = {
                 hilfe: 'Schüler braucht Hilfe',
@@ -645,28 +648,34 @@ function createSubjectPanel(subject, studentData) {
             body.appendChild(btn);
         });
     }
+    const studentId = studentData.id;
 
     const panel = createPanel(subject.name, body, async (header, body) => {
         body.innerHTML = ''; // Clear previous content
         // Request buttons
-        createRequestButtons();
+        createRequestButtons(body);
         // Load current topic for this subject
         const topic = await fetchCurrentTopic(subject.id, studentId);
 
         const topicTitle = document.createElement('p');
-        topicTitle.innerHTML = `<label for="topicSelect">Aktuelles Thema:</label>`;
-        const topicSelect = document.createElement('select');
-        populateTopicSelect(topicSelect, subject.id, studentData.schoolClass.grade);
-        topicSelect.addEventListener('change', async e => {
-            result = await changeCurrentTopic(studentId, subject.id, topicSelect.value);
-            if (result.ok) {
-                panel.refreshPanel();
-            } else {
-                alert('Fehler beim Ändern des Themas')
-            }
-        });
-        topicSelect.class = 'topicSelect';
-        topicTitle.appendChild(topicSelect);
+        if (teacherPerms) {
+            topicTitle.innerHTML = `<label for="topicSelect">Aktuelles Thema:</label>`;
+            const topicSelect = document.createElement('select');
+            topicSelect.id = "topicSelect";
+            populateTopicSelect(topicSelect, subject.id, studentData.schoolClass.grade, topic);
+            topicSelect.addEventListener('change', async e => {
+                result = await changeCurrentTopic(studentId, subject.id, topicSelect.value);
+                if (result.ok) {
+                    panel.refresh();
+                } else {
+                    alert('Fehler beim Ändern des Themas')
+                }
+            });
+            topicSelect.class = 'topicSelect';
+            topicTitle.appendChild(topicSelect);
+        } else {
+            topicTitle.textContent = "Aktuelles Thema: " + topic.name
+        }
         body.appendChild(topicTitle);
 
         // Filter tasks for the current topic
@@ -693,38 +702,47 @@ function createSubjectPanel(subject, studentData) {
 
         // Current stage (selectedTasks)
         const { label: selectedLabel, list: selectedList } = createTaskList(selectedTasks, 'Aktuelle Etappe:', async (task) => {
-            const action = window.prompt(
-                'Was möchten Sie tun?\n1: Als abgeschlossen markieren\n2: Aufgabe abbrechen\n3: Aufgabe sperren',
-                '1'
-            );
-            if (action === '1') {
-                // Move to completed
-                completeTask(studentId, task.id);
-                // Update local state
-                studentData.selectedTasks = studentData.selectedTasks.filter(t => t.id !== task.id);
-                studentData.completedTasks.push(task);
-            } else if (action === '2') {
+            if (teacherPerms){
+                const action = window.prompt(
+                    'Was möchten Sie tun?\n1: Als abgeschlossen markieren\n2: Aufgabe abbrechen\n3: Aufgabe sperren',
+                    '1'
+                );
+                if (action === '1') {
+                    // Move to completed
+                    completeTask(studentId, task.id);
+                    // Update local state
+                    studentData.selectedTasks = studentData.selectedTasks.filter(t => t.id !== task.id);
+                    studentData.completedTasks.push(task);
+                } else if (action === '2') {
+                    // Cancel task
+                    cancelTask(studentId, task.id);
+                    studentData.selectedTasks = studentData.selectedTasks.filter(t => t.id !== task.id);
+                    // No need to push to completedTasks or otherTasks, UI will refresh
+                } else if (action === '3') {
+                    lockTask(studentId, task.id);
+                    studentData.selectedTasks = studentData.selectedTasks.filter(t => t.id !== task.id);
+                    studentData.lockedTasks.push(task)
+                }
+                panel.refresh(); // Refresh the panel to show updated tasks
+            } else {
                 // Cancel task
                 cancelTask(studentId, task.id);
                 studentData.selectedTasks = studentData.selectedTasks.filter(t => t.id !== task.id);
                 // No need to push to completedTasks or otherTasks, UI will refresh
-            } else if (action === '3') {
-                lockTask(studentId, task.id);
-                studentData.selectedTasks = studentData.selectedTasks.filter(t => t.id !== task.id);
-                studentData.lockedTasks.push(task)
+                panel.refresh(); // Refresh the panel to show updated tasks
             }
-            panel.refreshPanel(); // Refresh the panel to show updated tasks
         });
         body.appendChild(selectedLabel);
         body.appendChild(selectedList);
 
+
         // Completed stages
         const { label: completedLabel, list: completedList } = createTaskList(completedTasks, 'Abgeschlossene Etappen:', async (task) => {
-            if (window.confirm('Soll diese Aufgabe wirklich wieder in die offenen Aufgaben verschoben werden?')) {
+            if (teacherPerms && window.confirm('Soll diese Aufgabe wirklich wieder in die offenen Aufgaben verschoben werden?')) {
                 reopenTask(studentId, task.id);
                 studentData.completedTasks = studentData.completedTasks.filter(t => t.id !== task.id);
                 // No need to push to otherTasks, UI will refresh
-                panel.refreshPanel(); // Refresh the panel to show updated tasks
+                panel.refresh(); // Refresh the panel to show updated tasks
             }
         });
         body.appendChild(completedLabel);
@@ -732,11 +750,11 @@ function createSubjectPanel(subject, studentData) {
 
         // locked stages
         const { label: lockedLabel, list: lockedList } = createTaskList(lockedTasks, 'Gesperrte Etappen:', async (task) => {
-            if (window.confirm('Soll diese Aufgabe wirklich wieder in die offenen Aufgaben verschoben werden?')) {
+            if (teacherPerms && window.confirm('Soll diese Aufgabe wirklich wieder in die offenen Aufgaben verschoben werden?')) {
                 reopenTask(studentId, task.id);
                 studentData.lockedTasks = studentData.lockedTasks.filter(t => t.id !== task.id);
                 // No need to push to otherTasks, UI will refresh
-                panel.refreshPanel(); // Refresh the panel to show updated tasks
+                panel.refresh(); // Refresh the panel to show updated tasks
             }
         });
         body.appendChild(lockedLabel);
@@ -744,16 +762,13 @@ function createSubjectPanel(subject, studentData) {
 
         // Other stages
         const { label: otherLabel, list: otherList } = createTaskList(otherTasks, 'Weitere Etappen:', async (task) => {
-            beginTask(studentId, task.id());
+            beginTask(studentId, task.id);
             studentData.selectedTasks.push(task);
-            panel.refreshPanel(); // Refresh the panel to show updated tasks
+            panel.refresh(); // Refresh the panel to show updated tasks
         });
         body.appendChild(otherLabel);
         body.appendChild(otherList);
     });
-
-    panel.appendChild(header);
-    panel.appendChild(body);
     return panel;
 }
 function decodeEntities(str) {
@@ -761,7 +776,7 @@ function decodeEntities(str) {
     txt.innerHTML = str;
     return txt.value;
 }
-function loadStudentDashboard(studentData, subjects) { // Show student info
+function loadStudentDashboard(studentData, subjects, teacherPerms) { // Show student info
     setStudentInfo(studentData);
 
     // Show rooms
@@ -775,16 +790,18 @@ function loadStudentDashboard(studentData, subjects) { // Show student info
         }
     }, 0);
 
-    roomSelect.addEventListener('change', async () => updateRoom(studentId, roomSelect.value));
+    const roomSelect = document.getElementById('room');
+    roomSelect.addEventListener('change', async () => updateRoom(studentData.id, roomSelect.value));
 
     // Show subjects
     const subjectList = document.getElementById('subject-list');
     subjects.forEach(subject => {
-        const panel = createSubjectPanel(subject, studentData);
+        const panel = createSubjectPanel(subject, studentData, teacherPerms);
         subjectList.appendChild(panel);
     });
 }
 async function loadStudentResultView(studentData) {
+    const settings = await fetchModuleSettings('result_view');
 
     document.getElementById('student-name').textContent = `${studentData.firstName} ${studentData.lastName}`;
 
@@ -796,7 +813,38 @@ async function loadStudentResultView(studentData) {
 
     const charts = document.getElementById('charts');
     subjects.forEach(subject => {
-        charts.appendChild(createBarChart(subject, subject.name, studentData));
+        charts.appendChild(createBarChart(subject, subject.name, studentData, settings));
     });
 }
 const graduationLevels = ["Neustarter", "Starter", "Durchstarter", "Lernprofi"];
+let currentClass = JSON.parse(sessionStorage.getItem('currentClass'));
+document.addEventListener('DOMContentLoaded', async () => {
+    if (currentClass) {
+        for (const element of document.getElementsByClassName('classId')) {
+            element.textContent = currentClass.id;
+            element.value = currentClass.id;
+        }
+        for (const element of document.getElementsByClassName('className')) {
+            element.textContent = currentClass.label;
+            element.value = currentClass.label;
+        }
+        for (const element of document.getElementsByClassName('classGrade')) {
+            element.textContent = currentClass.grade;
+            element.value = currentClass.grade;
+        }
+        const studentList = document.getElementById('studentTableBody');
+        if (studentList) {
+            populateStudentTable(currentClass.id, 'studentTable', (row, student) => {
+                row.innerHTML = `
+                    <td class="student-name">${student.name}</td>
+                    <td class="student-room">${student.room}</td>
+                    <td class="student-graduation-level">${graduationLevels[student.graduationLevel]}</td>
+                    <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
+                `;
+            })
+        }
+        if (document.getElementById('subjectSelect')) {
+            populateSubjectSelect('subjectSelect', await fetchAllSubjects());
+        }
+    }
+})
