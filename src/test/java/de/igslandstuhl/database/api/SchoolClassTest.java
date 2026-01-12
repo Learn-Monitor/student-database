@@ -19,4 +19,17 @@ public class SchoolClassTest {
         assertNotNull(schoolClass);
         assertEquals(added, schoolClass);
     }
+    @Test
+    public void testGettersAndSetters() throws SQLException {
+        SchoolClass schoolClass = SchoolClass.addClass("5b", 5);
+        assertEquals("5b", schoolClass.getLabel());
+        assertEquals(5, schoolClass.getGrade());
+        schoolClass = schoolClass.setLabel("5c");
+        schoolClass = schoolClass.setGrade(6);
+        assertEquals("5c", schoolClass.getLabel());
+        assertEquals(6, schoolClass.getGrade());
+
+        assertThrows(IllegalStateException.class, () -> SchoolClass.get("5c").setGrade(-1));
+        
+    }
 }
