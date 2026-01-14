@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.webserver.Cookie;
+import de.igslandstuhl.database.server.webserver.handlers.SessionValidationResult;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 
 public class SessionManager {
@@ -25,6 +26,8 @@ public class SessionManager {
     private final int sessionExpireDuration;
     private final int maximumInactivityDuration;
     private final int maxRequests;
+
+
 
     public SessionManager(int sessionExpireDuration, int maximumInactivityDuration, int maxRequests) {
         this.sessionExpireDuration = sessionExpireDuration;
@@ -65,7 +68,7 @@ public class SessionManager {
         }
     }
 
-    public boolean validateSession(HttpRequest request) {
+    public SessionValidationResult validateSession(HttpRequest request) {
         lastActivity.set(request, Instant.now());
 
         Integer requests = requestCount.get(request);
@@ -74,21 +77,21 @@ public class SessionManager {
         requestCount.set(request, count);
         if (count > maxRequests && !getSessionUser(request).isAdmin()) {
             System.out.println("Ratelimit!");
-            return false;
+            return SessionValidationResult.RATE_LIMITED;
         }
 
         String userAgent = request.getUserAgent();
         if (!getSession(request).getUserAgent().equals(userAgent)) {
             System.err.println("SEVERE WARNING: POTENTIAL ATTACK: faked session id (device changed), for user " + getSessionUser(request));
-            return false;
+            return SessionValidationResult.INVALID_SESSION;
         }
         String ip = request.getIP();
         if (!getSession(request).getIpAddress().equals(ip)) {
             System.err.println("SEVERE WARNING: POTENTIAL ATTACK: faked session id (ip address changed) for user " + getSessionUser(request));
-            return false;
+            return SessionValidationResult.INVALID_SESSION;
         }
 
-        return true;
+        return SessionValidationResult.OK;
     }
 
     public Session getSession(UUID sessionUUID) {

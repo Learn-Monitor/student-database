@@ -21,13 +21,19 @@ public class GetRequestHandler {
 
     public final HttpResponse handleRequest(GetRequest request) {
         SessionManager sessionManager = Server.getInstance().getWebServer().getSessionManager();
-        if (!sessionManager.validateSession(request)) {
-            return GetResponse.forbidden(request);
-        } else {
-            String path = request.getPath();
-            HttpHandler<GetRequest> handler = Registry.getRequestHandlerRegistry().get(path);
-            return handler.handleHttpRequest(request);
+
+        SessionValidationResult v = sessionManager.validateSession(request);
+        if(v != SessionValidationResult.OK){
+            return switch (v){
+                case RATE_LIMITED -> GetResponse.tooManyRequests(request);
+                case INVALID_SESSION -> GetResponse.unauthorized("Invalid Session", request);
+                default -> GetResponse.unauthorized("Invalid Session", request);
+            };
         }
+
+        String path = request.getPath();
+        HttpHandler<GetRequest> handler = Registry.getRequestHandlerRegistry().get(path);
+        return handler.handleHttpRequest(request);
     }
 
     public static GetResponse handleFileRequest(GetRequest request) {

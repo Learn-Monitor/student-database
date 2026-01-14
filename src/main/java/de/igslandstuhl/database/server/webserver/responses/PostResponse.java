@@ -227,6 +227,26 @@ public class PostResponse implements HttpResponse {
     public static PostResponse forbidden(String message, PostRequest request) {
         return new PostResponse(Status.FORBIDDEN, message, ContentType.TEXT_PLAIN, request);
     }
+
+    /**
+     * Returns a response indicating that the client has sent too many requests in a given amount of time.
+     * This is used for rate limiting.
+     * @param message The error message to include in the response.
+     * @return A PostResponse object representing the too many requests response.
+     */
+    public static PostResponse tooManyRequests(String message, PostRequest request) {
+        return new PostResponse(Status.TOO_MANY_REQUESTS, message, ContentType.TEXT_PLAIN, request);
+    }
+
+    /**
+     * Returns a response indicating that the client has sent too many requests in a given amount of time.
+     * This is used for rate limiting.
+     * @return A PostResponse object representing the too many requests response.
+     */
+    public static PostResponse tooManyRequests(PostRequest rq) {
+        return tooManyRequests("Too Many Requests", rq);
+    }
+
     public static PostResponse redirect(String location, PostRequest request) {
         return new PostResponse(Status.FOUND, "", ContentType.TEXT_PLAIN, request, new String[] {
             "Location: " + location
