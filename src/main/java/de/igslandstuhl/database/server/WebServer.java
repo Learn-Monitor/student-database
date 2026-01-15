@@ -24,6 +24,7 @@ import java.util.concurrent.Executors;
 
 import de.igslandstuhl.database.server.webserver.handlers.GetRequestHandler;
 import de.igslandstuhl.database.server.webserver.handlers.PostRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.SessionValidationResult;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
 import de.igslandstuhl.database.server.webserver.requests.HttpHeader;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
@@ -146,7 +147,16 @@ public class WebServer implements Runnable {
                 body = URLDecoder.decode(raw, bodyCharset.name());
             }
             PostRequest parsedRequest = new PostRequest(postHeader, body, clientIp, secure);
-            HttpResponse response = Server.getInstance().getWebServer().getSessionManager().validateSession(parsedRequest) ? PostRequestHandler.getInstance().handlePostRequest(parsedRequest) : PostResponse.forbidden("Forbidden: session manipulation or ratelimit", parsedRequest);
+
+            SessionValidationResult v = Server.getInstance().getWebServer().getSessionManager().validateSession(parsedRequest);
+            HttpResponse response;
+            switch(v) {
+                case OK -> response = PostRequestHandler.getInstance().handlePostRequest(parsedRequest);            //OK
+                case RATE_LIMITED -> response = PostResponse.tooManyRequests("Too Many Requests", parsedRequest);    //429
+                case INVALID_SESSION -> response = PostResponse.unauthorized("Invalid Session", parsedRequest); //401
+                default -> response = PostResponse.unauthorized("Invalid Session", parsedRequest);
+            }
+
             response.respond(out);
         }
 

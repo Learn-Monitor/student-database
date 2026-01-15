@@ -46,6 +46,48 @@ public class GetResponse implements HttpResponse {
         return new GetResponse(request, Status.UNAUTHORIZED, new ResourceLocation("html", "errors", "401.html"), ContentType.HTML, "", false);
     }
     /**
+     * Returns a response for a GET request the user must be logged in for.
+     * This overload allows specifying a custom message (e.g. "Invalid Session") without leaking details.
+     * @param message The message to include in the response.
+     * @return the GetResponse object
+     */
+    public static GetResponse unauthorized(String message, HttpRequest request) {
+        return new GetResponse(
+                request,
+                Status.UNAUTHORIZED,
+                new ResourceLocation("html", "errors", "401.html"),
+                ContentType.HTML,
+                message,
+                false
+        );
+    }
+    /**
+     * Returns a response indicating that the client has sent too many requests in a given amount of time.
+     * This is used for rate limiting.
+     * @param message The message to include in the response.
+     * @return the GetResponse object
+     */
+    public static GetResponse tooManyRequests(String message, HttpRequest request) {
+        return new GetResponse(
+                request,
+                Status.TOO_MANY_REQUESTS,
+                new ResourceLocation("html", "errors", "429.html"),
+                ContentType.HTML,
+                message,
+                false
+        );
+    }
+
+    /**
+     * Returns a response indicating that the client has sent too many requests in a given amount of time.
+     * This is used for rate limiting.
+     * @return the GetResponse object
+     */
+    public static GetResponse tooManyRequests(HttpRequest request) {
+        return tooManyRequests("", request);
+    }
+
+    /**
      * The HTTP status of this response
      * @see Status
      */
