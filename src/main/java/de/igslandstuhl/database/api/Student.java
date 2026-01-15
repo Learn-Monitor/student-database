@@ -505,7 +505,7 @@ public class Student extends User {
         );
     }
     public Student changeGraduationLevel(int graduationLevel) throws SQLException {
-        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("graduation_level", String.valueOf(id), String.valueOf(graduationLevel)));
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("graduation_level", String.valueOf(graduationLevel), String.valueOf(id)));
         students.remove(id);
         return get(id);
     }
