@@ -26,6 +26,8 @@ To get a copy of the project up and running on your local machine for developmen
 
 ### 🏗️ Building from source
 
+“This section describes how to build the project using Gradle.”
+
 #### 🥖 Prerequisites
 
 Ensure you have the following installed:
