@@ -182,6 +182,11 @@ public class PostRequestHandler {
                 return PostResponse.unauthorized("Wrong credentials!", rq);
             }
         });
+        HttpHandler.registerPostRequestHandler("/editor", AccessLevel.ADMIN, (rq) -> {
+            return PostResponse.redirect("/editor", rq);
+        });
+
+
         HttpHandler.registerPostRequestHandler("/add-students", AccessLevel.ADMIN, (rq) ->
             handleBatchInsertCSV(rq, "students", ContentType.CSV, t -> {
                 try {
