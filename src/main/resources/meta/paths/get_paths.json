@@ -158,18 +158,11 @@
         "access_level": "admin"
     },
     "/editor": {
-        "GET": {
-            "handler_type": "TemplatingFileRequestHandler",
-            "namespaces": ["admin"],
-            "context": "html",
-            "access_level": "admin"
-        },
-        "POST": {
-            "handler_type": "TemplateUpdateRequestHandler",
-            "namespaces": ["admin"],
-            "context": "html",
-            "access_level": "admin"
-        }
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
     },
 
     "/teacher": {

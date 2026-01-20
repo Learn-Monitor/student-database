@@ -1,7 +1,18 @@
+%[site;title=HTML Editor;content=!FOLLOWS]
+
 <h2>HTML Editor</h2>
 
 <form method="post" action="/editor">
-  <textarea name="content" rows="20" cols="80"></textarea>
+
+  <label for="filename">File name to save as:</label><br>
+  <input type="text" id="filename" name="filename" placeholder="e.g. login.html" required>
+  
   <br><br>
+
+  <label for="content">HTML Content:</label><br>
+  <textarea name="content" rows="20" cols="80"></textarea>
+
+  <br><br>
+
   <button type="submit">Save</button>
 </form>
