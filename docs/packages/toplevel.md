@@ -1,5 +1,8 @@
 # Toplevel Package
 
+In the top level package `de.igslandstuhl.database`, you can find the entry point of 
+the application, and registries that are available everywhere on the backend.
+
 ## Application (Singleton)
 - Entry point for application startup
 - Prepares environment
