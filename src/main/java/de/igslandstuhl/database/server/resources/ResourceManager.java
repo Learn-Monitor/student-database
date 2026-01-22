@@ -32,27 +32,15 @@ import de.igslandstuhl.database.server.Server;
  * Manages Resources in the application
  */
 public class ResourceManager {
-
     /**
-     * Checks if a zip entry name is safe (no path traversal, not absolute).
+     * Checks if a zip entry name is safe (to prevent zip slipping).
      */
-    private boolean isSafeZipEntryName(String entryName) {
-        // Reject absolute paths
-        Path path = Paths.get(entryName).normalize();
-        if (path.isAbsolute()) {
-            return false;
-        }
-        // Reject entries containing ".." as a path segment
-        for (Path part : path) {
-            if (part.toString().equals("..")) {
-                return false;
-            }
-        }
-        // Reject entries starting with "/" or "\"
-        if (entryName.startsWith("/") || entryName.startsWith("\\")) {
-            return false;
-        }
-        return true;
+    private boolean isSafeZipEntryName(String entryName, Path rootDir) {
+        // Resolve entry against a fixed root and normalize
+        Path resolvedPath = rootDir.resolve(entryName).normalize();
+
+        // Entry is safe if it stays within the root directory
+        return resolvedPath.startsWith(rootDir);
     }
 
     /**
@@ -100,6 +88,8 @@ public class ResourceManager {
      */
     private Collection<ResourceLocation> getResourcesFromJarFile(final Path jarFilePath, final Pattern pattern) {
         final ArrayList<ResourceLocation> retval = new ArrayList<>();
+        // Virtual root – no real filesystem access needed
+        final Path virtualRoot = Paths.get("").toAbsolutePath().normalize();
         ZipFile zf;
         try {
             zf = new ZipFile(jarFilePath.toFile());
@@ -114,7 +104,7 @@ public class ResourceManager {
         while (e.hasMoreElements()) {
             final ZipEntry ze = e.nextElement();
             final String fileName = ze.getName();
-            if (!isSafeZipEntryName(fileName)) {
+            if (!isSafeZipEntryName(fileName, virtualRoot)) {
                 // Optionally log or throw, here we skip unsafe entries
                 continue;
             }
