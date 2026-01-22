@@ -31,7 +31,7 @@ import de.igslandstuhl.database.server.Server;
 /**
  * Manages Resources in the application
  */
-public class ResourceHelper {
+public class ResourceManager {
 
     /**
      * Checks if a zip entry name is safe (no path traversal, not absolute).
@@ -190,7 +190,7 @@ public class ResourceHelper {
      */
     public InputStream openResourceAsStream(ResourceLocation location) throws FileNotFoundException {
         String url = "/" + location.context() + "/" + location.namespace() + "/" + location.resource();
-        InputStream stream = ResourceHelper.class.getResourceAsStream(url);
+        InputStream stream = ResourceManager.class.getResourceAsStream(url);
         if (stream == null) {
             throw new FileNotFoundException(url + " not found in classpath or resources.");
         }
