@@ -664,7 +664,7 @@ function createSubjectPanel(subject, studentData, teacherPerms) {
             topicSelect.id = "topicSelect";
             populateTopicSelect(topicSelect, subject.id, studentData.schoolClass.grade, topic);
             topicSelect.addEventListener('change', async e => {
-                result = await changeCurrentTopic(studentId, subject.id, topicSelect.value);
+                result = await changeCurrentTopic(studentId, subject.id, Number(topicSelect.value));
                 if (result.ok) {
                     panel.refresh();
                 } else {
