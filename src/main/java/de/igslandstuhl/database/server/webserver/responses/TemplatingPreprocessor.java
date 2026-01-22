@@ -2,12 +2,14 @@ package de.igslandstuhl.database.server.webserver.responses;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import de.igslandstuhl.database.server.resources.ResourceHelper;
+import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 
 public class TemplatingPreprocessor {
@@ -18,9 +20,20 @@ public class TemplatingPreprocessor {
 
     private TemplatingPreprocessor() {}
 
+    private static String sanitizeTemplateName(String name) {
+        Path base = Paths.get("templates/html");
+        Path resolved = base.resolve(name + ".html").normalize();
+
+        if (!resolved.startsWith(base)) {
+            throw new IllegalArgumentException("Invalid template name");
+        }
+
+        return resolved.getFileName().toString();
+    }
+
     private String getTemplate(String name) throws FileNotFoundException {
-        ResourceLocation templateLocation = new ResourceLocation("templates", "html", name + ".html");
-        return ResourceHelper.readResourceCompletely(templateLocation);
+        ResourceLocation templateLocation = new ResourceLocation("templates", "html", sanitizeTemplateName(name) + ".html");
+        return Server.getInstance().getResourceManager().readResourceCompletely(templateLocation);
     }
 
     public String executeTemplating(String content) throws IOException {
