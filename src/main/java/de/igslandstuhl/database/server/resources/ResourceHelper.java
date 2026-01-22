@@ -2,7 +2,6 @@ package de.igslandstuhl.database.server.resources;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,7 +29,7 @@ import com.google.gson.reflect.TypeToken;
 import de.igslandstuhl.database.server.Server;
 
 /**
- * Helper class for managing resources in the application.
+ * Manages Resources in the application
  */
 public class ResourceHelper {
 
@@ -63,8 +62,8 @@ public class ResourceHelper {
      * @param pattern the pattern to match
      * @return the resources in the order they are found
      */
-    public static Collection<String> getResources(final Pattern pattern) {
-        final ArrayList<String> retval = new ArrayList<>();
+    public static Collection<ResourceLocation> getResources(final Pattern pattern) {
+        final ArrayList<ResourceLocation> retval = new ArrayList<>();
         final String classPath = System.getProperty("java.class.path", ".");
         final String[] classPathElements = classPath.split(System.getProperty("path.separator"));
         for (final String element : classPathElements) {
@@ -81,11 +80,11 @@ public class ResourceHelper {
      * @param pattern the pattern to match
      * @return the resources in the order they are found
      */
-    private static Collection<String> getResources(final String element, final Pattern pattern) {
-        final ArrayList<String> retval = new ArrayList<>();
+    private static Collection<ResourceLocation> getResources(final String element, final Pattern pattern) {
+        final ArrayList<ResourceLocation> retval = new ArrayList<>();
         final File file = new File(element);
         if (file.isDirectory()) {
-            retval.addAll(getResourcesFromDirectory(file, pattern));
+            retval.addAll(getResourcesFromDirectory(file, pattern, file.toPath()));
         } else {
             retval.addAll(getResourcesFromJarFile(file, pattern));
         }
@@ -99,8 +98,8 @@ public class ResourceHelper {
      * @param pattern the pattern to match
      * @return the resources in the order they are found
      */
-    private static Collection<String> getResourcesFromJarFile(final File file, final Pattern pattern) {
-        final ArrayList<String> retval = new ArrayList<>();
+    private static Collection<ResourceLocation> getResourcesFromJarFile(final File file, final Pattern pattern) {
+        final ArrayList<ResourceLocation> retval = new ArrayList<>();
         ZipFile zf;
         try {
             zf = new ZipFile(file);
@@ -121,7 +120,8 @@ public class ResourceHelper {
             }
             final boolean accept = pattern.matcher(fileName).matches();
             if (accept) {
-                retval.add(fileName);
+                ResourceLocation location = ResourceLocation.fromPath(fileName);
+                if (location != null) retval.add(location);
             }
         }
         try {
@@ -139,24 +139,21 @@ public class ResourceHelper {
      * @param pattern the pattern to match
      * @return the resources in the order they are found
      */
-    private static Collection<String> getResourcesFromDirectory(final File directory, final Pattern pattern) {
-        final ArrayList<String> retval = new ArrayList<>();
+    private static Collection<ResourceLocation> getResourcesFromDirectory(final File directory, final Pattern pattern, final Path toplevelPath) {
+        final ArrayList<ResourceLocation> retval = new ArrayList<>();
         final File[] fileList = directory.listFiles();
         if (fileList == null) {
             return retval;
         }
         for (final File file : fileList) {
             if (file.isDirectory()) {
-                retval.addAll(getResourcesFromDirectory(file, pattern));
+                retval.addAll(getResourcesFromDirectory(file, pattern, toplevelPath));
             } else {
-                try {
-                    final String fileName = file.getCanonicalPath();
-                    final boolean accept = pattern.matcher(fileName).matches();
-                    if (accept) {
-                        retval.add(fileName);
-                    }
-                } catch (final IOException e) {
-                    throw new Error(e);
+                final Path path = toplevelPath.relativize(file.toPath());
+                final boolean accept = pattern.matcher(path.toString()).matches();
+                if (accept) {
+                    ResourceLocation location = ResourceLocation.fromPath(path);
+                    if (location != null) retval.add(location);
                 }
             }
         }
@@ -172,19 +169,9 @@ public class ResourceHelper {
      */
     public static BufferedReader[] openResourcesAsReader(Pattern pattern) {
         List<BufferedReader> readers = new ArrayList<>();
-        for (String resource : getResources(pattern)) {
+        for (ResourceLocation resource : getResources(pattern)) {
             try {
-                File file = new File(resource);
-                InputStream is;
-                if (file.exists() && file.isFile()) {
-                    is = new FileInputStream(file);
-                } else {
-                    is = ResourceHelper.class.getResourceAsStream("/" + resource);
-                    if (is == null) {
-                        throw new FileNotFoundException("Resource " + resource + " not found in classpath or filesystem.");
-                    }
-                }
-                readers.add(new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8)));
+                readers.add(new BufferedReader(new InputStreamReader(openResourceAsStream(resource))));
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }
