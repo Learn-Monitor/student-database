@@ -1,12 +1,12 @@
 package de.igslandstuhl.database.server.resources;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -82,11 +82,11 @@ public class ResourceHelper {
      */
     private static Collection<ResourceLocation> getResources(final String element, final Pattern pattern) {
         final ArrayList<ResourceLocation> retval = new ArrayList<>();
-        final File file = new File(element);
-        if (file.isDirectory()) {
-            retval.addAll(getResourcesFromDirectory(file, pattern, file.toPath()));
+        final Path path = Path.of(element);
+        if (Files.isDirectory(path)) {
+            retval.addAll(getResourcesFromDirectory(path, pattern, path));
         } else {
-            retval.addAll(getResourcesFromJarFile(file, pattern));
+            retval.addAll(getResourcesFromJarFile(path, pattern));
         }
         return retval;
     }
@@ -94,15 +94,15 @@ public class ResourceHelper {
     /**
      * Get all resources from a jar file or a directory that match the given pattern.
      * 
-     * @param file the jar file or directory to search in
+     * @param jarFilePath the jar file or directory to search in
      * @param pattern the pattern to match
      * @return the resources in the order they are found
      */
-    private static Collection<ResourceLocation> getResourcesFromJarFile(final File file, final Pattern pattern) {
+    private static Collection<ResourceLocation> getResourcesFromJarFile(final Path jarFilePath, final Pattern pattern) {
         final ArrayList<ResourceLocation> retval = new ArrayList<>();
         ZipFile zf;
         try {
-            zf = new ZipFile(file);
+            zf = new ZipFile(jarFilePath.toFile());
         } catch (final ZipException e) {
             throw new Error(e);
         } catch (final NoSuchFileException e) {
@@ -139,23 +139,24 @@ public class ResourceHelper {
      * @param pattern the pattern to match
      * @return the resources in the order they are found
      */
-    private static Collection<ResourceLocation> getResourcesFromDirectory(final File directory, final Pattern pattern, final Path toplevelPath) {
+    private static Collection<ResourceLocation> getResourcesFromDirectory(final Path directory, final Pattern pattern, final Path toplevelPath) {
         final ArrayList<ResourceLocation> retval = new ArrayList<>();
-        final File[] fileList = directory.listFiles();
-        if (fileList == null) {
-            return retval;
-        }
-        for (final File file : fileList) {
-            if (file.isDirectory()) {
-                retval.addAll(getResourcesFromDirectory(file, pattern, toplevelPath));
-            } else {
-                final Path path = toplevelPath.relativize(file.toPath());
-                final boolean accept = pattern.matcher(path.toString()).matches();
-                if (accept) {
-                    ResourceLocation location = ResourceLocation.fromPath(path);
-                    if (location != null) retval.add(location);
+        try {
+            Files.list(directory).forEach((path) -> {
+                if (Files.isDirectory(path)) {
+                    retval.addAll(getResourcesFromDirectory(path, pattern, toplevelPath));
+                } else {
+                    final Path relativePath = toplevelPath.relativize(path);
+                    final boolean accept = pattern.matcher(relativePath.toString()).matches();
+                    if (accept) {
+                        ResourceLocation location = ResourceLocation.fromPath(relativePath);
+                        if (location != null) retval.add(location);
+                    }
                 }
-            }
+            });
+        } catch (IOException e) {
+            e.printStackTrace();
+            return retval;
         }
         return retval;
     }
