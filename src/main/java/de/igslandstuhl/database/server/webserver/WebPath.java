@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import de.igslandstuhl.database.Registry;
-import de.igslandstuhl.database.server.resources.ResourceHelper;
+import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.server.webserver.requests.RequestType;
 
@@ -16,7 +16,7 @@ public record WebPath(RequestType type, String handlerType, List<String> namespa
     public static void registerPaths() throws IOException {
         if (Registry.webPathRegistry().stream().count() > 0) return; // already registered
         ResourceLocation metaLocation = new ResourceLocation("meta", "paths", "get_paths.json");
-        Map<String, ?> pathData = ResourceHelper.readJsonResourceAsMap(metaLocation);
+        Map<String, ?> pathData = Server.getInstance().getResourceManager().readJsonResourceAsMap(metaLocation);
         pathData.keySet().forEach((path) -> {
             @SuppressWarnings("unchecked")
             Map<String, ?> pathInfo = (Map<String, ?>) pathData.get(path);

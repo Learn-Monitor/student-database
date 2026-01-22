@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import de.igslandstuhl.database.server.resources.ResourceHelper;
+import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 
 public class TemplatingPreprocessor {
@@ -20,7 +20,7 @@ public class TemplatingPreprocessor {
 
     private String getTemplate(String name) throws FileNotFoundException {
         ResourceLocation templateLocation = new ResourceLocation("templates", "html", name + ".html");
-        return ResourceHelper.readResourceCompletely(templateLocation);
+        return Server.getInstance().getResourceManager().readResourceCompletely(templateLocation);
     }
 
     public String executeTemplating(String content) throws IOException {

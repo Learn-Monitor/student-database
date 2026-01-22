@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import de.igslandstuhl.database.api.User;
-import de.igslandstuhl.database.server.resources.ResourceHelper;
+import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 
 /**
@@ -70,7 +70,7 @@ public class AccessManager {
         String[] teacherLocations = {};
         String[] adminLocations = {"students", "teachers", "classes"};
         try {
-            Map<String, ?> pathData = ResourceHelper.readJsonResourceAsMap(metaLocation);
+            Map<String, ?> pathData = Server.getInstance().getResourceManager().readJsonResourceAsMap(metaLocation);
             List<String> publicSpacesList = (List<String>) pathData.get("public_spaces");
             List<String> publicLocationsList = (List<String>) pathData.get("public_locations");
             List<String> userLocationsList = (List<String>) pathData.get("user_locations");

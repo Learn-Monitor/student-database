@@ -36,7 +36,7 @@ public class ResourceHelper {
     /**
      * Checks if a zip entry name is safe (no path traversal, not absolute).
      */
-    private static boolean isSafeZipEntryName(String entryName) {
+    private boolean isSafeZipEntryName(String entryName) {
         // Reject absolute paths
         Path path = Paths.get(entryName).normalize();
         if (path.isAbsolute()) {
@@ -62,7 +62,7 @@ public class ResourceHelper {
      * @param pattern the pattern to match
      * @return the resources in the order they are found
      */
-    public static Collection<ResourceLocation> getResources(final Pattern pattern) {
+    public Collection<ResourceLocation> getResources(final Pattern pattern) {
         final ArrayList<ResourceLocation> retval = new ArrayList<>();
         final String classPath = System.getProperty("java.class.path", ".");
         final String[] classPathElements = classPath.split(System.getProperty("path.separator"));
@@ -80,7 +80,7 @@ public class ResourceHelper {
      * @param pattern the pattern to match
      * @return the resources in the order they are found
      */
-    private static Collection<ResourceLocation> getResources(final String element, final Pattern pattern) {
+    private Collection<ResourceLocation> getResources(final String element, final Pattern pattern) {
         final ArrayList<ResourceLocation> retval = new ArrayList<>();
         final Path path = Path.of(element);
         if (Files.isDirectory(path)) {
@@ -98,7 +98,7 @@ public class ResourceHelper {
      * @param pattern the pattern to match
      * @return the resources in the order they are found
      */
-    private static Collection<ResourceLocation> getResourcesFromJarFile(final Path jarFilePath, final Pattern pattern) {
+    private Collection<ResourceLocation> getResourcesFromJarFile(final Path jarFilePath, final Pattern pattern) {
         final ArrayList<ResourceLocation> retval = new ArrayList<>();
         ZipFile zf;
         try {
@@ -139,7 +139,7 @@ public class ResourceHelper {
      * @param pattern the pattern to match
      * @return the resources in the order they are found
      */
-    private static Collection<ResourceLocation> getResourcesFromDirectory(final Path directory, final Pattern pattern, final Path toplevelPath) {
+    private Collection<ResourceLocation> getResourcesFromDirectory(final Path directory, final Pattern pattern, final Path toplevelPath) {
         final ArrayList<ResourceLocation> retval = new ArrayList<>();
         try {
             Files.list(directory).forEach((path) -> {
@@ -168,7 +168,7 @@ public class ResourceHelper {
      * @param pattern the pattern to match
      * @return an array of BufferedReaders for the matching resources
      */
-    public static BufferedReader[] openResourcesAsReader(Pattern pattern) {
+    public BufferedReader[] openResourcesAsReader(Pattern pattern) {
         List<BufferedReader> readers = new ArrayList<>();
         for (ResourceLocation resource : getResources(pattern)) {
             try {
@@ -188,7 +188,7 @@ public class ResourceHelper {
      * @return an InputStream for the resource
      * @throws FileNotFoundException if the resource is not found
      */
-    public static InputStream openResourceAsStream(ResourceLocation location) throws FileNotFoundException {
+    public InputStream openResourceAsStream(ResourceLocation location) throws FileNotFoundException {
         String url = "/" + location.context() + "/" + location.namespace() + "/" + location.resource();
         InputStream stream = ResourceHelper.class.getResourceAsStream(url);
         if (stream == null) {
@@ -205,7 +205,7 @@ public class ResourceHelper {
      * @return the content of the resource as a String
      * @throws FileNotFoundException if the resource is not found
      */
-    public static String readResourceCompletely(ResourceLocation location) throws FileNotFoundException {
+    public String readResourceCompletely(ResourceLocation location) throws FileNotFoundException {
         return readResourceCompletely(new BufferedReader(new InputStreamReader(openResourceAsStream(location), StandardCharsets.UTF_8)));
     }
 
@@ -216,7 +216,7 @@ public class ResourceHelper {
      * @param in the BufferedReader to read from
      * @return the content of the BufferedReader as a String
      */
-    public static String readResourceCompletely(BufferedReader in) {
+    public String readResourceCompletely(BufferedReader in) {
         StringBuilder builder = new StringBuilder();
         in.lines().forEach((s) -> {
             builder.append(s);
@@ -234,7 +234,7 @@ public class ResourceHelper {
      * @return the content read until an empty line is encountered
      * @throws IOException if an I/O error occurs
      */
-    public static String readResourceTillEmptyLine(BufferedReader in) throws IOException {
+    public String readResourceTillEmptyLine(BufferedReader in) throws IOException {
         StringBuilder builder = new StringBuilder();
         Stream<String> lines = in.lines();
         for (String line : new Iterable<String>() {
@@ -259,7 +259,7 @@ public class ResourceHelper {
      * @param location the ResourceLocation object representing the virtual resource
      * @return the content of the virtual resource as a String, or null if not applicable
      */
-    public static String readVirtualResource(String user, ResourceLocation location) {
+    public String readVirtualResource(String user, ResourceLocation location) {
         if (!location.isVirtual()) {
             return null;
         } else if (location.namespace().equals("sql")) {
@@ -269,7 +269,7 @@ public class ResourceHelper {
         }
     }
 
-    public static Map<String,?> readJsonResourceAsMap(ResourceLocation location) throws IOException {
+    public Map<String,?> readJsonResourceAsMap(ResourceLocation location) throws IOException {
         try (BufferedReader in = new BufferedReader(new InputStreamReader(openResourceAsStream(location), StandardCharsets.UTF_8))) {
             Gson gson = new Gson();
             java.lang.reflect.Type mapType = new TypeToken<Map<String, Object>>(){}.getType();

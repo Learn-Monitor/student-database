@@ -19,6 +19,7 @@ import de.igslandstuhl.database.api.Student;
 import de.igslandstuhl.database.api.Subject;
 import de.igslandstuhl.database.api.Teacher;
 import de.igslandstuhl.database.api.User;
+import de.igslandstuhl.database.server.resources.ResourceHelper;
 import de.igslandstuhl.database.server.sql.SQLHelper;
 import de.igslandstuhl.database.server.sql.SQLiteConnection;
 
@@ -71,6 +72,17 @@ public final class Server implements AutoCloseable {
      */
     public WebServer getWebServer() {
         return webServer;
+    }
+    /**
+     * The resource manager for this server
+     */
+    private final ResourceHelper resourceManager = new ResourceHelper();
+    /**
+     * Returns the resource manager used by this server
+     * @return the resource manager
+     */
+    public ResourceHelper getResourceManager() {
+        return resourceManager;
     }
 
     /**

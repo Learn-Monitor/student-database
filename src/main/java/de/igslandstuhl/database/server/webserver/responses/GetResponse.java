@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.io.PrintStream;
 
 import de.igslandstuhl.database.server.Server;
-import de.igslandstuhl.database.server.resources.ResourceHelper;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.server.webserver.AccessManager;
 import de.igslandstuhl.database.server.webserver.ContentType;
@@ -171,9 +170,9 @@ public class GetResponse implements HttpResponse {
                 String resource = "";
                 if (resourceLocation != null) {
                     if (!resourceLocation.isVirtual()) {
-                        resource = ResourceHelper.readResourceCompletely(resourceLocation);
+                        resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
                     } else {
-                        resource = ResourceHelper.readVirtualResource(user, resourceLocation);
+                        resource = Server.getInstance().getResourceManager().readVirtualResource(user, resourceLocation);
                         if (resource == null) throw new NullPointerException();
                     }
                 }
@@ -182,7 +181,7 @@ public class GetResponse implements HttpResponse {
                 }
                 out.println(resource);
             } else {
-                try (InputStream in = ResourceHelper.openResourceAsStream(resourceLocation)) {
+                try (InputStream in = Server.getInstance().getResourceManager().openResourceAsStream(resourceLocation)) {
                     in.transferTo(out); // Streams bytes directly
                 }
             }
@@ -201,9 +200,9 @@ public class GetResponse implements HttpResponse {
     public String getResponseBody() throws FileNotFoundException {
         if (resourceLocation != null) {
             if (!resourceLocation.isVirtual()) {
-                return ResourceHelper.readResourceCompletely(resourceLocation);
+                return Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
             } else {
-                return ResourceHelper.readVirtualResource(user, resourceLocation);
+                return Server.getInstance().getResourceManager().readVirtualResource(user, resourceLocation);
             }
         }
         return "";
