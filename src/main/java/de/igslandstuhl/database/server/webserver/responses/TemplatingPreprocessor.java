@@ -32,7 +32,7 @@ public class TemplatingPreprocessor {
     }
 
     private String getTemplate(String name) throws FileNotFoundException {
-        ResourceLocation templateLocation = new ResourceLocation("templates", "html", sanitizeTemplateName(name) + ".html");
+        ResourceLocation templateLocation = new ResourceLocation("templates", "html", sanitizeTemplateName(name));
         return Server.getInstance().getResourceManager().readResourceCompletely(templateLocation);
     }
 
