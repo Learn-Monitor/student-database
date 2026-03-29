@@ -92,8 +92,8 @@ async function fetchTopicList(subjectId, grade) {
 async function fetchTasks(taskIds, studentId) {
     return await getJsonWithPost('/tasks', { ids: taskIds, studentId });
 }
-async function fetchModuleSettings(moduleKey) {
-    return (await getJsonWithPost('/get-module', { key: moduleKey })).settings;
+async function fetchModuleConfig(moduleKey) {
+    return (await getJsonWithPost('/get-module', { key: moduleKey })).config;
 }
 
 async function getStudents(classId) {
@@ -587,10 +587,10 @@ function createBarChart(subject, subjectName, studentData, settings) {
     const predicted = studentData.predictedProgress && studentData.predictedProgress[subjectName]
         ? studentData.predictedProgress[subjectName].predictedProgress : 0;
 
-    const grade = settings.show_current_grade.value ? getGrade(progress) : 0;
+    const grade = settings.show_current_grade ? getGrade(progress) : 0;
     const predictedGrade = getGrade(predicted);
 
-    if (!settings || settings.show_current_progress.value) {
+    if (!settings || settings.show_current_progress) {
         const gradeInfo = document.createElement('div');
         gradeInfo.className = 'grade-current';
         gradeInfo.innerHTML = `<strong>Aktueller Fortschritt:</strong> ${getGradeLabel(grade)} (${Math.round(progress * 100)}%)`;
@@ -801,7 +801,7 @@ function loadStudentDashboard(studentData, subjects, teacherPerms) { // Show stu
     });
 }
 async function loadStudentResultView(studentData) {
-    const settings = await fetchModuleSettings('result_view');
+    const config = await fetchModuleConfig('result_view');
 
     document.getElementById('student-name').textContent = `${studentData.firstName} ${studentData.lastName}`;
 
@@ -813,7 +813,7 @@ async function loadStudentResultView(studentData) {
 
     const charts = document.getElementById('charts');
     subjects.forEach(subject => {
-        charts.appendChild(createBarChart(subject, subject.name, studentData, settings));
+        charts.appendChild(createBarChart(subject, subject.name, studentData, config.values));
     });
 }
 const graduationLevels = ["Neustarter", "Starter", "Durchstarter", "Lernprofi"];
