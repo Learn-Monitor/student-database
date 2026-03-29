@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import de.igslandstuhl.database.api.modules.WebModule;
+import de.igslandstuhl.database.modules.WebModule;
 import de.igslandstuhl.database.server.commands.Command;
 import de.igslandstuhl.database.server.commands.CommandDescription;
 import de.igslandstuhl.database.server.webserver.WebPath;

@@ -1,9 +1,11 @@
-package de.igslandstuhl.database.api.modules;
+package de.igslandstuhl.database.modules;
 
-import java.util.LinkedList;
 import java.util.List;
 
 import de.igslandstuhl.database.Registry;
+import de.igslandstuhl.database.modules.config.BoolSetting;
+import de.igslandstuhl.database.modules.config.ModuleConfig;
+import de.igslandstuhl.database.modules.config.ModuleSetting;
 
 public abstract class WebModule {
     private String id;
@@ -11,8 +13,6 @@ public abstract class WebModule {
     private String description;
 
     private boolean enabled;
-
-    private List<ModuleSetting<?>> settings = new LinkedList<>();
 
     public WebModule(String id, String name, String description) {
         this.id = id;
@@ -41,36 +41,12 @@ public abstract class WebModule {
         sb.append("\"name\":\"").append(name).append("\",");
         sb.append("\"description\":\"").append(description).append("\",");
         sb.append("\"enabled\":").append(enabled).append(",");
-        sb.append("\"settings\":{");
-        for (int i = 0; i < settings.size(); i++) {
-            sb.append("\"").append(settings.get(i).getKey()).append("\":").append(settings.get(i).toJSON());
-            if (i < settings.size() - 1) {
-                sb.append(",");
-            }
-        }
-        sb.append("}");
+        sb.append("\"config\":").append(getConfig().toJSON()).append(",");
         sb.append("}");
         return sb.toString();
     }
 
-    public List<ModuleSetting<?>> getSettings() {
-        return settings;
-    }
-    public ModuleSetting<?> getSettingByKey(String key) {
-        for (ModuleSetting<?> setting : settings) {
-            if (setting.getKey().equals(key)) {
-                return setting;
-            }
-        }
-        return null;
-    }
-    public BoolSetting getBoolSetting(String key) {
-        ModuleSetting<?> setting = getSettingByKey(key);
-        if (setting instanceof BoolSetting) {
-            return (BoolSetting) setting;
-        }
-        return null;
-    }
+    public abstract ModuleConfig<?> getConfig();
 
     protected abstract void onEnable();
     protected abstract void onDisable();
@@ -97,14 +73,18 @@ public abstract class WebModule {
         onLoad();
     }
 
-    public void toggleSetting(String key) {
-        getBoolSetting(key).toggle();
-    }
-
     private static class DummyModule extends WebModule {
+        private final ModuleConfig<DummyModule> config;
         public DummyModule(String id, String name, String description, List<ModuleSetting<?>> settings) {
             super(id, name, description);
-            this.getSettings().addAll(settings);
+            config = new ModuleConfig<WebModule.DummyModule>(this, settings) {
+                
+            };
+        }
+
+        @Override
+        public ModuleConfig<?> getConfig() {
+            return config;
         }
 
         @Override

@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.api.modules;
+package de.igslandstuhl.database.modules.config;
 
 public class ModuleSetting<T> {
     private final String key;
@@ -7,7 +7,7 @@ public class ModuleSetting<T> {
     private final T defaultValue;
     private T value;
 
-    public ModuleSetting(String key, String name, String description, T defaultValue) {
+    ModuleSetting(String key, String name, String description, T defaultValue) {
         this.key = key;
         this.name = name;
         this.description = description;

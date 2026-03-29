@@ -417,7 +417,7 @@ public class PostRequestHandler {
         });
         HttpHandler.registerPostRequestHandler("/toggle-module-setting", AccessLevel.ADMIN, (rq) -> {
             String[] key = rq.getString("key").split(":");
-            Registry.moduleRegistry().get(key[0]).toggleSetting(key[1]);
+            Registry.moduleRegistry().get(key[0]).getConfig().toggleSetting(key[1]);
             return PostResponse.ok("Module setting toggled", ContentType.TEXT_PLAIN, rq);
         });
 

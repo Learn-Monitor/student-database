@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.api.modules;
+package de.igslandstuhl.database.modules.config;
 
 public class BoolSetting extends ModuleSetting<Boolean> {
     public BoolSetting(String key, String name, String description, boolean defaultValue) {
