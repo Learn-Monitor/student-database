@@ -37,6 +37,11 @@
         "navigation_type": "ADMIN_DASHBOARD",
         "appearance": "LIST_APPEARANCE"
     },
+    "admin_student_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "ADMIN_STUDENT",
+        "appearance": "BUTTON_APPEARANCE"
+    },
     "student_dashboard_nav": {
         "type": "HTMLNavigationTemplate",
         "navigation_type": "STUDENT_DASHBOARD",

@@ -34,6 +34,27 @@
         "path": "/editor",
         "label": "HTML Editor"
     },
+    
+    {
+        "type": "ADMIN_STUDENT",
+        "path": "/student-results",
+        "label": "Ergebnisse anzeigen"
+    },
+    {
+        "type": "ADMIN_STUDENT",
+        "path": "/teacher",
+        "label": "Zurück zur Lehrer-Ansicht"
+    },
+    {
+        "type": "ADMIN_STUDENT",
+        "path": "/class",
+        "label": "Zurück zur Klassen-Ansicht"
+    },
+    {
+        "type": "ADMIN_STUDENT",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
 
     {
         "type": "STUDENT_DASHBOARD",
