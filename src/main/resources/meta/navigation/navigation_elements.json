@@ -57,6 +57,27 @@
     },
 
     {
+        "type": "ADMIN_STUDENT_OTHER",
+        "path": "/student",
+        "label": "Zurück zur Schüler-Ansicht"
+    },
+    {
+        "type": "ADMIN_STUDENT_OTHER",
+        "path": "/teacher",
+        "label": "Zurück zur Lehrer-Ansicht"
+    },
+    {
+        "type": "ADMIN_STUDENT_OTHER",
+        "path": "/class",
+        "label": "Zurück zur Klassen-Ansicht"
+    },
+    {
+        "type": "ADMIN_STUDENT_OTHER",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
+
+    {
         "type": "STUDENT_DASHBOARD",
         "path": "/results",
         "label": "Meine Ergebnisse anzeigen"
