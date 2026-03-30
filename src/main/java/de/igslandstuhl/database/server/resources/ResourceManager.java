@@ -13,6 +13,9 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -90,6 +93,21 @@ public class ResourceManager {
             }
         }
         throw new FileNotFoundException(location.toString());
+    }
+
+    /**
+     * Opens a resource as input stream in all sources that are found
+     * @param location the ResourceLocation object representing the resource
+     * @return an list of InputStreams for the resource
+     */
+    public List<InputStream> openAll(ResourceLocation location) {
+        List<InputStream> streams = new ArrayList<>();
+
+        for (ResourceProvider provider : providers) {
+            streams.addAll(provider.openAll(location));
+        }
+
+        return streams;
     }
 
     /**
@@ -171,5 +189,29 @@ public class ResourceManager {
             Map<String, Object> json = gson.fromJson(in, mapType);
             return json;
         }
+    }
+    public Map<String,?> readJsonResourceMerged(ResourceLocation location) {
+        return MergeHelper.readJsonObjectMerged(this, location);
+    }
+    public String readCodeMerged(ResourceLocation location) {
+        return MergeHelper.readMergedCode(this, location);
+    }
+
+    public <T> T mergeResources(ResourceLocation location, BiFunction<T, T, T> merger, Supplier<T> start, Function<InputStream, T> parser) {
+        T result = start.get();
+
+        for (InputStream is : openAll(location)) {
+            try (InputStream stream = is) {
+                T part = parser.apply(stream);
+
+                if (part != null) {
+                    result = merger.apply(result, part);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to merge resource: " + location, e);
+            }
+        }
+        
+        return result;
     }
 }

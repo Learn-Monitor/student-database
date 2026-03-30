@@ -30,6 +30,23 @@ public class PluginResourceProvider implements ResourceProvider {
 
         return null;
     }
+
+    @Override
+    public List<InputStream> openAll(ResourceLocation location) {
+        String path = location.context() + "/" + location.namespace() + "/" + location.resource();
+        List<InputStream> inputStreams = new ArrayList<>();
+
+        for (PreLoadedPlugin module : PluginLoader.getInstance().getPluginInfos()) {
+            ClassLoader cl = module.classLoader();
+            InputStream stream = cl.getResourceAsStream(path);
+
+            if (stream != null) {
+                inputStreams.add(stream);
+            }
+        }
+
+        return inputStreams;
+    }
     
     @Override
     public Collection<ResourceLocation> list(Pattern pattern) {
