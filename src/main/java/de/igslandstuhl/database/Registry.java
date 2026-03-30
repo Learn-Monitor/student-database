@@ -2,9 +2,14 @@ package de.igslandstuhl.database;
 
 import java.io.Closeable;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
+import de.igslandstuhl.database.client.HTMLTemplate;
+import de.igslandstuhl.database.client.navigation.NavigationElement;
+import de.igslandstuhl.database.client.navigation.NavigationType;
 import de.igslandstuhl.database.plugins.Plugin;
 import de.igslandstuhl.database.server.commands.Command;
 import de.igslandstuhl.database.server.commands.CommandDescription;
@@ -20,6 +25,10 @@ public class Registry<K, V> implements Closeable {
     private static final Registry<String,HttpHandler<GetRequest>> GET_HANDLER_REGISTRY = new Registry<>();
     private static final Registry<String,Plugin> PLUGIN_REGISTRY = new Registry<>();
     private static final Registry<String,WebPath> WEB_PATH_REGISTRY = new Registry<>();
+
+    private static final EnumRegistry<NavigationType,NavigationElement> NAVIGATION_REGISTRY = new EnumRegistry<>(NavigationType.class);
+    private static final Registry<String,HTMLTemplate> TEMPLATE_REGISTRY = new Registry<>();
+
     public static Registry<String,Command> commandRegistry() {
         return COMMAND_REGISTRY;
     }
@@ -38,6 +47,12 @@ public class Registry<K, V> implements Closeable {
     public static Registry<String, WebPath> webPathRegistry() {
         return WEB_PATH_REGISTRY;
     }
+    public static EnumRegistry<NavigationType, NavigationElement> navigationRegistry() {
+        return NAVIGATION_REGISTRY;
+    }
+    public static Registry<String, HTMLTemplate> templateRegistry() {
+        return TEMPLATE_REGISTRY;
+    }
 
     private final Map<K,V> objects = new HashMap<>();
 
@@ -55,6 +70,28 @@ public class Registry<K, V> implements Closeable {
     }
     public synchronized void unregister(K key) {
         objects.remove(key);
+    }
+
+    public static class EnumRegistry<K extends Enum<?>, V> {
+        private final Map<K,Set<V>> objects = new HashMap<>();
+
+        private EnumRegistry(Class<K> clazz) {
+            for (K k :clazz.getEnumConstants()) {
+                objects.put(k, new HashSet<>());
+            }
+        }
+        public synchronized void register(K key, V value) {
+            objects.get(key).add(value);
+        }
+        public synchronized Stream<V> stream(K key) {
+            return objects.get(key).stream();
+        }
+        public synchronized Stream<K> keyStream() {
+            return objects.keySet().stream();
+        }
+        public synchronized void unregister(K key) {
+            objects.get(key).clear();
+        }
     }
 
     @Override

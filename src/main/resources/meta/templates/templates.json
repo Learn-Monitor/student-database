@@ -1,0 +1,40 @@
+{
+    "class_info": {
+        "type": "HTMLFileTemplate",
+        "path": "class_info"
+    },
+    "file_import": {
+        "type": "HTMLFileTemplate",
+        "path": "file_import"
+    },
+    "login": {
+        "type": "HTMLFileTemplate",
+        "path": "login"
+    },
+    "room_info": {
+        "type": "HTMLFileTemplate",
+        "path": "room_info"
+    },
+    "site": {
+        "type": "HTMLFileTemplate",
+        "path": "site"
+    },
+    "student_dashboard": {
+        "type": "HTMLFileTemplate",
+        "path": "student_dashboard"
+    },
+    "student_results": {
+        "type": "HTMLFileTemplate",
+        "path": "student_results"
+    },
+    "subject_info": {
+        "type": "HTMLFileTemplate",
+        "path": "subject_info"
+    },
+
+    "admin_dashboard_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "ADMIN_DASHBOARD",
+        "appearance": "LIST_APPEARANCE"
+    }
+}

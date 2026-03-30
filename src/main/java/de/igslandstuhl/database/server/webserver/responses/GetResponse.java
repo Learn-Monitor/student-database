@@ -4,6 +4,7 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.PrintStream;
 
+import de.igslandstuhl.database.client.TemplatingPreprocessor;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.server.webserver.AccessManager;
