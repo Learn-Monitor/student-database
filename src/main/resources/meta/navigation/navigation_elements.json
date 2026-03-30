@@ -39,5 +39,16 @@
         "type": "STUDENT_DASHBOARD",
         "path": "/results",
         "label": "Meine Ergebnisse anzeigen"
+    },
+    {
+        "type": "STUDENT_DASHBOARD",
+        "path": "/partner_search",
+        "label": "Partner suchen"
+    },
+
+    {
+        "type": "STUDENT_OTHER",
+        "path": "/dashboard",
+        "label": "Zurück zum Dashboard"
     }
 ]
