@@ -33,5 +33,11 @@
         "type": "ADMIN_DASHBOARD",
         "path": "/editor",
         "label": "HTML Editor"
+    },
+
+    {
+        "type": "STUDENT_DASHBOARD",
+        "path": "/results",
+        "label": "Meine Ergebnisse anzeigen"
     }
 ]
