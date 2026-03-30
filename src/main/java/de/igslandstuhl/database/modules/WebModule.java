@@ -18,7 +18,7 @@ public abstract class WebModule {
     private boolean initialized = false;
 
     public WebModule() {
-        this.enabled = true;
+        this.enabled = false;
     }
 
     void init(String id, String name, String description) {

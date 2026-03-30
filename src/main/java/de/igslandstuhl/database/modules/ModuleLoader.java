@@ -100,9 +100,11 @@ public class ModuleLoader {
         try {
             module = (WebModule) preload.clazz().getDeclaredConstructor().newInstance();
             module.init(preload.description());
-            module.load();
             registerModule(module);
+            module.load();
         } catch (Exception e) {
+            System.err.println("Failed to load module: " + preload.description().id());
+            moduleInfos.remove(preload);
             e.printStackTrace();
         }
     }
@@ -129,6 +131,9 @@ public class ModuleLoader {
 
         ModuleSort.sortModules(modules).forEach((p) -> moduleInfos.add(p));
         moduleInfos.forEach(this::load);
+    }
+    public void enableModules() {
+        moduleInfos.forEach((m) -> Registry.moduleRegistry().get(m.description().id()).enable());
     }
     public void unloadModules() {
         Collections.reverse(moduleInfos);
