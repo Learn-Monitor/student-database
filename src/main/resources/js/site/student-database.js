@@ -92,8 +92,14 @@ async function fetchTopicList(subjectId, grade) {
 async function fetchTasks(taskIds, studentId) {
     return await getJsonWithPost('/tasks', { ids: taskIds, studentId });
 }
+async function fetchModuleKeys() {
+    return await getJson('/module-list');
+}
+async function fetchModule(moduleKey) {
+    return await getJsonWithPost('/get-module', { key: moduleKey })
+}
 async function fetchModuleConfig(moduleKey) {
-    return (await getJsonWithPost('/get-module', { key: moduleKey })).config;
+    return (await fetchModule(moduleKey)).config;
 }
 
 async function getStudents(classId) {
@@ -155,6 +161,9 @@ async function beginTask(studentId, taskId) {
 }
 async function updateRoom(studentId, room) {
     return await post('/update-room', { studentId, room });
+}
+async function toggleModule(moduleKey) {
+    return await post('/toggle-module', { key: moduleKey })
 }
 
 async function deleteClass(classId) {
@@ -814,6 +823,36 @@ async function loadStudentResultView(studentData) {
     const charts = document.getElementById('charts');
     subjects.forEach(subject => {
         charts.appendChild(createBarChart(subject, subject.name, studentData, config.values));
+    });
+}
+let module_panels = {}
+function loadModuleSection(moduleKey) {
+    return createPanel(moduleKey, document.createElement("div"), async (header, body) => {
+        const module = await fetchModule(moduleKey);
+        header.textContent = module.name;
+        body.innerHTML = `
+            <p>${module.description.replace("\n", "</p><p>")}</p>
+            <table>
+                <thead>
+                    <th>Key</th>
+                    <th>Value</th>
+                    <th/>
+                </thead>
+                <tbody>
+                    <tr><td>ID</td><td>${module.id}</td><td/></tr>
+                    <tr><td>Name</td><td>${module.name}</td><td/></tr>
+                    <tr><td>Enabled</td><td>${module.enabled}</td><td><button onclick="toggleModule('${module.id}');module_panels['${module.id}'].refresh()">Toggle</button></td></tr>
+                </tbody>
+            </table>
+        `;
+    })
+}
+async function loadModulesView(moduleContainer) {
+    const modules = fetchModuleKeys();
+    (await modules).forEach(async key => {
+        const moduleSection = loadModuleSection(key);
+        module_panels[key] = moduleSection;
+        moduleContainer.appendChild(moduleSection);
     });
 }
 const graduationLevels = ["Neustarter", "Starter", "Durchstarter", "Lernprofi"];
