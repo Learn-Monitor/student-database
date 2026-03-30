@@ -2,6 +2,7 @@ plugins {
     java
     application
     id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("maven-publish")
 }
 
 group = "igs-landstuhl"
@@ -49,5 +50,29 @@ tasks.shadowJar {
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(17)) // or another version you prefer
+    }
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("mavenJava") {
+            from(components["java"])
+
+            groupId = "igs-landstuhl"
+            artifactId = "student-database"
+            version = project.version.toString()
+        }
+    }
+
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/Learn-Monitor/student-database/")
+
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+        }
     }
 }
