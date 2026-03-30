@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -16,14 +16,14 @@ public class MergeHelper {
     public static Map<String, ?> readJsonObjectMerged(ResourceManager manager, ResourceLocation location) {
         Gson gson = new Gson();
 
-        return manager.mergeResources(location, 
+        return manager.mergeResources(location,
             // merger
             (a, b) -> {
                 a.putAll(b);
                 return a;
             },
             //start supplier
-            HashMap::new,
+            () -> (Map<String,Object>)new LinkedHashMap<String, Object>(),
             // parser
             (is) -> {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
