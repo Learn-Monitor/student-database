@@ -163,7 +163,10 @@ async function updateRoom(studentId, room) {
     return await post('/update-room', { studentId, room });
 }
 async function togglePlugin(pluginKey) {
-    return await post('/toggle-plugin', { key: pluginKey })
+    return await post('/toggle-plugin', { key: pluginKey });
+}
+async function togglePluginSetting(pluginKey, setting) {
+    return await post('/toggle-plugin-setting', { key: pluginKey + ":" + setting });
 }
 
 async function deleteClass(classId) {
@@ -845,6 +848,13 @@ function loadPluginSection(pluginKey) {
                 </tbody>
             </table>
         `;
+        const tbody = body.getElementsByTagName("tbody")[0]
+        const settings = plugin.config.settings;
+        settings.bools.forEach((b) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${b.name}</td><td>${b.value}</td><td><button onclick="togglePluginSetting('${plugin.id}', '${b.key}');plugin_panels['${plugin.id}'].refresh()">Toggle</button></td>`;
+            tbody.appendChild(tr);
+        });
     })
 }
 async function loadPluginsView(pluginContainer) {
