@@ -20,6 +20,9 @@ import de.igslandstuhl.database.modules.config.BoolSetting;
 
 public class ModuleLoader {
     private final List<PreLoadedModule> moduleInfos = new ArrayList<>();
+    public List<PreLoadedModule> getModuleInfos() {
+        return moduleInfos;
+    }
     private static final ModuleLoader INSTANCE = new ModuleLoader();
     public static ModuleLoader getInstance() {
         return INSTANCE;
