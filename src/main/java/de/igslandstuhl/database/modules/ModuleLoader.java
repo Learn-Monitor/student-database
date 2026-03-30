@@ -59,10 +59,22 @@ public class ModuleLoader {
 
             String mainClassName = (String) yaml.get("main");
             String id = (String) yaml.get("id");
-            String name = (String) yaml.get("name");
+            if (id == null || mainClassName == null) {
+                throw new IllegalStateException("Invalid module.yml in " + jarFile.getName() + ": you must define id and main");
+            }
+            String name = (String) yaml.getOrDefault("name", id);
             String description = (String) yaml.getOrDefault("description", "");
-            @SuppressWarnings("unchecked")
-            List<String> depends = (List<String>) yaml.getOrDefault("depends", new ArrayList<>());
+
+            Object dependsObj = yaml.get("depends");
+            List<String> depends = new ArrayList<>();
+
+            if (dependsObj instanceof List<?>) {
+                for (Object o : (List<?>) dependsObj) {
+                    if (o instanceof String s) {
+                        depends.add(s);
+                    }
+                }
+            }
 
             Class<?> clazz = classLoader.loadClass(mainClassName);
 
