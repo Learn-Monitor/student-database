@@ -1,0 +1,37 @@
+[
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/manage_classes",
+        "label": "Klassen verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/manage_rooms",
+        "label": "Räume verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/manage_students",
+        "label": "Schüler verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/manage_subjects",
+        "label": "Fächer verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/manage_teachers",
+        "label": "Lehrer verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/plugins",
+        "label": "Module verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/editor",
+        "label": "HTML Editor"
+    }
+]

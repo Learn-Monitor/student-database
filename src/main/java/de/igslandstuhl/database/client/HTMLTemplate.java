@@ -6,6 +6,7 @@ import java.util.Map;
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.client.navigation.HTMLNavigationTemplate;
 import de.igslandstuhl.database.client.navigation.NavigationAppearance;
+import de.igslandstuhl.database.client.navigation.NavigationElement;
 import de.igslandstuhl.database.client.navigation.NavigationType;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
@@ -17,6 +18,7 @@ public interface HTMLTemplate {
         Registry.templateRegistry().register(key, template);
     }
     public static void registerAll() {
+        NavigationElement.registerAll();
         Map<String, ?> json = Server.getInstance().getResourceManager().readJsonResourceMerged(meta);
         json.keySet().forEach((key) -> {
             @SuppressWarnings("unchecked")

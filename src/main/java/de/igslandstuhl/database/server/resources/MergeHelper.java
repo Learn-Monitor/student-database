@@ -34,7 +34,7 @@ public class MergeHelper {
             }
         );
     }
-    public static List<String> readJsonListMerged(ResourceManager manager, ResourceLocation location) {
+    public static <T> List<T> readJsonListMerged(ResourceManager manager, ResourceLocation location, TypeToken<List<T>> listType) {
         Gson gson = new Gson();
 
         return manager.mergeResources(
@@ -52,7 +52,7 @@ public class MergeHelper {
             // parser
             (is) -> {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
-                    return gson.fromJson(reader, new TypeToken<List<String>>(){}.getType());
+                    return gson.fromJson(reader, listType.getType());
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
