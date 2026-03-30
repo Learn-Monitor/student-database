@@ -53,7 +53,12 @@ public abstract class Plugin {
         return sb.toString();
     }
 
-    public abstract PluginConfig<?> getConfig();
+    /**
+     * Returns the config of this plugin.
+     * This should never be null, as it will break the plugin lifecycle otherwise.
+     * @return the config
+     */
+    public abstract PluginConfig<? extends Plugin> getConfig();
 
     protected abstract void onEnable();
     protected abstract void onDisable();
@@ -75,6 +80,7 @@ public abstract class Plugin {
         } else {
             enable();
         }
+        getConfig().save();
     }
     void load() {
         onLoad();

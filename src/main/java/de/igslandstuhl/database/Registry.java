@@ -53,6 +53,9 @@ public class Registry<K, V> implements Closeable {
     public synchronized V get(K key) {
         return objects.get(key);
     }
+    public synchronized void unregister(K key) {
+        objects.remove(key);
+    }
 
     @Override
     public void close() {

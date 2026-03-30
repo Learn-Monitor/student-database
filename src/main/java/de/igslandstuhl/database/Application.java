@@ -4,6 +4,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.jline.reader.UserInterruptException;
+
 import de.igslandstuhl.database.api.SerializationException;
 import de.igslandstuhl.database.api.Subject;
 import de.igslandstuhl.database.api.Topic;
@@ -116,10 +118,16 @@ public final class Application {
 
         PluginLoader.getInstance().enablePlugins();
 
-        while (true) {
-            if (!getInstance().suppressCmd()) {
-                CommandLineUtils.waitForCommandAndExec();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> PluginLoader.getInstance().unloadPlugins(),"Plugin cleanup thread"));
+
+        try {
+            while (true) {
+                if (!getInstance().suppressCmd()) {
+                    CommandLineUtils.waitForCommandAndExec();
+                }
             }
-        }
+        } catch (UserInterruptException e) {
+            System.exit(0);
+        } // Program exit using Ctrl+C
     }
 }

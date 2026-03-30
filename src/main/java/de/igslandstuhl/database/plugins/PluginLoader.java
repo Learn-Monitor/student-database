@@ -105,9 +105,13 @@ public class PluginLoader {
             plugin.init(preload.description());
             registerPlugin(plugin);
             plugin.load();
+            if (plugin.getConfig() == null) {
+                throw new NullPointerException("Plugin must have a config");
+            }
         } catch (Exception e) {
-            System.err.println("Failed to load module: " + preload.description().id());
+            System.err.println("Failed to load plugin: " + preload.description().id());
             pluginInfos.remove(preload);
+            if (Registry.pluginRegistry().get(preload.description().id()) != null) Registry.pluginRegistry().unregister(preload.description().id());
             e.printStackTrace();
         }
     }
@@ -136,15 +140,22 @@ public class PluginLoader {
         pluginInfos.forEach(this::load);
     }
     public void enablePlugins() {
-        pluginInfos.forEach((p) -> Registry.pluginRegistry().get(p.description().id()).enable());
+        pluginInfos.forEach((p) -> {
+            Plugin plugin = Registry.pluginRegistry().get(p.description().id());
+            if (plugin.getConfig().isEnabledOnStart()) {
+                plugin.enable();
+            }
+        });
     }
     public void unloadPlugins() {
         Collections.reverse(pluginInfos);
         pluginInfos.forEach((p) -> {
             Plugin plugin = Registry.pluginRegistry().get(p.description().id());
+            plugin.getConfig().save();
             if (plugin != null && plugin.isEnabled()) {
                 plugin.disable();
             }
+            Registry.pluginRegistry().unregister(plugin.getId());
 
             try {
                 p.classLoader().close();
@@ -169,6 +180,6 @@ public class PluginLoader {
             new BoolSetting("show_current_progress", "Show Current", "Whether to display the current progress to the subject (in percent)", true),
             new BoolSetting("show_current_grade", "Show Currently Achieved Grade", "Whether to display the grade the student would achieve when they decide to immediately stop working", false)
         )));
-        loadAllPlugins(new File("modules"));
+        loadAllPlugins(new File("plugins"));
     }
 }
