@@ -114,6 +114,8 @@ public final class Application {
             Server.getInstance().getWebServer().start();
         }
 
+        PluginLoader.getInstance().enablePlugins();
+
         while (true) {
             if (!getInstance().suppressCmd()) {
                 CommandLineUtils.waitForCommandAndExec();
