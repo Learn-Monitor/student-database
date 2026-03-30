@@ -19,7 +19,7 @@ import java.util.stream.Stream;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-import de.igslandstuhl.database.modules.PluginResourceProvider;
+import de.igslandstuhl.database.plugins.PluginResourceProvider;
 import de.igslandstuhl.database.server.Server;
 
 /**

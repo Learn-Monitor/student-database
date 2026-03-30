@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.modules;
+package de.igslandstuhl.database.plugins;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -7,16 +7,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class ModuleSort {
-    private ModuleSort() {}
+public class PluginSort {
+    private PluginSort() {}
     private static void visit(
-        PreLoadedModule module,
-        Map<String, PreLoadedModule> map,
-        List<PreLoadedModule> sorted,
+        PreLoadedPlugin plugin,
+        Map<String, PreLoadedPlugin> map,
+        List<PreLoadedPlugin> sorted,
         Set<String> visited,
         Set<String> visiting
     ) {
-        String id = module.description().id();
+        String id = plugin.description().id();
 
         if (visited.contains(id)) return;
 
@@ -26,8 +26,8 @@ public class ModuleSort {
 
         visiting.add(id);
 
-        for (String dep : module.description().depends()) {
-            PreLoadedModule dependency = map.get(dep);
+        for (String dep : plugin.description().depends()) {
+            PreLoadedPlugin dependency = map.get(dep);
             if (dependency == null) {
                 throw new IllegalStateException("Missing dependency: " + dep + " for " + id);
             }
@@ -36,19 +36,19 @@ public class ModuleSort {
 
         visiting.remove(id);
         visited.add(id);
-        sorted.add(module);
+        sorted.add(plugin);
     }
-    public static List<PreLoadedModule> sortModules(List<PreLoadedModule> modules) {
-        Map<String, PreLoadedModule> map = new HashMap<>();
-        for (PreLoadedModule m : modules) {
+    public static List<PreLoadedPlugin> sortPlugins(List<PreLoadedPlugin> plugins) {
+        Map<String, PreLoadedPlugin> map = new HashMap<>();
+        for (PreLoadedPlugin m : plugins) {
             map.put(m.description().id(), m);
         }
 
-        List<PreLoadedModule> sorted = new ArrayList<>();
+        List<PreLoadedPlugin> sorted = new ArrayList<>();
         Set<String> visited = new HashSet<>();
         Set<String> visiting = new HashSet<>();
 
-        for (PreLoadedModule m : modules) {
+        for (PreLoadedPlugin m : plugins) {
             visit(m, map, sorted, visited, visiting);
         }
 

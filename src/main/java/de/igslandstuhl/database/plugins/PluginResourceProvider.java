@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.modules;
+package de.igslandstuhl.database.plugins;
 
 import java.io.File;
 import java.io.InputStream;
@@ -19,7 +19,7 @@ public class PluginResourceProvider implements ResourceProvider {
     public InputStream open(ResourceLocation location) {
         String path = location.context() + "/" + location.namespace() + "/" + location.resource();
 
-        for (PreLoadedModule module : ModuleLoader.getInstance().getModuleInfos()) {
+        for (PreLoadedPlugin module : PluginLoader.getInstance().getPluginInfos()) {
             ClassLoader cl = module.classLoader();
             InputStream stream = cl.getResourceAsStream(path);
 
@@ -35,7 +35,7 @@ public class PluginResourceProvider implements ResourceProvider {
     public Collection<ResourceLocation> list(Pattern pattern) {
         List<ResourceLocation> result = new ArrayList<>();
 
-        for (PreLoadedModule module : ModuleLoader.getInstance().getModuleInfos()) {
+        for (PreLoadedPlugin module : PluginLoader.getInstance().getPluginInfos()) {
             try (ZipFile zip = new ZipFile(new File(module.classLoader().getURLs()[0].toURI()))) {
 
                 Enumeration<? extends ZipEntry> entries = zip.entries();

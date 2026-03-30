@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.modules;
+package de.igslandstuhl.database.plugins;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,21 +16,21 @@ import java.util.Set;
 import org.yaml.snakeyaml.Yaml;
 
 import de.igslandstuhl.database.Registry;
-import de.igslandstuhl.database.modules.config.BoolSetting;
+import de.igslandstuhl.database.plugins.config.BoolSetting;
 
-public class ModuleLoader {
-    private final List<PreLoadedModule> moduleInfos = new ArrayList<>();
-    public List<PreLoadedModule> getModuleInfos() {
-        return moduleInfos;
+public class PluginLoader {
+    private final List<PreLoadedPlugin> pluginInfos = new ArrayList<>();
+    public List<PreLoadedPlugin> getPluginInfos() {
+        return pluginInfos;
     }
-    private static final ModuleLoader INSTANCE = new ModuleLoader();
-    public static ModuleLoader getInstance() {
+    private static final PluginLoader INSTANCE = new PluginLoader();
+    public static PluginLoader getInstance() {
         return INSTANCE;
     }
-    private ModuleLoader() {}
+    private PluginLoader() {}
 
     private Map<String, Object> loadYaml(URLClassLoader classLoader) {
-        try (InputStream is = classLoader.getResourceAsStream("module.yml")) {
+        try (InputStream is = classLoader.getResourceAsStream("plugin.yml")) {
             if (is == null) return null;
 
             Yaml yaml = new Yaml();
@@ -40,7 +40,7 @@ public class ModuleLoader {
             return null;
         }
     }
-    public PreLoadedModule loadModuleFromJar(File jarFile) {
+    public PreLoadedPlugin loadPluginFromJar(File jarFile) {
         URLClassLoader classLoader;
         try {
             classLoader = new URLClassLoader(
@@ -55,7 +55,7 @@ public class ModuleLoader {
 
             Map<String, Object> yaml = loadYaml(classLoader);
             if (yaml == null) {
-                System.err.println("No module.yml found in " + jarFile.getName());
+                System.err.println("No plugin.yml found in " + jarFile.getName());
                 classLoader.close();
                 return null;
             }
@@ -63,7 +63,7 @@ public class ModuleLoader {
             String mainClassName = (String) yaml.get("main");
             String id = (String) yaml.get("id");
             if (id == null || mainClassName == null) {
-                throw new IllegalStateException("Invalid module.yml in " + jarFile.getName() + ": you must define id and main");
+                throw new IllegalStateException("Invalid plugin.yml in " + jarFile.getName() + ": you must define id and main");
             }
             String name = (String) yaml.getOrDefault("name", id);
             String description = (String) yaml.getOrDefault("description", "");
@@ -81,11 +81,11 @@ public class ModuleLoader {
 
             Class<?> clazz = classLoader.loadClass(mainClassName);
 
-            if (!WebModule.class.isAssignableFrom(clazz)) {
-                throw new IllegalStateException("Main class does not extend WebModule");
+            if (!Plugin.class.isAssignableFrom(clazz)) {
+                throw new IllegalStateException("Main class does not extend Plugin");
             }
 
-            return new PreLoadedModule(new ModuleDescription(id, name, description, mainClassName, depends), clazz, classLoader);
+            return new PreLoadedPlugin(new PluginDescription(id, name, description, mainClassName, depends), clazz, classLoader);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -98,77 +98,77 @@ public class ModuleLoader {
             return null;
         }
     }
-    public void load(PreLoadedModule preload) {
-        WebModule module;
+    public void load(PreLoadedPlugin preload) {
+        Plugin plugin;
         try {
-            module = (WebModule) preload.clazz().getDeclaredConstructor().newInstance();
-            module.init(preload.description());
-            registerModule(module);
-            module.load();
+            plugin = (Plugin) preload.clazz().getDeclaredConstructor().newInstance();
+            plugin.init(preload.description());
+            registerPlugin(plugin);
+            plugin.load();
         } catch (Exception e) {
             System.err.println("Failed to load module: " + preload.description().id());
-            moduleInfos.remove(preload);
+            pluginInfos.remove(preload);
             e.printStackTrace();
         }
     }
-    public void loadAllModules(File folder) {
+    public void loadAllPlugins(File folder) {
         File[] jars = folder.listFiles((dir, name) -> name.endsWith(".jar"));
         if (jars == null) return;
 
-        List<PreLoadedModule> modules = new ArrayList<>();
+        List<PreLoadedPlugin> plugins = new ArrayList<>();
 
         for (File jar : jars) {
-            PreLoadedModule m = loadModuleFromJar(jar);
+            PreLoadedPlugin m = loadPluginFromJar(jar);
             if (m != null) {
-                modules.add(m);
+                plugins.add(m);
             }
         }
 
         // Check for duplicate ids
         Set<String> ids = new HashSet<>();
-        for (PreLoadedModule m : modules) {
-            if (!ids.add(m.description().id())) {
-                throw new IllegalStateException("Duplicate module id: " + m.description().id());
+        for (PreLoadedPlugin p : plugins) {
+            if (!ids.add(p.description().id())) {
+                throw new IllegalStateException("Duplicate module id: " + p.description().id());
             }
         }
 
-        ModuleSort.sortModules(modules).forEach((p) -> moduleInfos.add(p));
-        moduleInfos.forEach(this::load);
+        PluginSort.sortPlugins(plugins).forEach((p) -> pluginInfos.add(p));
+        pluginInfos.forEach(this::load);
     }
-    public void enableModules() {
-        moduleInfos.forEach((m) -> Registry.moduleRegistry().get(m.description().id()).enable());
+    public void enablePlugins() {
+        pluginInfos.forEach((p) -> Registry.pluginRegistry().get(p.description().id()).enable());
     }
-    public void unloadModules() {
-        Collections.reverse(moduleInfos);
-        moduleInfos.forEach((m) -> {
-            WebModule module = Registry.moduleRegistry().get(m.description().id());
-            if (module != null && module.isEnabled()) {
-                module.disable();
+    public void unloadPlugins() {
+        Collections.reverse(pluginInfos);
+        pluginInfos.forEach((p) -> {
+            Plugin plugin = Registry.pluginRegistry().get(p.description().id());
+            if (plugin != null && plugin.isEnabled()) {
+                plugin.disable();
             }
 
             try {
-                m.classLoader().close();
+                p.classLoader().close();
             } catch (IOException e) {
                 throw new RuntimeException("Problem while unloading", e);
             }
         });
-        moduleInfos.clear();
+        pluginInfos.clear();
     }
 
     
 
-    private void registerModule(WebModule module) {
-        if (Registry.moduleRegistry().keyStream().anyMatch(module.getId()::equals)) {
-            throw new IllegalStateException("Duplicate module id: " + module.getId());
+    private void registerPlugin(Plugin plugin) {
+        if (Registry.pluginRegistry().keyStream().anyMatch(plugin.getId()::equals)) {
+            throw new IllegalStateException("Duplicate module id: " + plugin.getId());
         }
-        Registry.moduleRegistry().register(module.getId(), module);
+        Registry.pluginRegistry().register(plugin.getId(), plugin);
     }
-    public void registerModules() {
-        registerModule(new WebModule.DummyModule("result_view", "Student Results View", "The view displaying the student's current progress and prognoses for the final result", List.of(
+    public void registerPlugins() {
+        registerPlugin(new Plugin.DummyModule("result_view", "Student Results View", "The view displaying the student's current progress and prognoses for the final result", List.of(
             new BoolSetting("show_prognosis", "Show Prognosis", "Whether to display the prognosis for the final result", true),
             new BoolSetting("show_current_progress", "Show Current", "Whether to display the current progress to the subject (in percent)", true),
             new BoolSetting("show_current_grade", "Show Currently Achieved Grade", "Whether to display the grade the student would achieve when they decide to immediately stop working", false)
         )));
-        loadAllModules(new File("modules"));
+        loadAllPlugins(new File("modules"));
     }
 }

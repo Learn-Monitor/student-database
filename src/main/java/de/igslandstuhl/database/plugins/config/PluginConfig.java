@@ -1,29 +1,29 @@
-package de.igslandstuhl.database.modules.config;
+package de.igslandstuhl.database.plugins.config;
 
 import java.util.Arrays;
 import java.util.List;
 
-import de.igslandstuhl.database.modules.WebModule;
+import de.igslandstuhl.database.plugins.Plugin;
 
-public abstract class ModuleConfig<T extends WebModule> {
-    private final T module;
+public abstract class PluginConfig<T extends Plugin> {
+    private final T plugin;
 
     private final BoolSetting[] boolSettings;
 
-    public ModuleConfig(T module, ModuleSetting<?>[] moduleSettings) {
-        this.module = module;
+    public PluginConfig(T plugin, PluginSetting<?>[] moduleSettings) {
+        this.plugin = plugin;
         List<BoolSetting> boolSettings = Arrays.stream(moduleSettings).filter((s) -> s instanceof BoolSetting).map((s) -> (BoolSetting) s).toList();
         this.boolSettings = boolSettings.toArray(new BoolSetting[boolSettings.size()]);
     }
 
-    public ModuleConfig(T module, List<ModuleSetting<?>> moduleSettings) {
-        this.module = module;
+    public PluginConfig(T plugin, List<PluginSetting<?>> moduleSettings) {
+        this.plugin = plugin;
         List<BoolSetting> boolSettings = moduleSettings.stream().filter((s) -> s instanceof BoolSetting).map((s) -> (BoolSetting) s).toList();
         this.boolSettings = boolSettings.toArray(new BoolSetting[boolSettings.size()]);
     }
 
-    public T getModule() {
-        return module;
+    public T getPlugin() {
+        return plugin;
     }
 
     private BoolSetting findBoolSetting(String key) {

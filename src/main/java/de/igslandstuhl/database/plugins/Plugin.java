@@ -1,15 +1,11 @@
-package de.igslandstuhl.database.modules;
+package de.igslandstuhl.database.plugins;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.util.List;
 
-import de.igslandstuhl.database.modules.config.ModuleConfig;
-import de.igslandstuhl.database.modules.config.ModuleSetting;
+import de.igslandstuhl.database.plugins.config.PluginConfig;
+import de.igslandstuhl.database.plugins.config.PluginSetting;
 
-public abstract class WebModule {
+public abstract class Plugin {
     private String id;
     private String name;
     private String description;
@@ -17,7 +13,7 @@ public abstract class WebModule {
     private boolean enabled;
     private boolean initialized = false;
 
-    public WebModule() {
+    public Plugin() {
         this.enabled = false;
     }
 
@@ -28,7 +24,7 @@ public abstract class WebModule {
         this.description = description;
         this.initialized = true;
     }
-    void init(ModuleDescription description) {
+    void init(PluginDescription description) {
         init(description.id(), description.name(), description.description());
     }
 
@@ -57,7 +53,7 @@ public abstract class WebModule {
         return sb.toString();
     }
 
-    public abstract ModuleConfig<?> getConfig();
+    public abstract PluginConfig<?> getConfig();
 
     protected abstract void onEnable();
     protected abstract void onDisable();
@@ -84,17 +80,17 @@ public abstract class WebModule {
         onLoad();
     }
 
-    static class DummyModule extends WebModule {
-        private final ModuleConfig<DummyModule> config;
-        public DummyModule(String id, String name, String description, List<ModuleSetting<?>> settings) {
+    static class DummyModule extends Plugin {
+        private final PluginConfig<DummyModule> config;
+        public DummyModule(String id, String name, String description, List<PluginSetting<?>> settings) {
             init(id, name, description);
-            config = new ModuleConfig<WebModule.DummyModule>(this, settings) {
+            config = new PluginConfig<Plugin.DummyModule>(this, settings) {
                 
             };
         }
 
         @Override
-        public ModuleConfig<?> getConfig() {
+        public PluginConfig<?> getConfig() {
             return config;
         }
 
@@ -113,8 +109,5 @@ public abstract class WebModule {
             // Dummy load logic
         }
     }
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE)
-    public static @interface Module {}
 
 }

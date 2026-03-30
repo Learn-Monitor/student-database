@@ -408,17 +408,17 @@ public class PostRequestHandler {
             handleObjectAction(rq, new TypeToken<Student>() {}, PostResponse.ok("Successfully changed graduation level", ContentType.TEXT_PLAIN, rq), (student) -> student.changeGraduationLevel(rq.getInt("graduationLevel")))
         );
 
-        HttpHandler.registerPostRequestHandler("/get-module", AccessLevel.USER, (rq) -> {
-            return PostResponse.ok(Registry.moduleRegistry().get(rq.getString("key")).toJSON(), ContentType.JSON, rq);
+        HttpHandler.registerPostRequestHandler("/get-plugin", AccessLevel.USER, (rq) -> {
+            return PostResponse.ok(Registry.pluginRegistry().get(rq.getString("key")).toJSON(), ContentType.JSON, rq);
         });
-        HttpHandler.registerPostRequestHandler("/toggle-module", AccessLevel.ADMIN, (rq) -> {
-            Registry.moduleRegistry().get(rq.getString("key")).toggle();
-            return PostResponse.ok("Module toggled", ContentType.TEXT_PLAIN, rq);
+        HttpHandler.registerPostRequestHandler("/toggle-plugin", AccessLevel.ADMIN, (rq) -> {
+            Registry.pluginRegistry().get(rq.getString("key")).toggle();
+            return PostResponse.ok("Plugin toggled", ContentType.TEXT_PLAIN, rq);
         });
-        HttpHandler.registerPostRequestHandler("/toggle-module-setting", AccessLevel.ADMIN, (rq) -> {
+        HttpHandler.registerPostRequestHandler("/toggle-plugin-setting", AccessLevel.ADMIN, (rq) -> {
             String[] key = rq.getString("key").split(":");
-            Registry.moduleRegistry().get(key[0]).getConfig().toggleSetting(key[1]);
-            return PostResponse.ok("Module setting toggled", ContentType.TEXT_PLAIN, rq);
+            Registry.pluginRegistry().get(key[0]).getConfig().toggleSetting(key[1]);
+            return PostResponse.ok("Plugin setting toggled", ContentType.TEXT_PLAIN, rq);
         });
 
         HttpHandler.registerPostRequestHandler("/student-results-csv", AccessLevel.TEACHER, (rq) -> {

@@ -6,7 +6,7 @@ import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.WebPath;
-import de.igslandstuhl.database.server.webserver.handlers.get.ModuleRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.get.PluginRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
 import de.igslandstuhl.database.server.webserver.requests.RequestType;
 import de.igslandstuhl.database.server.webserver.responses.GetResponse;
@@ -35,6 +35,7 @@ public class GetRequestHandler {
 
         String path = request.getPath();
         HttpHandler<GetRequest> handler = Registry.getRequestHandlerRegistry().get(path);
+        if (handler == null) return GetResponse.notFound(request);
         return handler.handleHttpRequest(request);
     }
     
@@ -54,9 +55,9 @@ public class GetRequestHandler {
         String user = getUser(request).getUsername();
         return GetResponse.getResource(request, request.toResourceLocation(user), user, false);
     }
-    public static GetResponse handleModuleRequest(GetRequest request) {
+    public static GetResponse handlePluginRequest(GetRequest request) {
         User user = getUser(request);
-        return ModuleRequestHandler.handleRequest(user, request);
+        return PluginRequestHandler.handleRequest(user, request);
     }
 
     public final void registerHandlers() {
@@ -68,7 +69,7 @@ public class GetRequestHandler {
                 case "FileRequestHandler" -> GetRequestHandler::handleFileRequest;
                 case "TemplatingFileRequestHandler" -> GetRequestHandler::handleTemplatingFileRequest;
                 case "SQLRequestHandler" -> GetRequestHandler::handleSQLRequest;
-                case "ModuleRequestHandler" -> GetRequestHandler::handleModuleRequest;
+                case "PluginRequestHandler" -> GetRequestHandler::handlePluginRequest;
                 default -> throw new IllegalArgumentException("Unknown handler type: " + webPath.handlerType());
             };
             HttpHandler.registerGetRequestHandler(path, webPath.accessLevel(), handlerFunction);

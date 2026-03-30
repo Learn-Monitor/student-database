@@ -10,7 +10,7 @@ import de.igslandstuhl.database.server.webserver.AccessManager;
 import de.igslandstuhl.database.server.webserver.ContentType;
 import de.igslandstuhl.database.server.webserver.NoWebResourceException;
 import de.igslandstuhl.database.server.webserver.Status;
-import de.igslandstuhl.database.server.webserver.handlers.get.ModuleRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.get.PluginRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 
 /**
@@ -176,8 +176,8 @@ public class GetResponse implements HttpResponse {
                     if (!resourceLocation.isVirtual()) {
                         resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
                     } else {
-                        if (resourceLocation.namespace().equals("module")) {
-                            resource = ModuleRequestHandler.getModuleResource(resourceLocation.resource());
+                        if (resourceLocation.namespace().equals("plugin")) {
+                            resource = PluginRequestHandler.getPluginResource(resourceLocation.resource());
                         } else {
                             resource = Server.getInstance().getResourceManager().readVirtualResource(user, resourceLocation);
                         }
