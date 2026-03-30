@@ -10,6 +10,7 @@ import de.igslandstuhl.database.server.webserver.AccessManager;
 import de.igslandstuhl.database.server.webserver.ContentType;
 import de.igslandstuhl.database.server.webserver.NoWebResourceException;
 import de.igslandstuhl.database.server.webserver.Status;
+import de.igslandstuhl.database.server.webserver.handlers.get.ModuleRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 
 /**
@@ -139,7 +140,7 @@ public class GetResponse implements HttpResponse {
      */
     public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating) {
         try {
-            if (AccessManager.getInstance().hasAccess(user, resourceLocation)) {
+            if (AccessManager.getInstance().hasAccess(user, request.getPath())) {
                 return new GetResponse(request, Status.OK, resourceLocation, ContentType.ofResourceLocation(resourceLocation), user, isTemplating);
             } else {
                 return unauthorized(request);
@@ -172,8 +173,12 @@ public class GetResponse implements HttpResponse {
                     if (!resourceLocation.isVirtual()) {
                         resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
                     } else {
-                        resource = Server.getInstance().getResourceManager().readVirtualResource(user, resourceLocation);
-                        if (resource == null) throw new NullPointerException();
+                        if (resourceLocation.namespace().equals("module")) {
+                            resource = ModuleRequestHandler.getModuleResource(resourceLocation.resource());
+                        } else {
+                            resource = Server.getInstance().getResourceManager().readVirtualResource(user, resourceLocation);
+                        }
+                            if (resource == null) throw new NullPointerException();
                     }
                 }
                 if (isTemplating) {

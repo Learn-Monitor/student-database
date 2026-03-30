@@ -330,5 +330,12 @@
         "namespaces": ["icons"],
         "context": "imgs",
         "access_level": "public"
+    },
+    "/module-list": {
+        "type": "GET",
+        "handler_type": "ModuleRequestHandler",
+        "namespaces": ["module"],
+        "context": "virtual",
+        "access_level": "admin"
     }
 }
