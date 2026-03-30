@@ -41,7 +41,7 @@ public abstract class WebModule {
         sb.append("\"name\":\"").append(name).append("\",");
         sb.append("\"description\":\"").append(description).append("\",");
         sb.append("\"enabled\":").append(enabled).append(",");
-        sb.append("\"config\":").append(getConfig().toJSON()).append(",");
+        sb.append("\"config\":").append(getConfig().toJSON());
         sb.append("}");
         return sb.toString();
     }

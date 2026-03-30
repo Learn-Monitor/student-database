@@ -51,8 +51,8 @@ public abstract class ModuleConfig<T extends WebModule> {
     
     public String toJSON() {
         StringBuilder builder = new StringBuilder("{");
-        builder.append("'settings': {")
-        .append("'bools': [");
+        builder.append("\"settings\": {")
+        .append("\"bools\": [");
         for (int i = 0; i < boolSettings.length; i++) {
             builder.append(boolSettings[i].toJSON());
             if (i < boolSettings.length - 1) {
@@ -61,12 +61,12 @@ public abstract class ModuleConfig<T extends WebModule> {
         }
         builder
         .append("]}, ")
-        .append("'values': {");
+        .append("\"values\": {");
         for (int i = 0; i < boolSettings.length; i++) {
             builder
-            .append("'")
+            .append("\"")
             .append(boolSettings[i].getKey())
-            .append("': ")
+            .append("\": ")
             .append(boolSettings[i].getValue());
             if (i < boolSettings.length - 1) {
                 builder.append(", ");

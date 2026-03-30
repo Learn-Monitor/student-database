@@ -110,13 +110,13 @@ public class PostRequestHandler {
         String path = request.getPath().replace("student-", "my");
         Student student = request.getCurrentStudent();
         String email = student.getEmail(); // Email is the username for the student
-        return PostResponse.getResource(WebResourceHandler.locationFromPath(path, student), email, request);
+        return PostResponse.getResource(WebResourceHandler.locationFromPath(path, student), email, request, path);
     }
     private static PostResponse handleTeacherGetData(APIPostRequest request) {
         String path = request.getPath().replace("teacher-", "my");
         Teacher teacher = request.getCurrentTeacher();
         String email = teacher.getEmail(); // Email is the username for the teacher
-        return PostResponse.getResource(WebResourceHandler.locationFromPath(path, User.getUser(email)), email, request);
+        return PostResponse.getResource(WebResourceHandler.locationFromPath(path, User.getUser(email)), email, request, path);
     }
     private static PostResponse handleTaskChange(APIPostRequest request, int newStatus) throws IOException, SQLException {
         Student student = request.getCurrentStudent();

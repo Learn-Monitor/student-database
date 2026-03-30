@@ -17,7 +17,7 @@ public class ModuleRequestHandler {
         if (resource.equals("list")) {
             return "[" +
                 Registry.moduleRegistry().keyStream()
-                .reduce("", (s1, s2) -> s1 + ", '" + s2 + "'")
+                .reduce("", (s1, s2) -> s1 + ", \"" + s2 + "\"")
                 .substring(2)
                 + "]";
         } else {

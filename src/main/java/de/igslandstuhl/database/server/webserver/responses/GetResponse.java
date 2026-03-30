@@ -139,8 +139,11 @@ public class GetResponse implements HttpResponse {
      * @return the GetResponse object
      */
     public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating) {
+        return getResource(request, resourceLocation, user, isTemplating, request.getPath());
+    }
+    public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating, String path) {
         try {
-            if (AccessManager.getInstance().hasAccess(user, request.getPath())) {
+            if (AccessManager.getInstance().hasAccess(user, path)) {
                 return new GetResponse(request, Status.OK, resourceLocation, ContentType.ofResourceLocation(resourceLocation), user, isTemplating);
             } else {
                 return unauthorized(request);
