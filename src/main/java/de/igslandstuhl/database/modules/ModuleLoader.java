@@ -3,11 +3,15 @@ package de.igslandstuhl.database.modules;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.yaml.snakeyaml.Yaml;
 
@@ -15,7 +19,7 @@ import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.modules.config.BoolSetting;
 
 public class ModuleLoader {
-    private final List<URLClassLoader> classLoaders = new ArrayList<>();
+    private final List<PreLoadedModule> moduleInfos = new ArrayList<>();
     private static final ModuleLoader INSTANCE = new ModuleLoader();
     public static ModuleLoader getInstance() {
         return INSTANCE;
@@ -33,24 +37,32 @@ public class ModuleLoader {
             return null;
         }
     }
-    public void loadModulesFromJar(File jarFile) {
+    public PreLoadedModule loadModuleFromJar(File jarFile) {
+        URLClassLoader classLoader;
         try {
-            URLClassLoader classLoader = new URLClassLoader(
+            classLoader = new URLClassLoader(
                 new URL[]{jarFile.toURI().toURL()},
                 getClass().getClassLoader()
             );
-            classLoaders.add(classLoader);
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+            return null;
+        }
+        try {
 
             Map<String, Object> yaml = loadYaml(classLoader);
             if (yaml == null) {
                 System.err.println("No module.yml found in " + jarFile.getName());
-                return;
+                classLoader.close();
+                return null;
             }
 
             String mainClassName = (String) yaml.get("main");
             String id = (String) yaml.get("id");
             String name = (String) yaml.get("name");
-            String description = (String) yaml.get("description");
+            String description = (String) yaml.getOrDefault("description", "");
+            @SuppressWarnings("unchecked")
+            List<String> depends = (List<String>) yaml.getOrDefault("depends", new ArrayList<>());
 
             Class<?> clazz = classLoader.loadClass(mainClassName);
 
@@ -58,11 +70,26 @@ public class ModuleLoader {
                 throw new IllegalStateException("Main class does not extend WebModule");
             }
 
-            WebModule module = (WebModule) clazz.getDeclaredConstructor().newInstance();
-            module.init(id, name, description);
+            return new PreLoadedModule(new ModuleDescription(id, name, description, mainClassName, depends), clazz, classLoader);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            try {
+                classLoader.close();
+            } catch (IOException e1) {
+                System.out.println("FAILED to close class loader");
+                e1.printStackTrace();
+            }
+            return null;
+        }
+    }
+    public void load(PreLoadedModule preload) {
+        WebModule module;
+        try {
+            module = (WebModule) preload.clazz().getDeclaredConstructor().newInstance();
+            module.init(preload.description());
             module.load();
             registerModule(module);
-
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -71,18 +98,41 @@ public class ModuleLoader {
         File[] jars = folder.listFiles((dir, name) -> name.endsWith(".jar"));
         if (jars == null) return;
 
+        List<PreLoadedModule> modules = new ArrayList<>();
+
         for (File jar : jars) {
-            loadModulesFromJar(jar);
+            PreLoadedModule m = loadModuleFromJar(jar);
+            if (m != null) {
+                modules.add(m);
+            }
         }
+
+        // Check for duplicate ids
+        Set<String> ids = new HashSet<>();
+        for (PreLoadedModule m : modules) {
+            if (!ids.add(m.description().id())) {
+                throw new IllegalStateException("Duplicate module id: " + m.description().id());
+            }
+        }
+
+        ModuleSort.sortModules(modules).forEach((p) -> moduleInfos.add(p));
+        moduleInfos.forEach(this::load);
     }
     public void unloadModules() {
-        classLoaders.forEach((l) -> {
+        Collections.reverse(moduleInfos);
+        moduleInfos.forEach((m) -> {
+            WebModule module = Registry.moduleRegistry().get(m.description().id());
+            if (module != null && module.isEnabled()) {
+                module.disable();
+            }
+
             try {
-                l.close();
+                m.classLoader().close();
             } catch (IOException e) {
                 throw new RuntimeException("Problem while unloading", e);
             }
         });
+        moduleInfos.clear();
     }
 
     

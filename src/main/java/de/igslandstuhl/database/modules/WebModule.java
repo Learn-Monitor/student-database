@@ -28,6 +28,9 @@ public abstract class WebModule {
         this.description = description;
         this.initialized = true;
     }
+    void init(ModuleDescription description) {
+        init(description.id(), description.name(), description.description());
+    }
 
     public String getId() {
         return id;
