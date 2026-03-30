@@ -8,7 +8,7 @@ import de.igslandstuhl.database.api.SerializationException;
 import de.igslandstuhl.database.api.Subject;
 import de.igslandstuhl.database.api.Topic;
 import de.igslandstuhl.database.holidays.Holiday;
-import de.igslandstuhl.database.modules.WebModule;
+import de.igslandstuhl.database.modules.ModuleLoader;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.commands.Command;
 import de.igslandstuhl.database.server.webserver.WebPath;
@@ -105,7 +105,7 @@ public final class Application {
 
         Holiday.setupCurrentSchoolYear();
         PostRequestHandler.registerHandlers();
-        WebModule.registerModules();
+        ModuleLoader.getInstance().registerModules();
 
         WebPath.registerPaths();
         GetRequestHandler.getInstance().registerHandlers();

@@ -22,6 +22,7 @@ dependencies {
     implementation("commons-codec:commons-codec:1.19.0")
     implementation("com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20260101.1")
     implementation("org.jline:jline:3.30.6") // for better console input handling
+    implementation("org.yaml:snakeyaml:2.2") // plugin imports
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4") // using JUnit 5 (latest)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

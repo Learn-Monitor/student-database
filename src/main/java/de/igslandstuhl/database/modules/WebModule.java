@@ -1,9 +1,11 @@
 package de.igslandstuhl.database.modules;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.List;
 
-import de.igslandstuhl.database.Registry;
-import de.igslandstuhl.database.modules.config.BoolSetting;
 import de.igslandstuhl.database.modules.config.ModuleConfig;
 import de.igslandstuhl.database.modules.config.ModuleSetting;
 
@@ -13,12 +15,18 @@ public abstract class WebModule {
     private String description;
 
     private boolean enabled;
+    private boolean initialized = false;
 
-    public WebModule(String id, String name, String description) {
+    public WebModule() {
+        this.enabled = true;
+    }
+
+    void init(String id, String name, String description) {
+        if (initialized) throw new IllegalStateException("Plugin already initialized");
         this.id = id;
         this.name = name;
         this.description = description;
-        this.enabled = true;
+        this.initialized = true;
     }
 
     public String getId() {
@@ -69,14 +77,14 @@ public abstract class WebModule {
             enable();
         }
     }
-    public void load() {
+    void load() {
         onLoad();
     }
 
-    private static class DummyModule extends WebModule {
+    static class DummyModule extends WebModule {
         private final ModuleConfig<DummyModule> config;
         public DummyModule(String id, String name, String description, List<ModuleSetting<?>> settings) {
-            super(id, name, description);
+            init(id, name, description);
             config = new ModuleConfig<WebModule.DummyModule>(this, settings) {
                 
             };
@@ -102,16 +110,8 @@ public abstract class WebModule {
             // Dummy load logic
         }
     }
-
-    private static void registerModule(WebModule module) {
-        Registry.moduleRegistry().register(module.getId(), module);
-    }
-    public static void registerModules() {
-        registerModule(new DummyModule("result_view", "Student Results View", "The view displaying the student's current progress and prognoses for the final result", List.of(
-            new BoolSetting("show_prognosis", "Show Prognosis", "Whether to display the prognosis for the final result", true),
-            new BoolSetting("show_current_progress", "Show Current", "Whether to display the current progress to the subject (in percent)", true),
-            new BoolSetting("show_current_grade", "Show Currently Achieved Grade", "Whether to display the grade the student would achieve when they decide to immediately stop working", false)
-        )));
-    }
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    public static @interface Module {}
 
 }
