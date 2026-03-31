@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import de.igslandstuhl.database.client.HTMLTemplate;
+import de.igslandstuhl.database.client.dynamic.DynamicFieldType;
 import de.igslandstuhl.database.client.navigation.NavigationElement;
 import de.igslandstuhl.database.client.navigation.NavigationType;
 import de.igslandstuhl.database.plugins.Plugin;
@@ -28,6 +29,7 @@ public class Registry<K, V> implements Closeable {
     private static final Registry<String,WebPath> WEB_PATH_REGISTRY = new Registry<>();
 
     private static final EnumRegistry<NavigationType,NavigationElement> NAVIGATION_REGISTRY = new EnumRegistry<>(NavigationType.class);
+    private static final EnumRegistry<DynamicFieldType,String> DYNAMIC_TEMPLATES_REGISTRY = new EnumRegistry<>(DynamicFieldType.class);
     private static final Registry<String,HTMLTemplate> TEMPLATE_REGISTRY = new Registry<>();
 
     public static Registry<String,Command> commandRegistry() {
@@ -50,6 +52,9 @@ public class Registry<K, V> implements Closeable {
     }
     public static EnumRegistry<NavigationType, NavigationElement> navigationRegistry() {
         return NAVIGATION_REGISTRY;
+    }
+    public static EnumRegistry<DynamicFieldType, String> dynamicTemplatesRegistry() {
+        return DYNAMIC_TEMPLATES_REGISTRY;
     }
     public static Registry<String, HTMLTemplate> templateRegistry() {
         return TEMPLATE_REGISTRY;
