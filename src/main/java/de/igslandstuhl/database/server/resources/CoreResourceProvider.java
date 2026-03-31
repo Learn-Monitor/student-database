@@ -20,7 +20,7 @@ public class CoreResourceProvider implements ResourceProvider {
     /**
      * Checks if a zip entry name is safe (to prevent zip slipping).
      */
-    private boolean isSafeZipEntryName(String entryName, Path rootDir) {
+    public static boolean isSafeZipEntryName(String entryName, Path rootDir) {
         // Resolve entry against a fixed root and normalize
         Path resolvedPath = rootDir.resolve(entryName).normalize();
 
