@@ -51,6 +51,10 @@ public class GetRequestHandler {
         String user = getUser(request).getUsername();
         return GetResponse.getResource(request, request.toResourceLocation(user), user, true);
     }
+    public static GetResponse handleMergingFileRequest(GetRequest request) {
+        String user = getUser(request).getUsername();
+        return GetResponse.getResource(request, request.toResourceLocation(user), user, false, true);
+    }
     public static GetResponse handleSQLRequest(GetRequest request) {
         String user = getUser(request).getUsername();
         return GetResponse.getResource(request, request.toResourceLocation(user), user, false);
@@ -68,6 +72,7 @@ public class GetRequestHandler {
             ThrowingFunction<GetRequest, HttpResponse> handlerFunction = switch (webPath.handlerType()) {
                 case "FileRequestHandler" -> GetRequestHandler::handleFileRequest;
                 case "TemplatingFileRequestHandler" -> GetRequestHandler::handleTemplatingFileRequest;
+                case "MergingFileRequestHandler" -> GetRequestHandler::handleMergingFileRequest;
                 case "SQLRequestHandler" -> GetRequestHandler::handleSQLRequest;
                 case "PluginRequestHandler" -> GetRequestHandler::handlePluginRequest;
                 default -> throw new IllegalArgumentException("Unknown handler type: " + webPath.handlerType());

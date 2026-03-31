@@ -98,7 +98,9 @@ public final class Application {
 
     public static void main(String[] args) throws Exception {
         instance = new Application(args);
-        
+
+        PluginLoader.getInstance().preloadPlugins();
+
         if (!getInstance().suppressCmd()) {
             Command.registerCommands();
             CommandLineUtils.setup();

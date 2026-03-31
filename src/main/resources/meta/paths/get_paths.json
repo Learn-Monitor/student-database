@@ -85,13 +85,6 @@
         "context": "html",
         "access_level": "user"
     },
-    "/results": {
-        "type": "GET",
-        "handler_type":"TemplatingFileRequestHandler",
-        "namespaces": ["user"],
-        "context": "html",
-        "access_level": "student"
-    },
     "/partner_search": {
         "type": "GET",
         "handler_type":"TemplatingFileRequestHandler",
@@ -101,13 +94,6 @@
     },
 
     "/student": {
-        "type": "GET",
-        "handler_type": "TemplatingFileRequestHandler",
-        "namespaces": ["teacher", "admin"],
-        "context": "html",
-        "access_level": "teacher"
-    },
-    "/student-results": {
         "type": "GET",
         "handler_type": "TemplatingFileRequestHandler",
         "namespaces": ["teacher", "admin"],
@@ -231,7 +217,7 @@
 
     "/student-database.js": {
         "type": "GET",
-        "handler_type": "FileRequestHandler",
+        "handler_type": "MergingFileRequestHandler",
         "namespaces": ["site"],
         "context": "js",
         "access_level": "public"
@@ -241,13 +227,6 @@
         "type": "GET",
         "handler_type": "FileRequestHandler",
         "namespaces": ["user", "teacher", "admin"],
-        "context": "js",
-        "access_level": "user"
-    },
-    "/build_results.js": {
-        "type": "GET",
-        "handler_type": "FileRequestHandler",
-        "namespaces": ["user", "teacher"],
         "context": "js",
         "access_level": "user"
     },
@@ -304,14 +283,7 @@
 
     "/style.css": {
         "type": "GET",
-        "handler_type": "FileRequestHandler",
-        "namespaces": ["site"],
-        "context": "css",
-        "access_level": "public"
-    },
-    "/results.css": {
-        "type": "GET",
-        "handler_type": "FileRequestHandler",
+        "handler_type": "MergingFileRequestHandler",
         "namespaces": ["site"],
         "context": "css",
         "access_level": "public"

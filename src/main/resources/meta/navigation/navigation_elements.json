@@ -40,12 +40,7 @@
         "path": "/dashboard",
         "label": "Zurück zum Admin-Dashboard"
     },
-    
-    {
-        "type": "ADMIN_STUDENT",
-        "path": "/student-results",
-        "label": "Ergebnisse anzeigen"
-    },
+
     {
         "type": "ADMIN_STUDENT",
         "path": "/teacher",
@@ -124,11 +119,6 @@
 
     {
         "type": "TEACHER_STUDENT",
-        "path": "/student-results",
-        "label": "Ergebnisse anzeigen"
-    },
-    {
-        "type": "TEACHER_STUDENT",
         "path": "/dashboard",
         "label": "Zurück zum Lehrer-Dashboard"
     },
@@ -144,11 +134,6 @@
         "label": "Zurück zum Lehrer-Dashboard"
     },
 
-    {
-        "type": "STUDENT_DASHBOARD",
-        "path": "/results",
-        "label": "Meine Ergebnisse anzeigen"
-    },
     {
         "type": "STUDENT_DASHBOARD",
         "path": "/partner_search",

@@ -16,7 +16,6 @@ import java.util.Set;
 import org.yaml.snakeyaml.Yaml;
 
 import de.igslandstuhl.database.Registry;
-import de.igslandstuhl.database.plugins.config.BoolSetting;
 
 public class PluginLoader {
     private final List<PreLoadedPlugin> pluginInfos = new ArrayList<>();
@@ -42,10 +41,15 @@ public class PluginLoader {
     }
     public PreLoadedPlugin loadPluginFromJar(File jarFile) {
         URLClassLoader classLoader;
+        URLClassLoader resourceLoader;
         try {
             classLoader = new URLClassLoader(
                 new URL[]{jarFile.toURI().toURL()},
                 getClass().getClassLoader()
+            );
+            resourceLoader = new URLClassLoader(
+                new URL[]{jarFile.toURI().toURL()},
+                null
             );
         } catch (MalformedURLException e) {
             e.printStackTrace();
@@ -85,7 +89,7 @@ public class PluginLoader {
                 throw new IllegalStateException("Main class does not extend Plugin");
             }
 
-            return new PreLoadedPlugin(new PluginDescription(id, name, description, mainClassName, depends), clazz, classLoader);
+            return new PreLoadedPlugin(new PluginDescription(id, name, description, mainClassName, depends), clazz, classLoader, resourceLoader);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -115,7 +119,7 @@ public class PluginLoader {
             e.printStackTrace();
         }
     }
-    public void loadAllPlugins(File folder) {
+    public void preloadAllPlugins(File folder) {
         File[] jars = folder.listFiles((dir, name) -> name.endsWith(".jar"));
         if (jars == null) return;
 
@@ -137,6 +141,8 @@ public class PluginLoader {
         }
 
         PluginSort.sortPlugins(plugins).forEach((p) -> pluginInfos.add(p));
+    }
+    public void loadAllPlugins(File folder) {
         pluginInfos.forEach(this::load);
     }
     public void enablePlugins() {
@@ -159,6 +165,7 @@ public class PluginLoader {
 
             try {
                 p.classLoader().close();
+                p.resourceLoader().close();
             } catch (IOException e) {
                 throw new RuntimeException("Problem while unloading", e);
             }
@@ -174,12 +181,10 @@ public class PluginLoader {
         }
         Registry.pluginRegistry().register(plugin.getId(), plugin);
     }
+    public void preloadPlugins() {
+        preloadAllPlugins(new File("plugins"));
+    }
     public void registerPlugins() {
-        registerPlugin(new Plugin.DummyModule("result_view", "Student Results View", "The view displaying the student's current progress and prognoses for the final result", List.of(
-            new BoolSetting("show_prognosis", "Show Prognosis", "Whether to display the prognosis for the final result", true),
-            new BoolSetting("show_current_progress", "Show Current", "Whether to display the current progress to the subject (in percent)", true),
-            new BoolSetting("show_current_grade", "Show Currently Achieved Grade", "Whether to display the grade the student would achieve when they decide to immediately stop working", false)
-        )));
         loadAllPlugins(new File("plugins"));
     }
 }
