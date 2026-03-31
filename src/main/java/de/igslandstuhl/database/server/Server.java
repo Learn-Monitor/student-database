@@ -3,24 +3,19 @@ package de.igslandstuhl.database.server;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import org.apache.commons.codec.digest.DigestUtils;
 
 import de.igslandstuhl.database.Application;
-import de.igslandstuhl.database.api.SchoolClass;
-import de.igslandstuhl.database.api.Student;
-import de.igslandstuhl.database.api.Subject;
-import de.igslandstuhl.database.api.Teacher;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.resources.ResourceManager;
 import de.igslandstuhl.database.server.sql.SQLHelper;
 import de.igslandstuhl.database.server.sql.SQLiteConnection;
+import de.igslandstuhl.database.server.webserver.handlers.get.SQLRequestHandler;
 
 /**
  * Represents the main server class that handles all incoming requests and manages the database connection.
@@ -205,43 +200,7 @@ public final class Server implements AutoCloseable {
      */
     public String getSQLResource(String username, String resource) {
         resource = resource.intern();
-        if (resource.equals("mydata")) {
-            User user = User.getUser(username);
-            return user.toJSON();
-        } else if (resource.equals("mysubjects")) {
-            User user = User.getUser(username);
-            if (user instanceof Student student) {
-                return student.getSchoolClass().getSubjects().toString();
-            } else if (user instanceof Teacher teacher) {
-                return teacher.getSubjects().toString();
-            } else {
-                return null;
-            }
-        } else if (resource.equals("myclasses")) {
-            User user = User.getUser(username);
-            if (user instanceof Teacher teacher) {
-                Set<Integer> classIDs = teacher.getClassIds();
-                Set<String> classes = new HashSet<>();
-                for (Integer classID : classIDs) {
-                    classes.add("{\"classId\": " + classID + ", \"name\": \"" + SchoolClass.get(classID).getLabel() + "\"}");
-                }
-                return classes.toString();
-            } else {
-                return null;
-            }
-        } else if (resource.equals("teachers")) {
-            return new HashSet<>(Teacher.getAll()).toString();
-        } else if (resource.equals("students")) {
-            return new HashSet<>(Student.getAll()).toString();
-        } else if (resource.equals("subjects")) {
-            return new HashSet<>(Subject.getAll()).toString();
-        } else if (resource.equals("classes")) {
-            return new HashSet<>(SchoolClass.getAll()).toString();
-        } else if (resource.equals("all-student-results")) {
-            return Student.getAllResultsCSV();
-        } else {
-            return null;
-        }
+        return SQLRequestHandler.getResource(resource, User.getUser(username));
     }
 
     @Override

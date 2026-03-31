@@ -16,6 +16,7 @@ import de.igslandstuhl.database.server.commands.Command;
 import de.igslandstuhl.database.server.commands.CommandDescription;
 import de.igslandstuhl.database.server.webserver.WebPath;
 import de.igslandstuhl.database.server.webserver.handlers.HttpHandler;
+import de.igslandstuhl.database.server.webserver.handlers.get.SQLRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
 import de.igslandstuhl.database.utils.RegistryEnum;
@@ -25,6 +26,7 @@ public class Registry<K, V> implements Closeable {
     private static final Registry<String,CommandDescription> COMMAND_DESCRIPTION_REGISTRY = new Registry<>();
     private static final Registry<String,HttpHandler<APIPostRequest>> POST_HANDLER_REGISTRY = new Registry<>();
     private static final Registry<String,HttpHandler<GetRequest>> GET_HANDLER_REGISTRY = new Registry<>();
+    private static final Registry<String,SQLRequestHandler> SQL_REQUEST_HANDLER_REGISTRY = new Registry<>();
     private static final Registry<String,Plugin> PLUGIN_REGISTRY = new Registry<>();
     private static final Registry<String,WebPath> WEB_PATH_REGISTRY = new Registry<>();
 
@@ -40,6 +42,9 @@ public class Registry<K, V> implements Closeable {
     }
     public static Registry<String, HttpHandler<GetRequest>> getRequestHandlerRegistry() {
         return GET_HANDLER_REGISTRY;
+    }
+    public static Registry<String, SQLRequestHandler> sqlRequestHandlerRegistry() {
+        return SQL_REQUEST_HANDLER_REGISTRY;
     }
     public static Registry<String, Plugin> pluginRegistry() {
         return PLUGIN_REGISTRY;
