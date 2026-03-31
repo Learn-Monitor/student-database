@@ -92,8 +92,14 @@ async function fetchTopicList(subjectId, grade) {
 async function fetchTasks(taskIds, studentId) {
     return await getJsonWithPost('/tasks', { ids: taskIds, studentId });
 }
-async function fetchModuleSettings(moduleKey) {
-    return (await getJsonWithPost('/get-module', { key: moduleKey })).settings;
+async function fetchPluginKeys() {
+    return await getJson('/plugin-list');
+}
+async function fetchPlugin(pluginKey) {
+    return await getJsonWithPost('/get-plugin', { key: pluginKey })
+}
+async function fetchPluginConfig(pluginKey) {
+    return (await fetchPlugin(pluginKey)).config;
 }
 
 async function getStudents(classId) {
@@ -155,6 +161,12 @@ async function beginTask(studentId, taskId) {
 }
 async function updateRoom(studentId, room) {
     return await post('/update-room', { studentId, room });
+}
+async function togglePlugin(pluginKey) {
+    return await post('/toggle-plugin', { key: pluginKey });
+}
+async function togglePluginSetting(pluginKey, setting) {
+    return await post('/toggle-plugin-setting', { key: pluginKey + ":" + setting });
 }
 
 async function deleteClass(classId) {
@@ -587,10 +599,10 @@ function createBarChart(subject, subjectName, studentData, settings) {
     const predicted = studentData.predictedProgress && studentData.predictedProgress[subjectName]
         ? studentData.predictedProgress[subjectName].predictedProgress : 0;
 
-    const grade = settings.show_current_grade.value ? getGrade(progress) : 0;
+    const grade = settings.show_current_grade ? getGrade(progress) : 0;
     const predictedGrade = getGrade(predicted);
 
-    if (!settings || settings.show_current_progress.value) {
+    if (!settings || settings.show_current_progress) {
         const gradeInfo = document.createElement('div');
         gradeInfo.className = 'grade-current';
         gradeInfo.innerHTML = `<strong>Aktueller Fortschritt:</strong> ${getGradeLabel(grade)} (${Math.round(progress * 100)}%)`;
@@ -801,7 +813,7 @@ function loadStudentDashboard(studentData, subjects, teacherPerms) { // Show stu
     });
 }
 async function loadStudentResultView(studentData) {
-    const settings = await fetchModuleSettings('result_view');
+    const config = await fetchPluginConfig('result_view');
 
     document.getElementById('student-name').textContent = `${studentData.firstName} ${studentData.lastName}`;
 
@@ -813,7 +825,44 @@ async function loadStudentResultView(studentData) {
 
     const charts = document.getElementById('charts');
     subjects.forEach(subject => {
-        charts.appendChild(createBarChart(subject, subject.name, studentData, settings));
+        charts.appendChild(createBarChart(subject, subject.name, studentData, config.values));
+    });
+}
+let plugin_panels = {}
+function loadPluginSection(pluginKey) {
+    return createPanel(pluginKey, document.createElement("div"), async (header, body) => {
+        const plugin = await fetchPlugin(pluginKey);
+        header.textContent = plugin.name;
+        body.innerHTML = `
+            <p>${plugin.description.replace(/\n/g, "</p><p>")}</p>
+            <table>
+                <thead>
+                    <th>Key</th>
+                    <th>Value</th>
+                    <th/>
+                </thead>
+                <tbody>
+                    <tr><td>ID</td><td>${plugin.id}</td><td/></tr>
+                    <tr><td>Name</td><td>${plugin.name}</td><td/></tr>
+                    <tr><td>Enabled</td><td>${plugin.enabled}</td><td><button onclick="togglePlugin('${plugin.id}');plugin_panels['${plugin.id}'].refresh()">Toggle</button></td></tr>
+                </tbody>
+            </table>
+        `;
+        const tbody = body.getElementsByTagName("tbody")[0]
+        const settings = plugin.config.settings;
+        settings.bools.forEach((b) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${b.name}</td><td>${b.value}</td><td><button onclick="togglePluginSetting('${plugin.id}', '${b.key}');plugin_panels['${plugin.id}'].refresh()">Toggle</button></td>`;
+            tbody.appendChild(tr);
+        });
+    })
+}
+async function loadPluginsView(pluginContainer) {
+    const plugins = fetchPluginKeys();
+    (await plugins).forEach(async key => {
+        const pluginSection = loadPluginSection(key);
+        plugin_panels[key] = pluginSection;
+        pluginContainer.appendChild(pluginSection);
     });
 }
 const graduationLevels = ["Neustarter", "Starter", "Durchstarter", "Lernprofi"];

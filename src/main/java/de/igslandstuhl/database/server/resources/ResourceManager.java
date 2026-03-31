@@ -6,41 +6,39 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipException;
-import java.util.zip.ZipFile;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
+import de.igslandstuhl.database.plugins.PluginResourceProvider;
 import de.igslandstuhl.database.server.Server;
 
 /**
  * Manages Resources in the application
  */
 public class ResourceManager {
-    /**
-     * Checks if a zip entry name is safe (to prevent zip slipping).
-     */
-    private boolean isSafeZipEntryName(String entryName, Path rootDir) {
-        // Resolve entry against a fixed root and normalize
-        Path resolvedPath = rootDir.resolve(entryName).normalize();
-
-        // Entry is safe if it stays within the root directory
-        return resolvedPath.startsWith(rootDir);
+    private final List<ResourceProvider> providers;
+    public ResourceManager(ResourceProvider... providers) {
+        this.providers = Arrays.asList(providers);
+    }
+    public ResourceManager() {
+        this(
+            new FileResourceProvider(Path.of("resources")), // highest priority
+            new PluginResourceProvider(),
+            new CoreResourceProvider()
+        );
     }
 
     /**
@@ -51,104 +49,13 @@ public class ResourceManager {
      * @return the resources in the order they are found
      */
     public Collection<ResourceLocation> getResources(final Pattern pattern) {
-        final ArrayList<ResourceLocation> retval = new ArrayList<>();
-        final String classPath = System.getProperty("java.class.path", ".");
-        final String[] classPathElements = classPath.split(System.getProperty("path.separator"));
-        for (final String element : classPathElements) {
-            retval.addAll(getResources(element, pattern));
-        }
-        return retval;
-    }
+        List<ResourceLocation> result = new ArrayList<>();
 
-    /**
-     * for a single element of java.class.path get a Collection of resources
-     * Pattern pattern = Pattern.compile(".*"); gets all resources
-     *
-     * @param element the class path element to search in
-     * @param pattern the pattern to match
-     * @return the resources in the order they are found
-     */
-    private Collection<ResourceLocation> getResources(final String element, final Pattern pattern) {
-        final ArrayList<ResourceLocation> retval = new ArrayList<>();
-        final Path path = Path.of(element);
-        if (Files.isDirectory(path)) {
-            retval.addAll(getResourcesFromDirectory(path, pattern, path));
-        } else {
-            retval.addAll(getResourcesFromJarFile(path, pattern));
+        for (ResourceProvider provider : providers) {
+            result.addAll(provider.list(pattern));
         }
-        return retval;
-    }
 
-    /**
-     * Get all resources from a jar file or a directory that match the given pattern.
-     * 
-     * @param jarFilePath the jar file or directory to search in
-     * @param pattern the pattern to match
-     * @return the resources in the order they are found
-     */
-    private Collection<ResourceLocation> getResourcesFromJarFile(final Path jarFilePath, final Pattern pattern) {
-        final ArrayList<ResourceLocation> retval = new ArrayList<>();
-        // Virtual root – no real filesystem access needed
-        final Path virtualRoot = Paths.get("").toAbsolutePath().normalize();
-        ZipFile zf;
-        try {
-            zf = new ZipFile(jarFilePath.toFile());
-        } catch (final ZipException e) {
-            throw new Error(e);
-        } catch (final NoSuchFileException e) {
-            return Collections.emptySet();
-        } catch (final IOException e) {
-            throw new Error(e);
-        }
-        final Enumeration<? extends ZipEntry> e = zf.entries();
-        while (e.hasMoreElements()) {
-            final ZipEntry ze = e.nextElement();
-            final String fileName = ze.getName();
-            if (!isSafeZipEntryName(fileName, virtualRoot)) {
-                // Optionally log or throw, here we skip unsafe entries
-                continue;
-            }
-            final boolean accept = pattern.matcher(fileName).matches();
-            if (accept) {
-                ResourceLocation location = ResourceLocation.fromPath(fileName);
-                if (location != null) retval.add(location);
-            }
-        }
-        try {
-            zf.close();
-        } catch (final IOException e1) {
-            throw new Error(e1);
-        }
-        return retval;
-    }
-
-    /**
-     * Get all resources from a directory that match the given pattern.
-     * 
-     * @param directory the directory to search in
-     * @param pattern the pattern to match
-     * @return the resources in the order they are found
-     */
-    private Collection<ResourceLocation> getResourcesFromDirectory(final Path directory, final Pattern pattern, final Path toplevelPath) {
-        final ArrayList<ResourceLocation> retval = new ArrayList<>();
-        try {
-            Files.list(directory).forEach((path) -> {
-                if (Files.isDirectory(path)) {
-                    retval.addAll(getResourcesFromDirectory(path, pattern, toplevelPath));
-                } else {
-                    final Path relativePath = toplevelPath.relativize(path);
-                    final boolean accept = pattern.matcher(relativePath.toString()).matches();
-                    if (accept) {
-                        ResourceLocation location = ResourceLocation.fromPath(relativePath);
-                        if (location != null) retval.add(location);
-                    }
-                }
-            });
-        } catch (IOException e) {
-            e.printStackTrace();
-            return retval;
-        }
-        return retval;
+        return result;
     }
 
     /**
@@ -162,7 +69,7 @@ public class ResourceManager {
         List<BufferedReader> readers = new ArrayList<>();
         for (ResourceLocation resource : getResources(pattern)) {
             try {
-                readers.add(new BufferedReader(new InputStreamReader(openResourceAsStream(resource))));
+                readers.add(new BufferedReader(new InputStreamReader(openResourceAsStream(resource), StandardCharsets.UTF_8)));
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }
@@ -179,12 +86,28 @@ public class ResourceManager {
      * @throws FileNotFoundException if the resource is not found
      */
     public InputStream openResourceAsStream(ResourceLocation location) throws FileNotFoundException {
-        String url = "/" + location.context() + "/" + location.namespace() + "/" + location.resource();
-        InputStream stream = ResourceManager.class.getResourceAsStream(url);
-        if (stream == null) {
-            throw new FileNotFoundException(url + " not found in classpath or resources.");
+        for (ResourceProvider provider : providers) {
+            InputStream stream = provider.open(location);
+            if (stream != null) {
+                return stream;
+            }
         }
-        return stream;
+        throw new FileNotFoundException(location.toString());
+    }
+
+    /**
+     * Opens a resource as input stream in all sources that are found
+     * @param location the ResourceLocation object representing the resource
+     * @return an list of InputStreams for the resource
+     */
+    public List<InputStream> openAll(ResourceLocation location) {
+        List<InputStream> streams = new ArrayList<>();
+
+        for (ResourceProvider provider : providers) {
+            streams.addAll(provider.openAll(location));
+        }
+
+        return streams;
     }
 
     /**
@@ -266,5 +189,32 @@ public class ResourceManager {
             Map<String, Object> json = gson.fromJson(in, mapType);
             return json;
         }
+    }
+    public Map<String,?> readJsonResourceMerged(ResourceLocation location) {
+        return MergeHelper.readJsonObjectMerged(this, location);
+    }
+    public <T> List<T> readJsonListMerged(ResourceLocation location, TypeToken<List<T>> token) {
+        return MergeHelper.readJsonListMerged(this, location, token);
+    }
+    public String readCodeMerged(ResourceLocation location) {
+        return MergeHelper.readMergedCode(this, location);
+    }
+
+    public <T> T mergeResources(ResourceLocation location, BiFunction<T, T, T> merger, Supplier<T> start, Function<InputStream, T> parser) {
+        T result = start.get();
+
+        for (InputStream is : openAll(location)) {
+            try (InputStream stream = is) {
+                T part = parser.apply(stream);
+
+                if (part != null) {
+                    result = merger.apply(result, part);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to merge resource: " + location, e);
+            }
+        }
+        
+        return result;
     }
 }

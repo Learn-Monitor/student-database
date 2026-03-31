@@ -110,13 +110,13 @@ public class PostRequestHandler {
         String path = request.getPath().replace("student-", "my");
         Student student = request.getCurrentStudent();
         String email = student.getEmail(); // Email is the username for the student
-        return PostResponse.getResource(WebResourceHandler.locationFromPath(path, student), email, request);
+        return PostResponse.getResource(WebResourceHandler.locationFromPath(path, student), email, request, path);
     }
     private static PostResponse handleTeacherGetData(APIPostRequest request) {
         String path = request.getPath().replace("teacher-", "my");
         Teacher teacher = request.getCurrentTeacher();
         String email = teacher.getEmail(); // Email is the username for the teacher
-        return PostResponse.getResource(WebResourceHandler.locationFromPath(path, User.getUser(email)), email, request);
+        return PostResponse.getResource(WebResourceHandler.locationFromPath(path, User.getUser(email)), email, request, path);
     }
     private static PostResponse handleTaskChange(APIPostRequest request, int newStatus) throws IOException, SQLException {
         Student student = request.getCurrentStudent();
@@ -408,17 +408,17 @@ public class PostRequestHandler {
             handleObjectAction(rq, new TypeToken<Student>() {}, PostResponse.ok("Successfully changed graduation level", ContentType.TEXT_PLAIN, rq), (student) -> student.changeGraduationLevel(rq.getInt("graduationLevel")))
         );
 
-        HttpHandler.registerPostRequestHandler("/get-module", AccessLevel.USER, (rq) -> {
-            return PostResponse.ok(Registry.moduleRegistry().get(rq.getString("key")).toJSON(), ContentType.JSON, rq);
+        HttpHandler.registerPostRequestHandler("/get-plugin", AccessLevel.USER, (rq) -> {
+            return PostResponse.ok(Registry.pluginRegistry().get(rq.getString("key")).toJSON(), ContentType.JSON, rq);
         });
-        HttpHandler.registerPostRequestHandler("/toggle-module", AccessLevel.ADMIN, (rq) -> {
-            Registry.moduleRegistry().get(rq.getString("key")).toggle();
-            return PostResponse.ok("Module toggled", ContentType.TEXT_PLAIN, rq);
+        HttpHandler.registerPostRequestHandler("/toggle-plugin", AccessLevel.ADMIN, (rq) -> {
+            Registry.pluginRegistry().get(rq.getString("key")).toggle();
+            return PostResponse.ok("Plugin toggled", ContentType.TEXT_PLAIN, rq);
         });
-        HttpHandler.registerPostRequestHandler("/toggle-module-setting", AccessLevel.ADMIN, (rq) -> {
+        HttpHandler.registerPostRequestHandler("/toggle-plugin-setting", AccessLevel.ADMIN, (rq) -> {
             String[] key = rq.getString("key").split(":");
-            Registry.moduleRegistry().get(key[0]).toggleSetting(key[1]);
-            return PostResponse.ok("Module setting toggled", ContentType.TEXT_PLAIN, rq);
+            Registry.pluginRegistry().get(key[0]).getConfig().toggleSetting(key[1]);
+            return PostResponse.ok("Plugin setting toggled", ContentType.TEXT_PLAIN, rq);
         });
 
         HttpHandler.registerPostRequestHandler("/student-results-csv", AccessLevel.TEACHER, (rq) -> {

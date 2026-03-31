@@ -115,7 +115,7 @@
         "access_level": "teacher"
     },
     
-    "/modules": {
+    "/plugins": {
         "type": "GET",
         "handler_type": "TemplatingFileRequestHandler",
         "namespaces": ["admin"],
@@ -266,14 +266,6 @@
         "context": "js",
         "access_level": "teacher"
     },
-
-    "/build_modules.js": {
-        "type": "GET",
-        "handler_type": "FileRequestHandler",
-        "namespaces": ["admin"],
-        "context": "js",
-        "access_level": "admin"
-    },
     "/build_teacher.js": {
         "type": "GET",
         "handler_type": "FileRequestHandler",
@@ -330,5 +322,12 @@
         "namespaces": ["icons"],
         "context": "imgs",
         "access_level": "public"
+    },
+    "/plugin-list": {
+        "type": "GET",
+        "handler_type": "PluginRequestHandler",
+        "namespaces": ["plugin"],
+        "context": "virtual",
+        "access_level": "admin"
     }
 }

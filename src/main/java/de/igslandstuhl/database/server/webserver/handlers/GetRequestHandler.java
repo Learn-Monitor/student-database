@@ -3,8 +3,10 @@ package de.igslandstuhl.database.server.webserver.handlers;
 import java.util.List;
 
 import de.igslandstuhl.database.Registry;
+import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.WebPath;
+import de.igslandstuhl.database.server.webserver.handlers.get.PluginRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
 import de.igslandstuhl.database.server.webserver.requests.RequestType;
 import de.igslandstuhl.database.server.webserver.responses.GetResponse;
@@ -33,20 +35,29 @@ public class GetRequestHandler {
 
         String path = request.getPath();
         HttpHandler<GetRequest> handler = Registry.getRequestHandlerRegistry().get(path);
+        if (handler == null) return GetResponse.notFound(request);
         return handler.handleHttpRequest(request);
+    }
+    
+    private static User getUser(GetRequest request) {
+        return Server.getInstance().getWebServer().getSessionManager().getSessionUser(request);
     }
 
     public static GetResponse handleFileRequest(GetRequest request) {
-        String user = Server.getInstance().getWebServer().getSessionManager().getSessionUser(request).getUsername();
+        String user = getUser(request).getUsername();
         return GetResponse.getResource(request, request.toResourceLocation(user), user, false);
     }
     public static GetResponse handleTemplatingFileRequest(GetRequest request) {
-        String user = Server.getInstance().getWebServer().getSessionManager().getSessionUser(request).getUsername();
+        String user = getUser(request).getUsername();
         return GetResponse.getResource(request, request.toResourceLocation(user), user, true);
     }
     public static GetResponse handleSQLRequest(GetRequest request) {
-        String user = Server.getInstance().getWebServer().getSessionManager().getSessionUser(request).getUsername();
+        String user = getUser(request).getUsername();
         return GetResponse.getResource(request, request.toResourceLocation(user), user, false);
+    }
+    public static GetResponse handlePluginRequest(GetRequest request) {
+        User user = getUser(request);
+        return PluginRequestHandler.handleRequest(user, request);
     }
 
     public final void registerHandlers() {
@@ -58,6 +69,7 @@ public class GetRequestHandler {
                 case "FileRequestHandler" -> GetRequestHandler::handleFileRequest;
                 case "TemplatingFileRequestHandler" -> GetRequestHandler::handleTemplatingFileRequest;
                 case "SQLRequestHandler" -> GetRequestHandler::handleSQLRequest;
+                case "PluginRequestHandler" -> GetRequestHandler::handlePluginRequest;
                 default -> throw new IllegalArgumentException("Unknown handler type: " + webPath.handlerType());
             };
             HttpHandler.registerGetRequestHandler(path, webPath.accessLevel(), handlerFunction);

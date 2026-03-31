@@ -1,0 +1,163 @@
+[
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/manage_classes",
+        "label": "Klassen verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/manage_rooms",
+        "label": "Räume verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/manage_students",
+        "label": "Schüler verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/manage_subjects",
+        "label": "Fächer verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/manage_teachers",
+        "label": "Lehrer verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/plugins",
+        "label": "Module verwalten"
+    },
+    {
+        "type": "ADMIN_DASHBOARD",
+        "path": "/editor",
+        "label": "HTML Editor"
+    },
+
+    {
+        "type": "ADMIN_OTHER",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
+    
+    {
+        "type": "ADMIN_STUDENT",
+        "path": "/student-results",
+        "label": "Ergebnisse anzeigen"
+    },
+    {
+        "type": "ADMIN_STUDENT",
+        "path": "/teacher",
+        "label": "Zurück zur Lehrer-Ansicht"
+    },
+    {
+        "type": "ADMIN_STUDENT",
+        "path": "/class",
+        "label": "Zurück zur Klassen-Ansicht"
+    },
+    {
+        "type": "ADMIN_STUDENT",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
+
+    {
+        "type": "ADMIN_STUDENT_OTHER",
+        "path": "/student",
+        "label": "Zurück zur Schüler-Ansicht"
+    },
+    {
+        "type": "ADMIN_STUDENT_OTHER",
+        "path": "/teacher",
+        "label": "Zurück zur Lehrer-Ansicht"
+    },
+    {
+        "type": "ADMIN_STUDENT_OTHER",
+        "path": "/class",
+        "label": "Zurück zur Klassen-Ansicht"
+    },
+    {
+        "type": "ADMIN_STUDENT_OTHER",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
+
+    {
+        "type": "ADMIN_CLASS",
+        "path": "/manage_classes",
+        "label": "Zurück zur Klassenverwaltung"
+    },
+    {
+        "type": "ADMIN_CLASS",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
+
+    {
+        "type": "ADMIN_SUBJECT",
+        "path": "/manage_subjects",
+        "label": "Zurück zur Fächerverwaltung"
+    },
+    {
+        "type": "ADMIN_SUBJECT",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
+
+    {
+        "type": "ADMIN_TEACHER",
+        "path": "/manage_teachers",
+        "label": "Zurück zur Lehrerverwaltung"
+    },
+    {
+        "type": "ADMIN_TEACHER",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
+
+    {
+        "type": "TEACHER_OTHER",
+        "path": "/dashboard",
+        "label": "Zurück zum Lehrer-Dashboard"
+    },
+
+    {
+        "type": "TEACHER_STUDENT",
+        "path": "/student-results",
+        "label": "Ergebnisse anzeigen"
+    },
+    {
+        "type": "TEACHER_STUDENT",
+        "path": "/dashboard",
+        "label": "Zurück zum Lehrer-Dashboard"
+    },
+
+    {
+        "type": "TEACHER_STUDENT_OTHER",
+        "path": "/student",
+        "label": "Zurück zur Schüler-Ansicht"
+    },
+    {
+        "type": "TEACHER_STUDENT",
+        "path": "/dashboard",
+        "label": "Zurück zum Lehrer-Dashboard"
+    },
+
+    {
+        "type": "STUDENT_DASHBOARD",
+        "path": "/results",
+        "label": "Meine Ergebnisse anzeigen"
+    },
+    {
+        "type": "STUDENT_DASHBOARD",
+        "path": "/partner_search",
+        "label": "Partner suchen"
+    },
+
+    {
+        "type": "STUDENT_OTHER",
+        "path": "/dashboard",
+        "label": "Zurück zum Dashboard"
+    }
+]

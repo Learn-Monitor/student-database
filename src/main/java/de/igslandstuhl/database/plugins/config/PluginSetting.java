@@ -1,13 +1,13 @@
-package de.igslandstuhl.database.api.modules;
+package de.igslandstuhl.database.plugins.config;
 
-public class ModuleSetting<T> {
+public class PluginSetting<T> {
     private final String key;
     private final String name;
     private final String description;
     private final T defaultValue;
     private T value;
 
-    public ModuleSetting(String key, String name, String description, T defaultValue) {
+    PluginSetting(String key, String name, String description, T defaultValue) {
         this.key = key;
         this.name = name;
         this.description = description;

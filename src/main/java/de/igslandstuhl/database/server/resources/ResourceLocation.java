@@ -51,7 +51,19 @@ public record ResourceLocation(String context, String namespace, String resource
         return fromPath(Path.of(path));
     }
     public static ResourceLocation fromRelativePath(String relativePath) {
-        String[] parts = relativePath.split(Matcher.quoteReplacement(File.separator));
+        if (relativePath == null || relativePath.isEmpty()) {
+            return null;
+        }
+        // Normalize the path to eliminate any "." or ".." segments
+        Path normalized = Path.of(relativePath).normalize();
+        String normalizedStr = normalized.toString();
+        // Reject paths that still contain traversal segments after normalization
+        if (normalizedStr.contains(".." + File.separator) ||
+            normalizedStr.contains(File.separator + "..") ||
+            normalizedStr.equals("..")) {
+            return null;
+        }
+        String[] parts = normalizedStr.split(Matcher.quoteReplacement(File.separator));
         if (parts.length != 3) {
             return null;
         }

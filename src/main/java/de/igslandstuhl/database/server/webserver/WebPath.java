@@ -16,7 +16,7 @@ public record WebPath(RequestType type, String handlerType, List<String> namespa
     public static void registerPaths() throws IOException {
         if (Registry.webPathRegistry().stream().count() > 0) return; // already registered
         ResourceLocation metaLocation = new ResourceLocation("meta", "paths", "get_paths.json");
-        Map<String, ?> pathData = Server.getInstance().getResourceManager().readJsonResourceAsMap(metaLocation);
+        Map<String, ?> pathData = Server.getInstance().getResourceManager().readJsonResourceMerged(metaLocation);
         pathData.keySet().forEach((path) -> {
             @SuppressWarnings("unchecked")
             Map<String, ?> pathInfo = (Map<String, ?>) pathData.get(path);

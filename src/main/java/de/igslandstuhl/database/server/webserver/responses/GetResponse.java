@@ -4,12 +4,14 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.PrintStream;
 
+import de.igslandstuhl.database.client.TemplatingPreprocessor;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.server.webserver.AccessManager;
 import de.igslandstuhl.database.server.webserver.ContentType;
 import de.igslandstuhl.database.server.webserver.NoWebResourceException;
 import de.igslandstuhl.database.server.webserver.Status;
+import de.igslandstuhl.database.server.webserver.handlers.get.PluginRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 
 /**
@@ -138,8 +140,11 @@ public class GetResponse implements HttpResponse {
      * @return the GetResponse object
      */
     public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating) {
+        return getResource(request, resourceLocation, user, isTemplating, request.getPath());
+    }
+    public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating, String path) {
         try {
-            if (AccessManager.getInstance().hasAccess(user, resourceLocation)) {
+            if (AccessManager.getInstance().hasAccess(user, path)) {
                 return new GetResponse(request, Status.OK, resourceLocation, ContentType.ofResourceLocation(resourceLocation), user, isTemplating);
             } else {
                 return unauthorized(request);
@@ -172,8 +177,12 @@ public class GetResponse implements HttpResponse {
                     if (!resourceLocation.isVirtual()) {
                         resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
                     } else {
-                        resource = Server.getInstance().getResourceManager().readVirtualResource(user, resourceLocation);
-                        if (resource == null) throw new NullPointerException();
+                        if (resourceLocation.namespace().equals("plugin")) {
+                            resource = PluginRequestHandler.getPluginResource(resourceLocation.resource());
+                        } else {
+                            resource = Server.getInstance().getResourceManager().readVirtualResource(user, resourceLocation);
+                        }
+                            if (resource == null) throw new NullPointerException();
                     }
                 }
                 if (isTemplating) {
