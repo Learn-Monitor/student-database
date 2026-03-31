@@ -21,6 +21,7 @@ public interface HTMLTemplate {
     }
     public static void registerAll() {
         NavigationElement.registerAll();
+        DynamicHTMLTemplate.registerDynamicElements();
         Map<String, ?> json = Server.getInstance().getResourceManager().readJsonResourceMerged(meta);
         json.keySet().forEach((key) -> {
             @SuppressWarnings("unchecked")
@@ -38,6 +39,7 @@ public interface HTMLTemplate {
                     break;
                 case "HTMLNavigationTemplate":
                     register(new HTMLNavigationTemplate(NavigationAppearance.valueOf((String) template.get("appearance")), NavigationType.valueOf((String) template.get("navigation_type"))), key);
+                    break;
                 case "DynamicHTMLTemplate":
                     register(new DynamicHTMLTemplate(DynamicFieldType.valueOf((String) template.get("dynamic_field_type"))), key);
                 default:

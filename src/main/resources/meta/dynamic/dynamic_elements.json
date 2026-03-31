@@ -1,0 +1,6 @@
+[
+    {
+        "type": "STUDENT_HEADER",
+        "template": "student_header_builtin"
+    }
+]
