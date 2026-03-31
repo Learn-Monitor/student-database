@@ -91,7 +91,18 @@
     {
         "type": "TEACHER_STUDENT",
         "path": "/dashboard",
-        "label": "Zurück zur Lehrer-Ansicht"
+        "label": "Zurück zum Lehrer-Dashboard"
+    },
+
+    {
+        "type": "TEACHER_STUDENT_OTHER",
+        "path": "/student",
+        "label": "Zurück zur Schüler-Ansicht"
+    },
+    {
+        "type": "TEACHER_STUDENT",
+        "path": "/dashboard",
+        "label": "Zurück zum Lehrer-Dashboard"
     },
 
     {
