@@ -23,10 +23,6 @@
         "type": "HTMLFileTemplate",
         "path": "student_dashboard"
     },
-    "student_results": {
-        "type": "HTMLFileTemplate",
-        "path": "student_results"
-    },
     "subject_info": {
         "type": "HTMLFileTemplate",
         "path": "subject_info"
