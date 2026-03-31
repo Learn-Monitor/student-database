@@ -84,6 +84,39 @@
     },
 
     {
+        "type": "ADMIN_CLASS",
+        "path": "/manage_classes",
+        "label": "Zurück zur Klassenverwaltung"
+    },
+    {
+        "type": "ADMIN_CLASS",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
+
+    {
+        "type": "ADMIN_SUBJECT",
+        "path": "/manage_subjects",
+        "label": "Zurück zur Fächerverwaltung"
+    },
+    {
+        "type": "ADMIN_SUBJECT",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
+
+    {
+        "type": "ADMIN_TEACHER",
+        "path": "/manage_teachers",
+        "label": "Zurück zur Lehrerverwaltung"
+    },
+    {
+        "type": "ADMIN_TEACHER",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
+
+    {
         "type": "TEACHER_OTHER",
         "path": "/dashboard",
         "label": "Zurück zum Lehrer-Dashboard"
