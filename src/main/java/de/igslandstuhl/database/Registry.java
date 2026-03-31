@@ -17,6 +17,7 @@ import de.igslandstuhl.database.server.webserver.WebPath;
 import de.igslandstuhl.database.server.webserver.handlers.HttpHandler;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
+import de.igslandstuhl.database.utils.RegistryEnum;
 
 public class Registry<K, V> implements Closeable {
     private static final Registry<String,Command> COMMAND_REGISTRY = new Registry<>();
@@ -55,8 +56,13 @@ public class Registry<K, V> implements Closeable {
     }
 
     private final Map<K,V> objects = new HashMap<>();
+    private boolean locked = false;
 
+    private void checkLocked() {
+        if (locked) throw new RegistryLockedException();
+    }
     public synchronized void register(K key, V value) {
+        checkLocked();
         objects.put(key, value);
     }
     public synchronized Stream<V> stream() {
@@ -71,13 +77,19 @@ public class Registry<K, V> implements Closeable {
     public synchronized void unregister(K key) {
         objects.remove(key);
     }
+    public synchronized void lock() {
+        locked = true;
+    }
 
-    public static class EnumRegistry<K extends Enum<?>, V> {
+    public static class EnumRegistry<K extends RegistryEnum<K>, V> {
         private final Map<K,Set<V>> objects = new HashMap<>();
 
         private EnumRegistry(Class<K> clazz) {
-            for (K k :clazz.getEnumConstants()) {
-                objects.put(k, new HashSet<>());
+            try {
+                Registry<String,K> enumRegistry = RegistryEnum.init(clazz);
+                enumRegistry.stream().forEach((k) -> objects.put(k, new HashSet<>()));
+            } catch (Exception e) {
+                throw new RuntimeException("Could not initialize registry enum " + clazz.getName(), e);
             }
         }
         public synchronized void register(K key, V value) {
