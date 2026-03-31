@@ -84,6 +84,17 @@
     },
 
     {
+        "type": "TEACHER_STUDENT",
+        "path": "/student-results",
+        "label": "Ergebnisse anzeigen"
+    },
+    {
+        "type": "TEACHER_STUDENT",
+        "path": "/dashboard",
+        "label": "Zurück zur Lehrer-Ansicht"
+    },
+
+    {
         "type": "STUDENT_DASHBOARD",
         "path": "/results",
         "label": "Meine Ergebnisse anzeigen"
