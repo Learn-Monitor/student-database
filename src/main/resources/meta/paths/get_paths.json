@@ -217,7 +217,7 @@
 
     "/student-database.js": {
         "type": "GET",
-        "handler_type": "FileRequestHandler",
+        "handler_type": "MergingFileRequestHandler",
         "namespaces": ["site"],
         "context": "js",
         "access_level": "public"
@@ -283,7 +283,7 @@
 
     "/style.css": {
         "type": "GET",
-        "handler_type": "FileRequestHandler",
+        "handler_type": "MergingFileRequestHandler",
         "namespaces": ["site"],
         "context": "css",
         "access_level": "public"

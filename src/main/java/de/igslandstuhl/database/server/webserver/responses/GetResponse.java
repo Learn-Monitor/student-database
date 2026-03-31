@@ -23,28 +23,28 @@ public class GetResponse implements HttpResponse {
      * @return the GetResponse object
      */
     public static GetResponse notFound(HttpRequest request) {
-        return new GetResponse(request, Status.NOT_FOUND, new ResourceLocation("html", "errors", "404.html"), ContentType.HTML, "", false);
+        return new GetResponse(request, Status.NOT_FOUND, new ResourceLocation("html", "errors", "404.html"), ContentType.HTML, "", false, false);
     }
     /**
      * Returns a response for a GET request that resulted in an internal error.
      * @return the GetResponse object
      */
     public static GetResponse internalServerError(HttpRequest request) {
-        return new GetResponse(request, Status.INTERNAL_SERVER_ERROR, new ResourceLocation("html", "errors", "500.html"), ContentType.HTML, "", false);
+        return new GetResponse(request, Status.INTERNAL_SERVER_ERROR, new ResourceLocation("html", "errors", "500.html"), ContentType.HTML, "", false, false);
     }
     /**
      * Returns a response for a GET request the user has no access to.
      * @return the HttpRequest object
      */
     public static GetResponse forbidden(HttpRequest request) {
-        return new GetResponse(request, Status.FORBIDDEN, new ResourceLocation("html", "errors", "403.html"), ContentType.HTML, "", false);
+        return new GetResponse(request, Status.FORBIDDEN, new ResourceLocation("html", "errors", "403.html"), ContentType.HTML, "", false, false);
     }
     /**
      * Returns a response for a GET request the user must be logged in for.
      * @return the GetResponse object
      */
     public static GetResponse unauthorized(HttpRequest request) {
-        return new GetResponse(request, Status.UNAUTHORIZED, new ResourceLocation("html", "errors", "401.html"), ContentType.HTML, "", false);
+        return new GetResponse(request, Status.UNAUTHORIZED, new ResourceLocation("html", "errors", "401.html"), ContentType.HTML, "", false, false);
     }
     /**
      * Returns a response for a GET request the user must be logged in for.
@@ -59,6 +59,7 @@ public class GetResponse implements HttpResponse {
                 new ResourceLocation("html", "errors", "401.html"),
                 ContentType.HTML,
                 message,
+                false,
                 false
         );
     }
@@ -75,6 +76,7 @@ public class GetResponse implements HttpResponse {
                 new ResourceLocation("html", "errors", "429.html"),
                 ContentType.HTML,
                 message,
+                false,
                 false
         );
     }
@@ -115,6 +117,7 @@ public class GetResponse implements HttpResponse {
     private final HttpRequest request;
 
     private final boolean isTemplating;
+    private final boolean isMerging;
 
     /**
      * Creates a new GetResponse with the given parameters.
@@ -125,13 +128,14 @@ public class GetResponse implements HttpResponse {
      * @param user the user who made the request
      * @param isTemplating whether the resource is a templated resource
      */
-    public GetResponse(HttpRequest request, Status status, ResourceLocation resourceLocation, ContentType contentType, String user, boolean isTemplating) {
+    public GetResponse(HttpRequest request, Status status, ResourceLocation resourceLocation, ContentType contentType, String user, boolean isTemplating, boolean isMerging) {
         this.status = status;
         this.resourceLocation = resourceLocation;
         this.contentType = contentType;
         this.user = user;
         this.request = request;
         this.isTemplating = isTemplating;
+        this.isMerging = isMerging;
     }
     /**
      * Returns a response for a GET request for the given resource.
@@ -143,9 +147,15 @@ public class GetResponse implements HttpResponse {
         return getResource(request, resourceLocation, user, isTemplating, request.getPath());
     }
     public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating, String path) {
+        return getResource(request, resourceLocation, user, isTemplating, false, path);
+    }
+    public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating, boolean isMerging) {
+        return getResource(request, resourceLocation, user, isTemplating, isMerging, request.getPath());
+    }
+    public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating, boolean isMerging, String path) {
         try {
             if (AccessManager.getInstance().hasAccess(user, path)) {
-                return new GetResponse(request, Status.OK, resourceLocation, ContentType.ofResourceLocation(resourceLocation), user, isTemplating);
+                return new GetResponse(request, Status.OK, resourceLocation, ContentType.ofResourceLocation(resourceLocation), user, isTemplating, isMerging);
             } else {
                 return unauthorized(request);
             }
@@ -175,7 +185,11 @@ public class GetResponse implements HttpResponse {
                 String resource = "";
                 if (resourceLocation != null) {
                     if (!resourceLocation.isVirtual()) {
-                        resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
+                        if (!isMerging) {
+                            resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
+                        } else {
+                            resource = Server.getInstance().getResourceManager().readCodeMerged(resourceLocation);
+                        }
                     } else {
                         if (resourceLocation.namespace().equals("plugin")) {
                             resource = PluginRequestHandler.getPluginResource(resourceLocation.resource());
