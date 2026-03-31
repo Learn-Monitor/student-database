@@ -834,7 +834,7 @@ function loadPluginSection(pluginKey) {
         const plugin = await fetchPlugin(pluginKey);
         header.textContent = plugin.name;
         body.innerHTML = `
-            <p>${plugin.description.replace("\n", "</p><p>")}</p>
+            <p>${plugin.description.replace(/\n/g, "</p><p>")}</p>
             <table>
                 <thead>
                     <th>Key</th>
