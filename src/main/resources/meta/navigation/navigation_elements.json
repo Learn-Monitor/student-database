@@ -84,6 +84,12 @@
     },
 
     {
+        "type": "TEACHER_OTHER",
+        "path": "/dashboard",
+        "label": "Zurück zum Lehrer-Dashboard"
+    },
+
+    {
         "type": "TEACHER_STUDENT",
         "path": "/student-results",
         "label": "Ergebnisse anzeigen"
