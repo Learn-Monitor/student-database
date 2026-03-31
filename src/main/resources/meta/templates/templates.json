@@ -31,6 +31,10 @@
         "type": "HTMLFileTemplate",
         "path": "student_header"
     },
+    "room_selection": {
+        "type": "HTMLFileTemplate",
+        "path": "room_selection"
+    },
 
     "admin_dashboard_nav": {
         "type": "HTMLNavigationTemplate",
@@ -101,5 +105,13 @@
     "student_header": {
         "type": "DynamicHTMLTemplate",
         "dynamic_field_type": "STUDENT_HEADER"
+    },
+    "student_top": {
+        "type": "DynamicHTMLTemplate",
+        "dynamic_field_type": "STUDENT_TOP"
+    },
+    "teacher_infos": {
+        "type": "DynamicHTMLTemplate",
+        "dynamic_field_type": "TEACHER_INFOS"
     }
 }
