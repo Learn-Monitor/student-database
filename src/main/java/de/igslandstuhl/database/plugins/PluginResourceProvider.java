@@ -23,7 +23,7 @@ public class PluginResourceProvider implements ResourceProvider {
         String path = location.context() + "/" + location.namespace() + "/" + location.resource();
 
         for (PreLoadedPlugin module : PluginLoader.getInstance().getPluginInfos()) {
-            ClassLoader cl = module.classLoader();
+            ClassLoader cl = module.resourceLoader();
             InputStream stream = cl.getResourceAsStream(path);
 
             if (stream != null) {
@@ -40,7 +40,7 @@ public class PluginResourceProvider implements ResourceProvider {
         List<InputStream> inputStreams = new ArrayList<>();
 
         for (PreLoadedPlugin module : PluginLoader.getInstance().getPluginInfos()) {
-            ClassLoader cl = module.classLoader();
+            ClassLoader cl = module.resourceLoader();
             InputStream stream = cl.getResourceAsStream(path);
 
             if (stream != null) {
@@ -58,7 +58,7 @@ public class PluginResourceProvider implements ResourceProvider {
         final Path virtualRoot = Paths.get("").toAbsolutePath().normalize();
 
         for (PreLoadedPlugin module : PluginLoader.getInstance().getPluginInfos()) {
-            try (ZipFile zip = new ZipFile(new File(module.classLoader().getURLs()[0].toURI()))) {
+            try (ZipFile zip = new ZipFile(new File(module.resourceLoader().getURLs()[0].toURI()))) {
 
                 Enumeration<? extends ZipEntry> entries = zip.entries();
 
@@ -69,7 +69,10 @@ public class PluginResourceProvider implements ResourceProvider {
 
                     String name = entry.getName();
 
-                    if (!CoreResourceProvider.isSafeZipEntryName(name, virtualRoot))
+                    if (!CoreResourceProvider.isSafeZipEntryName(name, virtualRoot)) {
+                        continue;
+                    }
+
                     if (pattern.matcher(name).matches()) {
                         ResourceLocation loc = ResourceLocation.fromPath(name);
                         if (loc != null) result.add(loc);
