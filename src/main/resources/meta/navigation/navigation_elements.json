@@ -34,6 +34,12 @@
         "path": "/editor",
         "label": "HTML Editor"
     },
+
+    {
+        "type": "ADMIN_OTHER",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
     
     {
         "type": "ADMIN_STUDENT",
