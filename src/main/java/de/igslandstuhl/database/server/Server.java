@@ -13,7 +13,6 @@ import java.util.function.Function;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import de.igslandstuhl.database.Application;
-import de.igslandstuhl.database.api.Room;
 import de.igslandstuhl.database.api.SchoolClass;
 import de.igslandstuhl.database.api.Student;
 import de.igslandstuhl.database.api.Subject;
@@ -209,8 +208,6 @@ public final class Server implements AutoCloseable {
         if (resource.equals("mydata")) {
             User user = User.getUser(username);
             return user.toJSON();
-        } else if (resource.equals("rooms")) {
-            return new HashSet<>(Room.getRooms().values()).toString();
         } else if (resource.equals("mysubjects")) {
             User user = User.getUser(username);
             if (user instanceof Student student) {

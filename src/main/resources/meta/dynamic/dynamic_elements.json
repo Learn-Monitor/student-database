@@ -5,20 +5,11 @@
     },
 
     {
-        "type": "STUDENT_TOP",
-        "template": "room_selection"
-    },
-
-    {
         "type": "TEACHER_INFOS",
         "template": "class_info"
     },
     {
         "type": "TEACHER_INFOS",
         "template": "subject_info"
-    },
-    {
-        "type": "TEACHER_INFOS",
-        "template": "room_info"
     }
 ]

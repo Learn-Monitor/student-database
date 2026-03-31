@@ -11,10 +11,6 @@
         "type": "HTMLFileTemplate",
         "path": "login"
     },
-    "room_info": {
-        "type": "HTMLFileTemplate",
-        "path": "room_info"
-    },
     "site": {
         "type": "HTMLFileTemplate",
         "path": "site"
@@ -30,10 +26,6 @@
     "student_header_builtin": {
         "type": "HTMLFileTemplate",
         "path": "student_header"
-    },
-    "room_selection": {
-        "type": "HTMLFileTemplate",
-        "path": "room_selection"
     },
 
     "admin_dashboard_nav": {

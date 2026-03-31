@@ -20,7 +20,6 @@ import com.google.gson.reflect.TypeToken;
 import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.APIObject;
-import de.igslandstuhl.database.api.Room;
 import de.igslandstuhl.database.api.SchoolClass;
 import de.igslandstuhl.database.api.Student;
 import de.igslandstuhl.database.api.Subject;
@@ -205,15 +204,6 @@ public class PostRequestHandler {
                 }
             }, PostRequestHandler::csvResult)
         );
-        HttpHandler.registerPostRequestHandler("/add-rooms", AccessLevel.ADMIN, (rq) ->
-            handleBatchInsertCSV(rq, "rooms", ContentType.JSON, t -> {
-                try {
-                    return Room.generateRoomsFromCSV(t);
-                } catch (SQLException e) {
-                    throw new IllegalStateException(e);
-                }
-            }, Arrays::toString)
-        );
         HttpHandler.registerPostRequestHandler("/add-teacher", AccessLevel.ADMIN, (rq) -> {
             String firstName = prepare(rq.getString("firstName"));
             String lastName = prepare(rq.getString("lastName"));
@@ -271,14 +261,6 @@ public class PostRequestHandler {
         HttpHandler.registerPostRequestHandler("/tasks", AccessLevel.USER, (rq) -> {
             return PostResponse.ok(JSONUtils.toJSON(rq.getTaskList()), ContentType.JSON, rq);
         });
-        HttpHandler.registerPostRequestHandler("/update-room", AccessLevel.USER, (rq) -> {
-            Student student = rq.getCurrentStudent();
-            if (student == null) return PostResponse.unauthorized(rq);
-            Room room = rq.getRoom();
-            if (room == null) return PostResponse.badRequest("Room not found", rq);
-            student.setCurrentRoom(room);
-            return PostResponse.ok("Changed current room", ContentType.TEXT_PLAIN, rq);
-        });
         HttpHandler.registerPostRequestHandler("/begin-task", AccessLevel.USER, (rq) -> handleTaskChange(rq, Task.STATUS_IN_PROGRESS));
         HttpHandler.registerPostRequestHandler("/complete-task", AccessLevel.USER, (rq) -> handleTaskChange(rq, Task.STATUS_COMPLETED));
         HttpHandler.registerPostRequestHandler("/cancel-task", AccessLevel.USER, (rq) -> handleTaskChange(rq, Task.STATUS_NOT_STARTED));
@@ -301,30 +283,7 @@ public class PostRequestHandler {
                     .addProperty("id", student.getId())
                     .addProperty("name", student.getFirstName() + " " + student.getLastName())
                     .addProperty("actionRequired", student.isActionRequired())
-                    .addProperty("graduationLevel", student.getGraduationLevel())
-                    .addProperty("room", student.getCurrentRoom() != null ? student.getCurrentRoom().getLabel() : "None");
-                    if (rq.getJson().containsKey("subjectId") && rq.getSubject() != null) {
-                        Set<SubjectRequest> subjectRequests = student.getCurrentRequests(rq.getSubject());
-                        builder.addProperty("experiment",subjectRequests.stream().anyMatch(r -> r == SubjectRequest.EXPERIMENT))
-                        .addProperty("help", subjectRequests.stream().anyMatch(r -> r == SubjectRequest.HELP))
-                        .addProperty("test", subjectRequests.stream().anyMatch(r -> r == SubjectRequest.EXAM))
-                        .addProperty("partner", subjectRequests.stream().anyMatch(r -> r == SubjectRequest.PARTNER));
-                    }
-                }),
-                ContentType.JSON, rq
-            );
-        });
-        HttpHandler.registerPostRequestHandler("/get-students-by-room", AccessLevel.TEACHER, (rq) -> {
-            Room room = rq.getRoom();
-            List<Student> students = Student.getByRoom(room);
-            return PostResponse.ok(
-                JSONUtils.toJSON(students, (student, builder) -> {
-                    builder
-                    .addProperty("id", student.getId())
-                    .addProperty("name", student.getFirstName() + " " + student.getLastName())
-                    .addProperty("actionRequired", student.isActionRequired())
-                    .addProperty("graduationLevel", student.getGraduationLevel())
-                    .addProperty("room", student.getCurrentRoom() != null ? student.getCurrentRoom().getLabel() : "None");
+                    .addProperty("graduationLevel", student.getGraduationLevel());
                     if (rq.getJson().containsKey("subjectId") && rq.getSubject() != null) {
                         Set<SubjectRequest> subjectRequests = student.getCurrentRequests(rq.getSubject());
                         builder.addProperty("experiment",subjectRequests.stream().anyMatch(r -> r == SubjectRequest.EXPERIMENT))
@@ -364,8 +323,7 @@ public class PostRequestHandler {
                                             .toList();
             return PostResponse.ok(JSONUtils.toJSON(students, (partner, builder) -> {
                 builder.addProperty("id", partner.getId())
-                .addProperty("name", partner.getFirstName() + " " + partner.getLastName())
-                .addProperty("room", partner.getCurrentRoom() != null ? partner.getCurrentRoom().getLabel() : "None");
+                .addProperty("name", partner.getFirstName() + " " + partner.getLastName());
             }), ContentType.JSON, rq);
         });
         HttpHandler.registerPostRequestHandler("/delete-subject", AccessLevel.ADMIN, (rq) -> 

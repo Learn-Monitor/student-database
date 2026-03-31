@@ -50,10 +50,6 @@ async function fetchMyClasses() {
     const classes = await fetchJson('/myclasses');
     return classes;
 }
-async function fetchRooms() {
-    const rooms = await fetchJson('/rooms');
-    return rooms;
-}
 async function fetchTeacherClasses(teacherId) {
     const classes = await getJsonWithPost('/teacher-classes', { teacherId });
     return classes;
@@ -108,9 +104,6 @@ async function getStudents(classId) {
 async function getStudentsBySubject(classId, subjectId) {
     return await getJsonWithPost('/student-list', { classId, subjectId });
 }
-async function getStudentsByRoom(room) {
-    return await getJsonWithPost('/get-students-by-room', { room });
-}
 async function searchPartner(subjectId, topicId, classId, studentId) {
     return await getJsonWithPost('/search-partner', { subjectId, topicId, classId, studentId});
 }
@@ -158,9 +151,6 @@ async function reopenTask(studentId, taskId) {
 }
 async function beginTask(studentId, taskId) {
     return await post('/begin-task', { studentId, taskId });
-}
-async function updateRoom(studentId, room) {
-    return await post('/update-room', { studentId, room });
 }
 async function togglePlugin(pluginKey) {
     return await post('/toggle-plugin', { key: pluginKey });
@@ -216,21 +206,6 @@ async function populateSubjectStudentList(subjectSelectId, classSelectId, studen
           <td class="student-experiment">${student.experiment ? "Ja" : "Nein"}</td>
           <td class="student-partner">${student.partner ? "Ja" : "Nein"}</td>
           <td class="student-test">${student.test ? "Ja" : "Nein"}</td>
-          <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
-      `;
-      studentTable.appendChild(row);
-  });
-}
-async function populateRoomStudentList(room) {
-  const students = await getStudentsByRoom(room);
-
-  const studentTable = document.getElementById("roomStudentTableBody");
-  studentTable.innerHTML = ""; // clear previous rows
-  students.forEach(student => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-          <td class="student-name">${student.name}</td>
-          <td class="student-action-required">${student.actionRequired ? "Ja" : "Nein"}</td>
           <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
       `;
       studentTable.appendChild(row);
@@ -309,30 +284,6 @@ async function populateGradeSelect(gradeSelectId, subjectId) {
         option.value = grade;
         gradeSelect.appendChild(option)
     })
-}
-async function populateRoomSelect(roomSelectId) {
-    const roomSelect = document.getElementById(roomSelectId);
-    roomSelect.innerHTML = ""; // clear previous options if any
-    const rooms = await fetchRooms();
-    rooms.forEach(room => {
-        const option = document.createElement('option');
-        option.value = room.label;
-        option.textContent = room.label;
-        roomSelect.appendChild(option);
-    });
-}
-async function populateRoomSelectWithLevel(roomSelectId, graduationLevel) {
-    const roomSelect = document.getElementById(roomSelectId);
-    roomSelect.innerHTML = ""; // clear previous options if any
-    const rooms = await fetchRooms();
-    rooms.forEach(room => {
-        if (room.minimumLevel <= graduationLevel){
-            const option = document.createElement('option');
-            option.value = room.label;
-            option.textContent = room.label;
-            roomSelect.appendChild(option);
-        }
-    });
 }
 async function populateSubjectList(subjectListId, classId) {
     const subjectList = document.getElementById(subjectListId);
