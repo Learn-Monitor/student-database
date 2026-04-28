@@ -1,6 +1,6 @@
-package de.igslandstuhl.database.api.modules;
+package de.igslandstuhl.database.plugins.config;
 
-public class BoolSetting extends ModuleSetting<Boolean> {
+public class BoolSetting extends PluginSetting<Boolean> {
     public BoolSetting(String key, String name, String description, boolean defaultValue) {
         super(key, name, description, defaultValue);
     }

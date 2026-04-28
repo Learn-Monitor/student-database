@@ -1,0 +1,96 @@
+{
+    "class_info": {
+        "type": "HTMLFileTemplate",
+        "path": "class_info"
+    },
+    "file_import": {
+        "type": "HTMLFileTemplate",
+        "path": "file_import"
+    },
+    "login": {
+        "type": "HTMLFileTemplate",
+        "path": "login"
+    },
+    "room_info": {
+        "type": "HTMLFileTemplate",
+        "path": "room_info"
+    },
+    "site": {
+        "type": "HTMLFileTemplate",
+        "path": "site"
+    },
+    "student_dashboard": {
+        "type": "HTMLFileTemplate",
+        "path": "student_dashboard"
+    },
+    "subject_info": {
+        "type": "HTMLFileTemplate",
+        "path": "subject_info"
+    },
+
+    "admin_dashboard_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "ADMIN_DASHBOARD",
+        "appearance": "LIST_APPEARANCE"
+    },
+    "admin_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "ADMIN_OTHER",
+        "appearance": "BUTTON_APPEARANCE"
+    },
+    "admin_student_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "ADMIN_STUDENT",
+        "appearance": "BUTTON_APPEARANCE"
+    },
+    "admin_student_other_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "ADMIN_STUDENT_OTHER",
+        "appearance": "BUTTON_APPEARANCE"
+    },
+    "admin_class_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "ADMIN_CLASS",
+        "appearance": "BUTTON_APPEARANCE"
+    },
+    "admin_subject_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "ADMIN_SUBJECT",
+        "appearance": "BUTTON_APPEARANCE"
+    },
+    "admin_teacher_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "ADMIN_TEACHER",
+        "appearance": "BUTTON_APPEARANCE"
+    },
+    "teacher_dashboard_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "TEACHER_DASHBOARD",
+        "appearance": "LIST_APPEARANCE"
+    },
+    "teacher_other_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "TEACHER_OTHER",
+        "appearance": "BUTTON_APPEARANCE"
+    },
+    "teacher_student_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "TEACHER_STUDENT",
+        "appearance": "BUTTON_APPEARANCE"
+    },
+    "teacher_student_other_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "TEACHER_STUDENT_OTHER",
+        "appearance": "BUTTON_APPEARANCE"
+    },
+    "student_dashboard_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "STUDENT_DASHBOARD",
+        "appearance": "BUTTON_APPEARANCE"
+    },
+    "student_nav": {
+        "type": "HTMLNavigationTemplate",
+        "navigation_type": "STUDENT_OTHER",
+        "appearance": "BUTTON_APPEARANCE"
+    }
+}

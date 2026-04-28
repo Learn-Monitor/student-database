@@ -1,5 +1,9 @@
 package de.igslandstuhl.database.server.resources;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.util.regex.Matcher;
+
 /**
  * Represents a resource location with context, namespace, and resource name.
  * This class is used to identify resources in the application.
@@ -29,5 +33,40 @@ public record ResourceLocation(String context, String namespace, String resource
      */
     public boolean isVirtual() {
         return context.equals("virtual");
+    }
+    public static ResourceLocation fromPath(Path path) {
+        Path relativePath;
+        try {
+            relativePath = Path.of(".").relativize(path);
+        } catch (IllegalArgumentException e) {
+            relativePath = path;
+        }
+        String rel = relativePath.toString();
+        while (rel.startsWith(".") || rel.startsWith(File.separator)) {
+            rel = rel.substring(1);
+        }
+        return fromRelativePath(rel);
+    }
+    public static ResourceLocation fromPath(String path) {
+        return fromPath(Path.of(path));
+    }
+    public static ResourceLocation fromRelativePath(String relativePath) {
+        if (relativePath == null || relativePath.isEmpty()) {
+            return null;
+        }
+        // Normalize the path to eliminate any "." or ".." segments
+        Path normalized = Path.of(relativePath).normalize();
+        String normalizedStr = normalized.toString();
+        // Reject paths that still contain traversal segments after normalization
+        if (normalizedStr.contains(".." + File.separator) ||
+            normalizedStr.contains(File.separator + "..") ||
+            normalizedStr.equals("..")) {
+            return null;
+        }
+        String[] parts = normalizedStr.split(Matcher.quoteReplacement(File.separator));
+        if (parts.length != 3) {
+            return null;
+        }
+        return new ResourceLocation(parts[0], parts[1], parts[2]);
     }
 }

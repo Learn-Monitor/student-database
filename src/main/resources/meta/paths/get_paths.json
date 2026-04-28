@@ -85,13 +85,6 @@
         "context": "html",
         "access_level": "user"
     },
-    "/results": {
-        "type": "GET",
-        "handler_type":"TemplatingFileRequestHandler",
-        "namespaces": ["user"],
-        "context": "html",
-        "access_level": "student"
-    },
     "/partner_search": {
         "type": "GET",
         "handler_type":"TemplatingFileRequestHandler",
@@ -107,15 +100,8 @@
         "context": "html",
         "access_level": "teacher"
     },
-    "/student-results": {
-        "type": "GET",
-        "handler_type": "TemplatingFileRequestHandler",
-        "namespaces": ["teacher", "admin"],
-        "context": "html",
-        "access_level": "teacher"
-    },
     
-    "/modules": {
+    "/plugins": {
         "type": "GET",
         "handler_type": "TemplatingFileRequestHandler",
         "namespaces": ["admin"],
@@ -157,6 +143,14 @@
         "context": "html",
         "access_level": "admin"
     },
+    "/editor": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "html",
+        "access_level": "admin"
+    },
+
     "/teacher": {
         "type": "GET",
         "handler_type": "TemplatingFileRequestHandler",
@@ -223,7 +217,7 @@
 
     "/student-database.js": {
         "type": "GET",
-        "handler_type": "FileRequestHandler",
+        "handler_type": "MergingFileRequestHandler",
         "namespaces": ["site"],
         "context": "js",
         "access_level": "public"
@@ -233,13 +227,6 @@
         "type": "GET",
         "handler_type": "FileRequestHandler",
         "namespaces": ["user", "teacher", "admin"],
-        "context": "js",
-        "access_level": "user"
-    },
-    "/build_results.js": {
-        "type": "GET",
-        "handler_type": "FileRequestHandler",
-        "namespaces": ["user", "teacher"],
         "context": "js",
         "access_level": "user"
     },
@@ -257,14 +244,6 @@
         "namespaces": ["teacher"],
         "context": "js",
         "access_level": "teacher"
-    },
-
-    "/build_modules.js": {
-        "type": "GET",
-        "handler_type": "FileRequestHandler",
-        "namespaces": ["admin"],
-        "context": "js",
-        "access_level": "admin"
     },
     "/build_teacher.js": {
         "type": "GET",
@@ -304,14 +283,7 @@
 
     "/style.css": {
         "type": "GET",
-        "handler_type": "FileRequestHandler",
-        "namespaces": ["site"],
-        "context": "css",
-        "access_level": "public"
-    },
-    "/results.css": {
-        "type": "GET",
-        "handler_type": "FileRequestHandler",
+        "handler_type": "MergingFileRequestHandler",
         "namespaces": ["site"],
         "context": "css",
         "access_level": "public"
@@ -322,5 +294,12 @@
         "namespaces": ["icons"],
         "context": "imgs",
         "access_level": "public"
+    },
+    "/plugin-list": {
+        "type": "GET",
+        "handler_type": "PluginRequestHandler",
+        "namespaces": ["plugin"],
+        "context": "virtual",
+        "access_level": "admin"
     }
 }

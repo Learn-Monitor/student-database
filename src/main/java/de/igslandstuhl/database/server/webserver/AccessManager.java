@@ -5,8 +5,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.User;
-import de.igslandstuhl.database.server.resources.ResourceHelper;
+import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 
 /**
@@ -70,7 +71,7 @@ public class AccessManager {
         String[] teacherLocations = {};
         String[] adminLocations = {"students", "teachers", "classes"};
         try {
-            Map<String, ?> pathData = ResourceHelper.readJsonResourceAsMap(metaLocation);
+            Map<String, ?> pathData = Server.getInstance().getResourceManager().readJsonResourceAsMap(metaLocation);
             List<String> publicSpacesList = (List<String>) pathData.get("public_spaces");
             List<String> publicLocationsList = (List<String>) pathData.get("public_locations");
             List<String> userLocationsList = (List<String>) pathData.get("user_locations");
@@ -107,10 +108,21 @@ public class AccessManager {
      * @param user the username of the user, or null if not authenticated
      * @param resource the ResourceLocation representing the resource to check access for
      * @return true if the user has access to the resource, false otherwise
+     * @deprecated Use <code>hasAccess(String user, String path)</code>
      */
+    @Deprecated
     public boolean hasAccess(String user, ResourceLocation resource) {
         return hasAccess(User.getUser(user), resource);
     }
+    /**
+     * Checks if a user has access to a specific resource.
+     * 
+     * @param user the user, or null if not authenticated
+     * @param resource the ResourceLocation representing the resource to check access for
+     * @return true if the user has access to the resource, false otherwise
+     * @deprecated Use <code>hasAccess(User user, String path)</code>
+     */
+    @Deprecated
     public boolean hasAccess(User user, ResourceLocation resource) {
         if (Arrays.asList(PUBLIC_SPACES).contains(resource.namespace()) || Arrays.asList(PUBLIC_LOCATIONS).contains(resource.resource())) {
             return true;
@@ -127,5 +139,49 @@ public class AccessManager {
         } else {
             return false;
         }
+    }
+    /**
+     * Checks if a user has access to a specific access level
+     * @param user the user, can be null to indicate no user logged in
+     * @param accessLevel the access level
+     * @return true, if the user has access, otherwise false
+     */
+    public boolean hasAccess(User user, AccessLevel accessLevel) {
+        if (accessLevel == AccessLevel.PUBLIC) {
+            return true;
+        } else if (user == null || user == User.ANONYMOUS) {
+            return false;
+        } else if (accessLevel == AccessLevel.NONE) {
+            return false;
+        } else if (accessLevel == AccessLevel.USER) {
+            return true;
+        } else if (accessLevel == AccessLevel.STUDENT) {
+            return user.isStudent();
+        } else if (user.isStudent()) {
+            return false;
+        } else if (accessLevel == AccessLevel.TEACHER) {
+            return true;
+        } else {
+            return user.isAdmin(); // Must be AccessLevel.ADMIN
+        }
+    }
+    /**
+     * Checks if a user has access to a specific web path
+     * @param user the username of the user, can be null to indicate no user logged in
+     * @param path the web path
+     * @return true, if the user has access, otherwise false
+     */
+    public boolean hasAccess(String user, String path)  {
+        return hasAccess(User.getUser(user), path);
+    }
+    /**
+     * Checks if a user has access to a specific web path
+     * @param user user, can be null to indicate no user logged in
+     * @param path the web path
+     * @return true, if the user has access, otherwise false
+     */
+    public boolean hasAccess(User user, String path) {
+        AccessLevel accessLevel = Registry.webPathRegistry().get(path).accessLevel();
+        return hasAccess(user, accessLevel);
     }
 }

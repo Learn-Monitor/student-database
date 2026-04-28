@@ -1,14 +1,11 @@
-package de.igslandstuhl.database.server.webserver.responses;
+package de.igslandstuhl.database.client;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-import de.igslandstuhl.database.server.resources.ResourceHelper;
-import de.igslandstuhl.database.server.resources.ResourceLocation;
+import de.igslandstuhl.database.Registry;
 
 public class TemplatingPreprocessor {
     private static final TemplatingPreprocessor instance = new TemplatingPreprocessor();
@@ -18,9 +15,8 @@ public class TemplatingPreprocessor {
 
     private TemplatingPreprocessor() {}
 
-    private String getTemplate(String name) throws FileNotFoundException {
-        ResourceLocation templateLocation = new ResourceLocation("templates", "html", name + ".html");
-        return ResourceHelper.readResourceCompletely(templateLocation);
+    private HTMLTemplate getTemplate(String name) throws FileNotFoundException {
+        return Registry.templateRegistry().get(name);
     }
 
     public String executeTemplating(String content) throws IOException {
@@ -79,8 +75,8 @@ public class TemplatingPreprocessor {
                 String expandedRest = executeTemplating(rest);
                 args.put(followsKey, expandedRemapNull(expandedRest));
                 // build template and finish (rest is consumed by this template)
-                String template = getTemplate(templateName);
-                String filled = fillTemplate(template, args);
+                HTMLTemplate template = getTemplate(templateName);
+                String filled = template.fill(args);
                 // expand any templates produced by the filled template
                 String finalFilled = executeTemplating(filled);
                 out.append(finalFilled);
@@ -89,8 +85,8 @@ public class TemplatingPreprocessor {
                 break;
             } else {
                 // normal case: build template now, then continue after marker
-                String template = getTemplate(templateName);
-                String filled = fillTemplate(template, args);
+                HTMLTemplate template = getTemplate(templateName);
+                String filled = template.fill(args);
                 // expand templates that might be present inside the filled template
                 String finalFilled = executeTemplating(filled);
                 out.append(finalFilled);
@@ -99,23 +95,6 @@ public class TemplatingPreprocessor {
         }
 
         return out.toString();
-    }
-
-    // replace %{key} with args.getOrDefault(key, "")
-    private static String fillTemplate(String template, Map<String, String> args) {
-        if (template == null || template.isEmpty()) return "";
-        Pattern p = Pattern.compile("%\\{([^}]+)\\}");
-        Matcher m = p.matcher(template);
-        StringBuffer sb = new StringBuffer();
-        while (m.find()) {
-            String key = m.group(1);
-            String val = args.getOrDefault(key, "");
-            // escape backslashes and dollars for regex replacement
-            val = val.replace("\\", "\\\\").replace("$", "\\$");
-            m.appendReplacement(sb, val);
-        }
-        m.appendTail(sb);
-        return sb.toString();
     }
 
     // helper in case expanded rest is null

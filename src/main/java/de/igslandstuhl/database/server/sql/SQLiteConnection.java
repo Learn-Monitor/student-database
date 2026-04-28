@@ -10,7 +10,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.regex.Pattern;
 
-import de.igslandstuhl.database.server.resources.ResourceHelper;
+import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.utils.TrackingReadWriteLock;
 
 /**
@@ -47,9 +47,9 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
     private void createTables(PreparedStatementSupplier supplier) throws SQLException {
         lock.writeLock().lock();
         try {
-            for (BufferedReader in : ResourceHelper.openResourcesAsReader(Pattern.compile(".*tables.+\\.sql"))) {
+            for (BufferedReader in : Server.getInstance().getResourceManager().openResourcesAsReader(Pattern.compile(".*tables.+\\.sql"))) {
                 try (in) {
-                    String request = ResourceHelper.readResourceCompletely(in);
+                    String request = Server.getInstance().getResourceManager().readResourceCompletely(in);
                     supplier.executeUpdate(request);
                 } catch (IOException e) {
                     throw new IllegalStateException(e);

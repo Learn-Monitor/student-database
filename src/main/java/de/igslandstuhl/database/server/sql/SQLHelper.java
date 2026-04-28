@@ -5,7 +5,6 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
 import de.igslandstuhl.database.server.Server;
-import de.igslandstuhl.database.server.resources.ResourceHelper;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 
 /**
@@ -49,7 +48,7 @@ public class SQLHelper {
         ResourceLocation location = new ResourceLocation(CONTEXT, QUERIES, queryName + ".sql");
         String query;
         try {
-            query = ResourceHelper.readResourceCompletely(location);
+            query = Server.getInstance().getResourceManager().readResourceCompletely(location);
         } catch (FileNotFoundException e) {
             throw new SQLCommandNotFoundException(queryName, e);
         }
@@ -90,7 +89,7 @@ public class SQLHelper {
         ResourceLocation location = new ResourceLocation(CONTEXT, PUSHES, type + "_" + object + ".sql");
         String statement;
         try {
-            statement = ResourceHelper.readResourceCompletely(location);
+            statement = Server.getInstance().getResourceManager().readResourceCompletely(location);
         } catch (FileNotFoundException e) {
             throw new SQLCommandNotFoundException(type + "_" + object, e);
         }

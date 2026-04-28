@@ -4,11 +4,14 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.jline.reader.UserInterruptException;
+
 import de.igslandstuhl.database.api.SerializationException;
 import de.igslandstuhl.database.api.Subject;
 import de.igslandstuhl.database.api.Topic;
-import de.igslandstuhl.database.api.modules.WebModule;
+import de.igslandstuhl.database.client.HTMLTemplate;
 import de.igslandstuhl.database.holidays.Holiday;
+import de.igslandstuhl.database.plugins.PluginLoader;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.commands.Command;
 import de.igslandstuhl.database.server.webserver.WebPath;
@@ -95,7 +98,9 @@ public final class Application {
 
     public static void main(String[] args) throws Exception {
         instance = new Application(args);
-        
+
+        PluginLoader.getInstance().preloadPlugins();
+
         if (!getInstance().suppressCmd()) {
             Command.registerCommands();
             CommandLineUtils.setup();
@@ -105,19 +110,28 @@ public final class Application {
 
         Holiday.setupCurrentSchoolYear();
         PostRequestHandler.registerHandlers();
-        WebModule.registerModules();
+        PluginLoader.getInstance().registerPlugins();
 
         WebPath.registerPaths();
+        HTMLTemplate.registerAll();
         GetRequestHandler.getInstance().registerHandlers();
 
         if (getInstance().runsWebServer()) {
             Server.getInstance().getWebServer().start();
         }
 
-        while (true) {
-            if (!getInstance().suppressCmd()) {
-                CommandLineUtils.waitForCommandAndExec();
+        PluginLoader.getInstance().enablePlugins();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> PluginLoader.getInstance().unloadPlugins(),"Plugin cleanup thread"));
+
+        try {
+            while (true) {
+                if (!getInstance().suppressCmd()) {
+                    CommandLineUtils.waitForCommandAndExec();
+                }
             }
-        }
+        } catch (UserInterruptException e) {
+            System.exit(0);
+        } // Program exit using Ctrl+C
     }
 }
