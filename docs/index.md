@@ -34,3 +34,7 @@ is maintained separately in the project Wiki.
 - Backend Architecture Overview: architecture/backend-overview.md
 - Application Startup Flow: architecture/startup-lifecycle.md
 - Package Responsibilities: packages/
+
+## Presentation
+
+- [Presentation for teachers](presentation_april.pdf)
