@@ -38,3 +38,15 @@ is maintained separately in the project Wiki.
 ## Presentation
 
 - [Presentation for teachers](presentation_april.pdf)
+
+## Test server
+
+You can create a test server on your local computer using [this download](sandbox.zip).
+You need to unpack the zip folder and run one of the scripts in it (depending on your system configuration).
+They require a jvm to be installed and added to the command line path.
+You might have to permit your java application to bind port 442 using:
+```bash
+sudo setcap CAP_NET_BIND_SERVICE=+eip /path/to/your/java/executable
+```
+There already is an admin account on the database, username "test" and password "test".
+Once you run the script, you can go to "https://localhost" or "127.0.0.1" in your web browser and it should open the web interface.
