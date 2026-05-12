@@ -6,11 +6,6 @@
     },
     {
         "type": "ADMIN_DASHBOARD",
-        "path": "/manage_rooms",
-        "label": "Räume verwalten"
-    },
-    {
-        "type": "ADMIN_DASHBOARD",
         "path": "/manage_students",
         "label": "Schüler verwalten"
     },

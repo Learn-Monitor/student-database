@@ -17,6 +17,7 @@ import de.igslandstuhl.database.server.commands.Command;
 import de.igslandstuhl.database.server.webserver.WebPath;
 import de.igslandstuhl.database.server.webserver.handlers.GetRequestHandler;
 import de.igslandstuhl.database.server.webserver.handlers.PostRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.get.SQLRequestHandler;
 import de.igslandstuhl.database.utils.CommandLineUtils;
 
 /**
@@ -110,6 +111,7 @@ public final class Application {
 
         Holiday.setupCurrentSchoolYear();
         PostRequestHandler.registerHandlers();
+        SQLRequestHandler.register();
         PluginLoader.getInstance().registerPlugins();
 
         WebPath.registerPaths();

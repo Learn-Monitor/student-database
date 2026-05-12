@@ -6,13 +6,6 @@
         "context": "virtual",
         "access_level": "user"
     },
-    "/rooms": {
-        "type": "GET",
-        "handler_type": "SQLRequestHandler",
-        "namespaces": ["sql"],
-        "context": "virtual",
-        "access_level": "public"
-    },
     "/mysubjects": {
         "type": "GET",
         "handler_type": "SQLRequestHandler",
@@ -136,13 +129,6 @@
         "context": "html",
         "access_level": "admin"
     },
-    "/manage_rooms": {
-        "type": "GET",
-        "handler_type": "TemplatingFileRequestHandler",
-        "namespaces": ["admin"],
-        "context": "html",
-        "access_level": "admin"
-    },
     "/editor": {
         "type": "GET",
         "handler_type": "TemplatingFileRequestHandler",
@@ -152,13 +138,6 @@
     },
 
     "/teacher": {
-        "type": "GET",
-        "handler_type": "TemplatingFileRequestHandler",
-        "namespaces": ["admin"],
-        "context": "html",
-        "access_level": "admin"
-    },
-    "/room": {
         "type": "GET",
         "handler_type": "TemplatingFileRequestHandler",
         "namespaces": ["admin"],
@@ -246,13 +225,6 @@
         "access_level": "teacher"
     },
     "/build_teacher.js": {
-        "type": "GET",
-        "handler_type": "FileRequestHandler",
-        "namespaces": ["admin"],
-        "context": "js",
-        "access_level": "admin"
-    },
-    "/build_room.js": {
         "type": "GET",
         "handler_type": "FileRequestHandler",
         "namespaces": ["admin"],

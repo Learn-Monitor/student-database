@@ -88,11 +88,6 @@ public class Student extends User {
     private final Map<Subject, Topic> currentTopics = new ConcurrentHashMap<>();
 
     /**
-     * The current room of the student.
-     */
-    private Room currentRoom = null;
-
-    /**
      * Constructs a new Student.
      *
      * @param id The student ID.
@@ -223,10 +218,6 @@ public class Student extends User {
             .collect(Collectors.toList());
     }
 
-    public static List<Student> getByRoom(Room room) {
-        return students.values().stream().filter((s) -> room.equals(s.getCurrentRoom())).toList();
-    }
-
     /**
      * Registers a new student with a password.
      * This method creates a new student in the database and returns the created Student object.
@@ -351,18 +342,6 @@ public class Student extends User {
      * @return the graduation level
      */
     public GraduationLevel getGraduationLevel() { return graduationLevel; }
-
-    /**
-     * Returns the student's current room.
-     * @return the current room
-     */
-    public Room getCurrentRoom() { return currentRoom; }
-
-    /**
-     * Sets the student's current room.
-     * @param currentRoom the new room
-     */
-    public void setCurrentRoom(Room currentRoom) { this.currentRoom = currentRoom; }
 
     /**
      * Returns the set of selected tasks.
@@ -553,7 +532,6 @@ public class Student extends User {
         .append("\"selectedTasks\": ").append(selectedTasks).append(",\n")
         .append("\"completedTasks\": ").append(completedTasks).append(",\n")
         .append("\"lockedTasks\": ").append(lockedTasks).append(",\n")
-        .append("\"currentRoom\": ").append(String.valueOf(currentRoom)).append(",\n")
         .append("\"currentRequests\": {").append(currentRequests.entrySet().stream()
             .map(entry -> "\"" + entry.getKey() + "\": " + entry.getValue().stream().map((r) -> '"' + r.getGermanTranslation() + '"').toList())
             .reduce((a, b) -> a + ", " + b).orElse("")).append("},\n")
