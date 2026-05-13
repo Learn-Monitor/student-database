@@ -25,6 +25,10 @@ dependencies {
     implementation("org.jline:jline:3.30.6") // for better console input handling
     implementation("org.yaml:snakeyaml:2.2") // plugin imports
 
+    // Logging
+    implementation("org.slf4j:slf4j-api:2.0.13")
+    implementation("ch.qos.logback:logback-classic:1.5.6")
+
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4") // using JUnit 5 (latest)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

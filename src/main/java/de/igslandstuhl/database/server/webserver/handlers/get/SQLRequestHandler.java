@@ -3,6 +3,9 @@ package de.igslandstuhl.database.server.webserver.handlers.get;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.SchoolClass;
 import de.igslandstuhl.database.api.Student;
@@ -12,12 +15,15 @@ import de.igslandstuhl.database.api.User;
 
 @FunctionalInterface
 public interface SQLRequestHandler {
+    public static final Logger LOGGER = LoggerFactory.getLogger(SQLRequestHandler.class);
     public String get(User user);
 
     public static String getResource(String resource, User user) {
         return Registry.sqlRequestHandlerRegistry().get(resource).get(user);
     }
     public static void register() {
+        LOGGER.info("Registering SQL request handlers...");
+
         Registry.sqlRequestHandlerRegistry().register("mydata", (user) -> user.toJSON());
 
         Registry.sqlRequestHandlerRegistry().register("mysubjects", (user) -> {

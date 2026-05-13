@@ -13,11 +13,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
 import de.igslandstuhl.database.Registry;
 
 public class PluginLoader {
+    private final Logger LOGGER = LoggerFactory.getLogger(getClass());
     private final List<PreLoadedPlugin> pluginInfos = new ArrayList<>();
     public List<PreLoadedPlugin> getPluginInfos() {
         return pluginInfos;
@@ -146,6 +149,7 @@ public class PluginLoader {
         pluginInfos.forEach(this::load);
     }
     public void enablePlugins() {
+        LOGGER.info("Enabling plugins...");
         pluginInfos.forEach((p) -> {
             Plugin plugin = Registry.pluginRegistry().get(p.description().id());
             if (plugin.getConfig().isEnabledOnStart()) {
@@ -154,6 +158,7 @@ public class PluginLoader {
         });
     }
     public void unloadPlugins() {
+        LOGGER.info("Unloading plugins...");
         Collections.reverse(pluginInfos);
         pluginInfos.forEach((p) -> {
             Plugin plugin = Registry.pluginRegistry().get(p.description().id());
@@ -182,9 +187,11 @@ public class PluginLoader {
         Registry.pluginRegistry().register(plugin.getId(), plugin);
     }
     public void preloadPlugins() {
+        LOGGER.info("Preloading plugins from directory \"plugins\"...");
         preloadAllPlugins(new File("plugins"));
     }
     public void registerPlugins() {
+        LOGGER.info("Registering plugins from directory \"plugins\"...");
         loadAllPlugins(new File("plugins"));
     }
 }

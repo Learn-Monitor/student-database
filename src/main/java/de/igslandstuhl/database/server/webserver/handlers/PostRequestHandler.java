@@ -14,6 +14,8 @@ import java.util.function.Function;
 
 import org.owasp.html.PolicyFactory;
 import org.owasp.html.Sanitizers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.gson.reflect.TypeToken;
 
@@ -65,6 +67,8 @@ public class PostRequestHandler {
     private PostRequestHandler() {
         // Private constructor to prevent instantiation
     }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(PostRequestHandler.class);
 
     /**
      * Handles the POST request based on the path specified in the request.
@@ -166,6 +170,7 @@ public class PostRequestHandler {
         return successMessage;
     }
     public static void registerHandlers() {
+        LOGGER.info("Registering Post Request Handlers...");
         HttpHandler.registerPostRequestHandler("/login", AccessLevel.PUBLIC, (rq) -> {
             String username = prepare(rq.getString("username"), false);
             // Do not sanitize / url-decode password to allow special characters like %

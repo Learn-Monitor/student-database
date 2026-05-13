@@ -16,6 +16,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
@@ -25,6 +28,7 @@ public final class Holiday {
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
     private static final String API_URL = "https://www.mehr-schulferien.de/api/v2.1/schools/66849-integrierte-gesamtschule-am-na/periods";
     private static final String SUMMER_HOLIDAY_ID = "Sommer";
+    private static final Logger LOGGER = LoggerFactory.getLogger(Holiday.class);
 
     private final int id;
     private final String name;
@@ -167,6 +171,7 @@ public final class Holiday {
         return (int) SchoolWeek.getAll(getLastSummerHoliday().getEnd(), Instant.now(), ZoneId.of("UTC")).stream().filter(SchoolWeek::noSchoolUTC).count();
     }
     public static void setupCurrentSchoolYear() throws SQLException {
+        LOGGER.info("Trying to set up current school year...");
         String name = getLastSummerHoliday().getEnd().toString().substring(0, 4) + "/" + getNextSummerHoliday().getStart().toString().substring(0, 4);
         int totalWeeks = getTotalWeeks();
         int actualWeek = getActualWeek();
