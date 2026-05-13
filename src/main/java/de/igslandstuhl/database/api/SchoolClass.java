@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
 
@@ -157,7 +158,7 @@ public class SchoolClass implements APIObject {
                 "get_students_by_class", new String[] {"id"}, String.valueOf(id)
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve student list from database", e);
         }
         return studentIds.stream().map(Student::get).toList();
     }
@@ -168,7 +169,6 @@ public class SchoolClass implements APIObject {
             try {
                 s.delete();
             } catch (SQLException e) {
-                e.printStackTrace();
                 throw new IllegalStateException(e);
             }
         });
@@ -214,7 +214,7 @@ public class SchoolClass implements APIObject {
         try {
             return Server.getInstance().processSingleRequest(SchoolClass::fromSQL, "get_class_by_id", SQL_FIELDS, String.valueOf(id));
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get SchoolClass with id {} from database", id, e);
             return null;
         }
     }
@@ -229,7 +229,7 @@ public class SchoolClass implements APIObject {
         try {
             return Server.getInstance().processSingleRequest(SchoolClass::fromSQL, "get_class_by_label", SQL_FIELDS, label);
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get SchoolClass with label '{}' from database", label, e);
             return null;
         }
     }
@@ -254,7 +254,7 @@ public class SchoolClass implements APIObject {
             try {
                 schoolClass = addClass(label, grade);
             } catch (SQLException e) {
-                e.printStackTrace();
+                Application.LOGGER_API.error("Failed to create previously not existing class with label {} and grade {}", label, grade, e);
             }
         }
         return schoolClass;
@@ -268,7 +268,7 @@ public class SchoolClass implements APIObject {
                 "get_all_classes", new String[] {"id"}
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve a list of all classes from the database", e);
         }
         return ids.stream()
             .map(SchoolClass::get)

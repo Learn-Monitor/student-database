@@ -120,7 +120,7 @@ public class Topic implements APIObject {
             topics.put(id, topic);
             return topic;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Topic with id {} from database", id, e);
             return null;
         }
     }
@@ -271,7 +271,7 @@ public class Topic implements APIObject {
             tasksLevel2 = getTasksByLevel(tasks, TaskLevel.LEVEL2);
             tasksLevel3 = getTasksByLevel(tasks, TaskLevel.LEVEL3);
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get task list for topic '{}' from database", this.name, e);
         }
     }
     private static void addToCache(String[] fields) {
@@ -287,7 +287,7 @@ public class Topic implements APIObject {
         try {
             Server.getInstance().processRequest(Topic::addToCache, "get_topics_by_name", SQL_FIELDS, name);
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Topic with name '{}' from database", name, e);
             return new ArrayList<>();
         }
         return topics.values().stream()
@@ -399,6 +399,7 @@ public class Topic implements APIObject {
         return true;
     }
     public static Topic fromSerialized(String serialized, Subject subject, int grade, int number) throws SerializationException, SQLException {
+        Application.LOGGER_API.debug("Reading topic from serialized...");;
         // Gathering general info (topic name and ratio)
         String[] parts = serialized.split(Application.TITLE_DELIMITER);
         String[] generalInfo = parts[0].split(Application.TASK_DELIMITER);
@@ -427,7 +428,7 @@ public class Topic implements APIObject {
             }
 
             topic.loadTasks();
-            System.out.println(topic.getTasks());
+            Application.LOGGER_API.debug("Loaded tasks for topic {}: {}", topic.getName(), topic.getTasks());
         }
         return topic;
     }

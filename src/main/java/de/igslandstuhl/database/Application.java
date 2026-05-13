@@ -34,6 +34,7 @@ public final class Application {
     public static final String TASK_DELIMITER = "¤";
 
     public static final Logger LOGGER = LoggerFactory.getLogger(Application.class);
+    public static final Logger LOGGER_API = LoggerFactory.getLogger("de.igslandstuhl.database.api");
 
     private static Application instance = new Application(new String[] {"--test-environment", "true"});
     public static Application getInstance() {
@@ -94,7 +95,6 @@ public final class Application {
                 }
             }
         } catch (Throwable t) {
-            t.printStackTrace();
             throw new SerializationException("Failed to read file", t);
         }
 
