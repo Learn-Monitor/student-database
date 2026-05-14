@@ -5,6 +5,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.Server;
@@ -15,6 +18,7 @@ import de.igslandstuhl.database.server.resources.ResourceLocation;
  * It determines whether a user has access to a specific resource based on predefined rules.
  */
 public class AccessManager {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AccessManager.class);
     private static final AccessManager INSTANCE = new AccessManager();
     public static AccessManager getInstance() {
         return INSTANCE;
@@ -60,6 +64,7 @@ public class AccessManager {
 
     @SuppressWarnings("unchecked")
     private AccessManager() {
+        LOGGER.info("Setting up AccessManager...");
         ResourceLocation metaLocation = new ResourceLocation("meta", "paths", "spaces.json");
         String userSpace = "user";
         String teacherSpace = "teacher";
@@ -71,6 +76,7 @@ public class AccessManager {
         String[] teacherLocations = {};
         String[] adminLocations = {"students", "teachers", "classes"};
         try {
+            LOGGER.debug("Trying to read spaces metadata...");
             Map<String, ?> pathData = Server.getInstance().getResourceManager().readJsonResourceAsMap(metaLocation);
             List<String> publicSpacesList = (List<String>) pathData.get("public_spaces");
             List<String> publicLocationsList = (List<String>) pathData.get("public_locations");
@@ -86,8 +92,7 @@ public class AccessManager {
             teacherLocations = teacherLocationsList.toArray(new String[teacherLocationsList.size()]);
             adminLocations = adminLocationsList.toArray(new String[adminLocationsList.size()]);
         } catch (IOException e) {
-            System.err.println("Could not read spaces metadata!");
-            e.printStackTrace();
+            LOGGER.error("Could not read spaces metadata!", e);
         } finally {
             USER_SPACE = userSpace;
             TEACHER_SPACE = teacherSpace;

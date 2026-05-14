@@ -5,12 +5,16 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.webserver.Cookie;
 import de.igslandstuhl.database.server.webserver.handlers.SessionValidationResult;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 
 public class SessionManager {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SessionManager.class);
     private Map<UUID,Session> sessionStore = new HashMap<>();
     /**
      * A map to store session IDs and their associated usernames.
@@ -33,6 +37,7 @@ public class SessionManager {
         this.sessionExpireDuration = sessionExpireDuration;
         this.maximumInactivityDuration = maximumInactivityDuration;
         this.maxRequests = maxRequests;
+        LOGGER.debug("Starting session cleanup job...");
         new Thread(this::cleanSecondsJob, "Session Expiring").start();
     }
 
@@ -63,7 +68,7 @@ public class SessionManager {
             try {
                 Thread.sleep(60000);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                LOGGER.warn("Session manager cleanup job interrupted while sleeping", e);
             }
         }
     }
@@ -76,18 +81,18 @@ public class SessionManager {
         count++;
         requestCount.set(request, count);
         if (count > maxRequests && !getSessionUser(request).isAdmin()) {
-            System.out.println("Ratelimit!");
+            LOGGER.warn("Needed to put {} under rate limit: {} requests of maximum {} allowed", getSessionUser(request).getUsername(), count, maxRequests);
             return SessionValidationResult.RATE_LIMITED;
         }
 
         String userAgent = request.getUserAgent();
         if (!getSession(request).getUserAgent().equals(userAgent)) {
-            System.err.println("SEVERE WARNING: POTENTIAL ATTACK: faked session id (device changed), for user " + getSessionUser(request));
+            LOGGER.warn("faked session id (device changed), for user {}" + getSessionUser(request));
             return SessionValidationResult.INVALID_SESSION;
         }
         String ip = request.getIP();
         if (!getSession(request).getIpAddress().equals(ip)) {
-            System.err.println("SEVERE WARNING: POTENTIAL ATTACK: faked session id (ip address changed) for user " + getSessionUser(request));
+            LOGGER.warn("faked session id (ip address changed) for user {}" + getSessionUser(request));
             return SessionValidationResult.INVALID_SESSION;
         }
 

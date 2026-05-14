@@ -9,6 +9,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.api.User;
@@ -78,6 +80,8 @@ public final class Server implements AutoCloseable {
     public ResourceManager getResourceManager() {
         return resourceManager;
     }
+
+    public static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
     /**
      * Private constructor to initialize the server instance.
@@ -151,15 +155,15 @@ public final class Server implements AutoCloseable {
                         callback.accept(results.toArray(resultArr));
                     }
                 } catch (SQLException e) {
-                    e.printStackTrace();
+                    LOGGER.error("Failed to process sql request {} with args {}", request, args, e);
                     throw new IllegalStateException(e);
                 }
-            });
+            }, "SQL Request Subroutine");
             subroutine.start();
             try {
                 subroutine.join();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                LOGGER.error("Request subroutine was interrupted", e);
                 throw new IllegalStateException(e);
             }
         } finally {

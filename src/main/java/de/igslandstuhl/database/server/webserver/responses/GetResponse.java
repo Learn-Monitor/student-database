@@ -11,6 +11,7 @@ import de.igslandstuhl.database.server.webserver.AccessManager;
 import de.igslandstuhl.database.server.webserver.ContentType;
 import de.igslandstuhl.database.server.webserver.NoWebResourceException;
 import de.igslandstuhl.database.server.webserver.Status;
+import de.igslandstuhl.database.server.webserver.handlers.HttpHandler;
 import de.igslandstuhl.database.server.webserver.handlers.get.PluginRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 
@@ -211,7 +212,7 @@ public class GetResponse implements HttpResponse {
         } catch (FileNotFoundException e) {
             notFound(request).respond(out);
         } catch (Exception e) {
-            e.printStackTrace();
+            HttpHandler.LOGGER.warn("Exception while trying to write output stream for get request {}", request, e);
             if (status != Status.INTERNAL_SERVER_ERROR) {
                 internalServerError(request).respond(out);
             } else {

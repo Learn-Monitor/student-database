@@ -95,7 +95,7 @@ public class PostRequestHandler {
         try {
             webInput = URLDecoder.decode(webInput, StandardCharsets.UTF_8.name());
         } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
+            LOGGER.error("Encoding is not supported by URLDecoder", e);
         }
                 ;
         if (sanitize) {

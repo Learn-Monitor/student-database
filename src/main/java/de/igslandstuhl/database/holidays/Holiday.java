@@ -142,7 +142,6 @@ public final class Holiday {
         } catch (URISyntaxException | IOException e) {
             throw new IllegalStateException(e);
         } catch (InterruptedException e) {
-            e.printStackTrace();
             throw new IllegalStateException(e);
         }
     }

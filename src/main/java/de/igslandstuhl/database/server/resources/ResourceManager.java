@@ -19,6 +19,9 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
@@ -29,6 +32,7 @@ import de.igslandstuhl.database.server.Server;
  * Manages Resources in the application
  */
 public class ResourceManager {
+    public static final Logger LOGGER = LoggerFactory.getLogger(ResourceManager.class);
     private final List<ResourceProvider> providers;
     public ResourceManager(ResourceProvider... providers) {
         this.providers = Arrays.asList(providers);

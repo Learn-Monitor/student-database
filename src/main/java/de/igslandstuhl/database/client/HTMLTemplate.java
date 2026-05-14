@@ -17,13 +17,13 @@ import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 
 public interface HTMLTemplate {
+    public static final Logger LOGGER = LoggerFactory.getLogger(HTMLTemplate.class);
     public static final ResourceLocation meta = new ResourceLocation("meta", "templates", "templates.json");
     public String fill(Map<String, String> args);
     private static void register(HTMLTemplate template, String key) {
         Registry.templateRegistry().register(key, template);
     }
     public static void registerAll() {
-        final Logger LOGGER = LoggerFactory.getLogger(HTMLTemplate.class);
         LOGGER.info("Registering HTML templates...");
         NavigationElement.registerAll();
         DynamicHTMLTemplate.registerDynamicElements();
@@ -38,8 +38,7 @@ public interface HTMLTemplate {
                     try {
                         register(new HTMLFileTemplate((String) template.get("path")), key);
                     } catch (FileNotFoundException e) {
-                        System.err.println("Failed to load html template " + key);
-                        e.printStackTrace();
+                        LOGGER.error("Failed to load html template '{}'", key, e);
                     }
                     break;
                 case "HTMLNavigationTemplate":
