@@ -4,6 +4,7 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.api.results.TeacherGenerationResult;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
@@ -200,7 +201,7 @@ public class Teacher extends User {
             teachersByEmail.put(teacher.getEmail(), teacher);
             return teacher;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Teacher with id {} from database", id, e);
             return null;
         }
     }
@@ -223,7 +224,7 @@ public class Teacher extends User {
             teachersByEmail.put(email, teacher);
             return teacher;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Teacher with email {} from database", email, e);
             return null;
         }
     }
@@ -243,7 +244,7 @@ public class Teacher extends User {
                 "get_all_teachers", SQL_FIELDS
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve teacher list from database", e);
         }
         return teacherIDs.stream()
             .map(Teacher::get)
@@ -259,7 +260,7 @@ public class Teacher extends User {
                 "get_subjects_by_teacher", Subject.SQL_FIELDS, String.valueOf(id)
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve subject list for teacher '{}' from database", this.email, e);
         }
         return subjectIds.stream()
             .map(Subject::get)
@@ -312,7 +313,7 @@ public class Teacher extends User {
             try {
                 Thread.sleep(new Random().nextInt(100)); // Sleep to ensure unique passwords
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Application.LOGGER_API.error("Thread sleep while generating passwords was interrupted", e);
             }
         }
 
@@ -337,7 +338,7 @@ public class Teacher extends User {
                 "get_teacher_classes", CLASS_FIELDS, String.valueOf(id)
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+                Application.LOGGER_API.error("Failed to retrieve class list of teacher '{}' from database", this.email, e);
         }
     }
 

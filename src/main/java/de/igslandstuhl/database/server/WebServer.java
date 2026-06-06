@@ -9,6 +9,10 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 import javax.net.ssl.*;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -40,6 +44,7 @@ public class WebServer implements Runnable {
     public static final int SESSION_DURATION = 21600; // six hours
     public static final int MAXIMUM_INACTIVITY_DURATION = 3600; // An hour
     public static final int RATELIMIT = 60;
+    public static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
     private volatile boolean running;
     private final SSLServerSocket serverSocket;
@@ -112,7 +117,7 @@ public class WebServer implements Runnable {
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                LOGGER.error("Failed to handle client {}", clientIp, e);
             } finally {
                 try { clientSocket.close(); } catch (IOException ignored) {}
             }
@@ -233,7 +238,7 @@ public class WebServer implements Runnable {
 
     public void stop() {
         running = false;
-        try { serverSocket.close(); } catch (IOException e) { e.printStackTrace(); }
+        try { serverSocket.close(); } catch (IOException e) { LOGGER.error("Failed to close server socket", e); }
         clientPool.shutdownNow();
     }
 
@@ -245,8 +250,7 @@ public class WebServer implements Runnable {
                 clientPool.submit(new ClientHandler(clientSocket));
             } catch (IOException e) {
                 if (running) {
-                    System.err.println("Error while accepting client");
-                    e.printStackTrace();
+                    LOGGER.error("Unexpected Exception while accepting client", e);
                 }
             }
         }

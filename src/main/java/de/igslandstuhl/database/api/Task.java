@@ -180,7 +180,7 @@ public class Task implements APIObject {
             tasks.put(id, task);
             return task;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Task with id {} from database", id, e);
             return null;
         }
     }
@@ -194,7 +194,7 @@ public class Task implements APIObject {
             String[][] table = Server.getInstance().processRequest("get_tasks_by_name", new String[] {"id"}, name);
             Arrays.stream(table).map(s -> s[0]).map(Integer::parseInt).map(Task::get).forEach((t) -> t.getId()); // Do something because streams are lazy
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Task with name {} from database", name, e);
             return new ArrayList<>();
         }
         return tasks.values().stream()

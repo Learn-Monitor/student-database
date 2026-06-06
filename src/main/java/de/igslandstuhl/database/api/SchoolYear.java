@@ -2,6 +2,8 @@ package de.igslandstuhl.database.api;
 
 import java.sql.SQLException;
 import java.util.*;
+
+import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
 
@@ -124,7 +126,7 @@ public class SchoolYear implements APIObject {
             if (year != null) years.put(id, year);
             return year;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get SchoolYear with id {} from database", id, e);
             return null;
         }
     }
@@ -134,7 +136,7 @@ public class SchoolYear implements APIObject {
                 return get(Integer.parseInt(fields[0]));
             }, "get_school_year_by_label", new String[] {"id"}, label);
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get SchoolYear with label '{}' from database", label, e);
             return null;
         }
     }
@@ -156,7 +158,7 @@ public class SchoolYear implements APIObject {
                 "get_all_school_years", SQL_FIELDS
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve a list of all school years from the database", e);
         }
         return all;
     }
@@ -176,7 +178,7 @@ public class SchoolYear implements APIObject {
             if (year != null) years.put(year.getId(), year);
             return year;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to load current school year from database", e);
             return null;
         }
     }

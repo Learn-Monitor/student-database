@@ -58,7 +58,7 @@ public class FileResourceProvider implements ResourceProvider {
                 }
             });
         } catch (IOException e) {
-            e.printStackTrace();
+            ResourceManager.LOGGER.error("Failed to get resource locations of pattern {} from file root '{}'", pattern.pattern(), root, e);
         }
 
         return result;

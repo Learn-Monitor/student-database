@@ -12,6 +12,7 @@ import de.igslandstuhl.database.server.webserver.ContentType;
 import de.igslandstuhl.database.server.webserver.Cookie;
 import de.igslandstuhl.database.server.webserver.NoWebResourceException;
 import de.igslandstuhl.database.server.webserver.Status;
+import de.igslandstuhl.database.server.webserver.handlers.HttpHandler;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
 
@@ -165,7 +166,7 @@ public class PostResponse implements HttpResponse {
         } catch (FileNotFoundException e) {
             return notFound("The requested resource was not found: " + resourceLocation, request);
         } catch (Exception e) {
-            e.printStackTrace();
+            HttpHandler.LOGGER.warn("Failed to get resource for request {} on resource location {}", request, resourceLocation);
             return internalServerError("An error occurred while processing your request.", request);
         }
     }

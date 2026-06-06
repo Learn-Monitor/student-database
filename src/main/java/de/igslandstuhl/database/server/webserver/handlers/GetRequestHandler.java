@@ -2,6 +2,9 @@ package de.igslandstuhl.database.server.webserver.handlers;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.Server;
@@ -15,6 +18,7 @@ import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
 import de.igslandstuhl.database.utils.ThrowingFunction;
 
 public class GetRequestHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(GetRequestHandler.class);
     private static final GetRequestHandler instance = new GetRequestHandler();
     public static GetRequestHandler getInstance() {
         return instance;
@@ -65,6 +69,7 @@ public class GetRequestHandler {
     }
 
     public final void registerHandlers() {
+        LOGGER.info("Registering Get Request Handlers...");
         if (Registry.getRequestHandlerRegistry().stream().count() > 0) return; // already registered
         List<String> getPaths = Registry.webPathRegistry().keyStream().filter((p) -> Registry.webPathRegistry().get(p).type() == RequestType.GET).toList();
         for (String path : getPaths) {
