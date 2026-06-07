@@ -1,5 +1,8 @@
 package de.igslandstuhl.database.server.webserver.handlers;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.AccessLevel;
@@ -12,6 +15,7 @@ import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
 import de.igslandstuhl.database.utils.ThrowingFunction;
 
 public class HttpHandler<Rq extends HttpRequest> {
+    public static final Logger LOGGER = LoggerFactory.getLogger(HttpHandler.class);
     private final String path;
     private final AccessLevel accessLevel;
     private final ThrowingFunction<Rq, HttpResponse> handler;
@@ -31,13 +35,13 @@ public class HttpHandler<Rq extends HttpRequest> {
         if (!accessLevel.hasAccess(sessionManager.getSessionUser(request))) {
             return HttpResponse.error(request, Status.UNAUTHORIZED);
         } else if (!path.equals(request.getPath().split("\\?")[0])) {
-            System.err.println("Wrong path for HTTP handler: " + handler + ", path: " + request.getPath());
+            LOGGER.error("Wrong path for HTTP handler: path {} does not match handler path {}", request.getPath(), path);
             return HttpResponse.error(request, Status.INTERNAL_SERVER_ERROR);
         } else {
             try {
                 return handler.apply(request);
             } catch (Throwable t) {
-                t.printStackTrace();
+                LOGGER.error("Failed to apply HTTP handler", t);
                 return HttpResponse.error(request, Status.INTERNAL_SERVER_ERROR);
             }
         }

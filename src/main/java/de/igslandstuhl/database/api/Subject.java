@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
 
@@ -94,7 +95,7 @@ public class Subject implements APIObject {
             subjects.put(id, subject);
             return subject;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Subject with id {} from database", id, e);
             return null;
         }
     }
@@ -116,7 +117,7 @@ public class Subject implements APIObject {
             subjects.put(subject.getId(), subject);
             return subject;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Subject with name {} from database", name, e);
             return null;
         }
     }
@@ -137,7 +138,7 @@ public class Subject implements APIObject {
                 SQL_FIELDS
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve subject list from database", e);
         }
         return subjectIds.stream()
             .map(Subject::get)
@@ -199,7 +200,7 @@ public class Subject implements APIObject {
                 String.valueOf(id)
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve topic list for subject '{}' in grade {} from database", this.name, grade, e);
         }
         return topicIds.stream()
         .map(Topic::get)
@@ -218,7 +219,7 @@ public class Subject implements APIObject {
             new String[] {"grade"}, 
             String.valueOf(id));
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve list of available grades for subject '{}' from database", this.name, e);
         }
         return grades.stream().mapToInt(Integer::intValue).toArray();
     }
@@ -242,8 +243,7 @@ public class Subject implements APIObject {
                 try {
                     t.delete();
                 } catch (SQLException e) {
-                    e.printStackTrace();
-                    throw new IllegalStateException(e);
+                    throw new IllegalStateException("Failed to delete topic " + t.getName() + " which is necessary to delete subject " + this.name, e);
                 }
             }));
         } catch (IllegalStateException e) {

@@ -5,6 +5,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.*;
 import de.igslandstuhl.database.server.Server;
@@ -12,6 +15,7 @@ import de.igslandstuhl.database.utils.CommonUtils;
 
 @FunctionalInterface
 public interface Command {
+    public static final Logger LOGGER = LoggerFactory.getLogger(Command.class);
     public String execute(String[] args);
     public default CommandDescription getDescription() {
         return Registry.commandDescriptionRegistry().get(Registry.commandDescriptionRegistry()
@@ -25,7 +29,7 @@ public interface Command {
         } catch (NullPointerException e) {
             return "Command not found: " + command;
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.error("Failed to execute command '{}'", command, e);
             return "";
         }
     }
@@ -34,8 +38,9 @@ public interface Command {
         Registry.commandDescriptionRegistry().register(name, description);
     }
     public static void registerCommands() {
+        LOGGER.info("Registering commands...");
         registerCommand("exit", (args) -> {
-            System.out.println("Exiting...");
+            LOGGER.info("Program exit through command;exiting...");
             System.exit(0);
             return "";
         }, new CommandDescription("exit", "Exits the application", "exit"));

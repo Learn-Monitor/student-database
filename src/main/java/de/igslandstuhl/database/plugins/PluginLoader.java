@@ -1,6 +1,7 @@
 package de.igslandstuhl.database.plugins;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -13,11 +14,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
 import de.igslandstuhl.database.Registry;
 
 public class PluginLoader {
+    public static final Logger LOGGER = LoggerFactory.getLogger(PluginLoader.class);
     private final List<PreLoadedPlugin> pluginInfos = new ArrayList<>();
     public List<PreLoadedPlugin> getPluginInfos() {
         return pluginInfos;
@@ -35,7 +39,7 @@ public class PluginLoader {
             Yaml yaml = new Yaml();
             return yaml.load(is);
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.error("Failed loading yaml from classLoader {}", classLoader.getName());
             return null;
         }
     }
@@ -52,22 +56,22 @@ public class PluginLoader {
                 null
             );
         } catch (MalformedURLException e) {
-            e.printStackTrace();
+            LOGGER.error("URL of {} corrupted", jarFile.getName(), e);
             return null;
         }
         try {
 
             Map<String, Object> yaml = loadYaml(classLoader);
             if (yaml == null) {
-                System.err.println("No plugin.yml found in " + jarFile.getName());
-                classLoader.close();
-                return null;
+                LOGGER.error("No plugin.yml found in {}", jarFile.getName());
+                throw new FileNotFoundException("No plugin.yml found");
             }
 
             String mainClassName = (String) yaml.get("main");
             String id = (String) yaml.get("id");
             if (id == null || mainClassName == null) {
-                throw new IllegalStateException("Invalid plugin.yml in " + jarFile.getName() + ": you must define id and main");
+                LOGGER.error("Invalid plugin.yml in {}: you must define id and main", jarFile.getName());
+                throw new IllegalArgumentException("Invalid plugin.yml");
             }
             String name = (String) yaml.getOrDefault("name", id);
             String description = (String) yaml.getOrDefault("description", "");
@@ -86,18 +90,18 @@ public class PluginLoader {
             Class<?> clazz = classLoader.loadClass(mainClassName);
 
             if (!Plugin.class.isAssignableFrom(clazz)) {
-                throw new IllegalStateException("Main class does not extend Plugin");
+                LOGGER.error("{}, the main class of {} does not extend Plugin", clazz.getCanonicalName(), jarFile.getName());
+                throw new ClassCastException("Plugin main class does not extend Plugin");
             }
 
             return new PreLoadedPlugin(new PluginDescription(id, name, description, mainClassName, depends), clazz, classLoader, resourceLoader);
 
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.error("Failed to preload plugin {}", jarFile.getName(), e);
             try {
                 classLoader.close();
             } catch (IOException e1) {
-                System.out.println("FAILED to close class loader");
-                e1.printStackTrace();
+                LOGGER.error("Failed to close classloader for incomplete plugin {}", jarFile.getName(), e1);
             }
             return null;
         }
@@ -110,13 +114,13 @@ public class PluginLoader {
             registerPlugin(plugin);
             plugin.load();
             if (plugin.getConfig() == null) {
+                LOGGER.error("Plugin '{}' does not have a config", preload.description().id());
                 throw new NullPointerException("Plugin must have a config");
             }
         } catch (Exception e) {
-            System.err.println("Failed to load plugin: " + preload.description().id());
+            LOGGER.error("Failed to load plugin '{}'", preload.description().id(), e);
             pluginInfos.remove(preload);
             if (Registry.pluginRegistry().get(preload.description().id()) != null) Registry.pluginRegistry().unregister(preload.description().id());
-            e.printStackTrace();
         }
     }
     public void preloadAllPlugins(File folder) {
@@ -136,7 +140,8 @@ public class PluginLoader {
         Set<String> ids = new HashSet<>();
         for (PreLoadedPlugin p : plugins) {
             if (!ids.add(p.description().id())) {
-                throw new IllegalStateException("Duplicate module id: " + p.description().id());
+                LOGGER.error("Duplicate plugin id '{}', aborting", p.description().id());
+                throw new IllegalStateException("Duplicate plugin id");
             }
         }
 
@@ -146,6 +151,7 @@ public class PluginLoader {
         pluginInfos.forEach(this::load);
     }
     public void enablePlugins() {
+        LOGGER.info("Enabling plugins...");
         pluginInfos.forEach((p) -> {
             Plugin plugin = Registry.pluginRegistry().get(p.description().id());
             if (plugin.getConfig().isEnabledOnStart()) {
@@ -154,6 +160,7 @@ public class PluginLoader {
         });
     }
     public void unloadPlugins() {
+        LOGGER.info("Unloading plugins...");
         Collections.reverse(pluginInfos);
         pluginInfos.forEach((p) -> {
             Plugin plugin = Registry.pluginRegistry().get(p.description().id());
@@ -167,7 +174,7 @@ public class PluginLoader {
                 p.classLoader().close();
                 p.resourceLoader().close();
             } catch (IOException e) {
-                throw new RuntimeException("Problem while unloading", e);
+                LOGGER.error("Failed to unload plugin '{}'", plugin.getId());
             }
         });
         pluginInfos.clear();
@@ -182,9 +189,11 @@ public class PluginLoader {
         Registry.pluginRegistry().register(plugin.getId(), plugin);
     }
     public void preloadPlugins() {
+        LOGGER.info("Preloading plugins from directory \"plugins\"...");
         preloadAllPlugins(new File("plugins"));
     }
     public void registerPlugins() {
+        LOGGER.info("Registering plugins from directory \"plugins\"...");
         loadAllPlugins(new File("plugins"));
     }
 }

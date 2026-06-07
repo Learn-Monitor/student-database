@@ -14,6 +14,7 @@ import java.util.zip.ZipFile;
 
 import de.igslandstuhl.database.server.resources.CoreResourceProvider;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
+import de.igslandstuhl.database.server.resources.ResourceManager;
 import de.igslandstuhl.database.server.resources.ResourceProvider;
 
 public class PluginResourceProvider implements ResourceProvider {
@@ -57,8 +58,8 @@ public class PluginResourceProvider implements ResourceProvider {
         // Virtual root – no real filesystem access needed
         final Path virtualRoot = Paths.get("").toAbsolutePath().normalize();
 
-        for (PreLoadedPlugin module : PluginLoader.getInstance().getPluginInfos()) {
-            try (ZipFile zip = new ZipFile(new File(module.resourceLoader().getURLs()[0].toURI()))) {
+        for (PreLoadedPlugin plugin : PluginLoader.getInstance().getPluginInfos()) {
+            try (ZipFile zip = new ZipFile(new File(plugin.resourceLoader().getURLs()[0].toURI()))) {
 
                 Enumeration<? extends ZipEntry> entries = zip.entries();
 
@@ -80,7 +81,7 @@ public class PluginResourceProvider implements ResourceProvider {
                 }
 
             } catch (Exception e) {
-                e.printStackTrace();
+                ResourceManager.LOGGER.error("Failed to get resource locations of pattern {} from plugin '{}'", pattern.pattern(), plugin.description().id());
             }
         }
 

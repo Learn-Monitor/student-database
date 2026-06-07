@@ -2,6 +2,9 @@ package de.igslandstuhl.database.plugins;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.igslandstuhl.database.plugins.config.PluginConfig;
 import de.igslandstuhl.database.plugins.config.PluginSetting;
 
@@ -84,6 +87,10 @@ public abstract class Plugin {
     }
     void load() {
         onLoad();
+    }
+
+    public Logger getLogger() {
+        return LoggerFactory.getLogger(id);
     }
 
     static class DummyModule extends Plugin {

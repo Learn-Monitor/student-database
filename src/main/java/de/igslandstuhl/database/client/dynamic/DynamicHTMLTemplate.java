@@ -22,8 +22,7 @@ public record DynamicHTMLTemplate(DynamicFieldType type) implements HTMLTemplate
                 try {
                     return TemplatingPreprocessor.getInstance().executeTemplating(arg0);
                 } catch (IOException e) {
-                    System.err.println("Failed filling template " + arg0);
-                    e.printStackTrace();
+                    HTMLTemplate.LOGGER.error("Failed filling template '{}'", arg0, e);
                     return "";
                 }
             })

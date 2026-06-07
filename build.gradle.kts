@@ -7,7 +7,7 @@ plugins {
 
 group = "igs-landstuhl"
 
-version = "v2.0.0-SNAPSHOT-0"
+version = "v2.0.0-SNAPSHOT-1"
 
 application {
     mainClass.set("de.igslandstuhl.database.Application")
@@ -24,6 +24,10 @@ dependencies {
     implementation("com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20260101.1")
     implementation("org.jline:jline:3.30.6") // for better console input handling
     implementation("org.yaml:snakeyaml:2.2") // plugin imports
+
+    // Logging
+    implementation("org.slf4j:slf4j-api:2.0.13")
+    implementation("ch.qos.logback:logback-classic:1.5.6")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4") // using JUnit 5 (latest)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

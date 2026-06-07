@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.api.results.StudentGenerationResult;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
@@ -169,7 +170,7 @@ public class Student extends User {
             student.fetchTasks();
             return student;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Student with id {} from database", id, e);
             return null;
         }
     }
@@ -190,7 +191,7 @@ public class Student extends User {
         } catch (NullPointerException e) {
             return null;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Student with email {} from database", email, e);
             return null;
         }
     }
@@ -210,7 +211,7 @@ public class Student extends User {
                 "get_all_students", SQL_FIELDS
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve student list from database", e);
         }
         return studentIDs.stream()
             .map(Student::get)
@@ -247,7 +248,7 @@ public class Student extends User {
             try {
                 Thread.sleep(new Random().nextInt(1,10)); // Sleep to ensure different seeds
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Application.LOGGER_API.error("Thread sleep while generating passwords was interrupted", e);
             }
         }
         return passwords;
@@ -581,7 +582,7 @@ public class Student extends User {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to load current topics for '{}'", this.email, e);
         }
     }
 

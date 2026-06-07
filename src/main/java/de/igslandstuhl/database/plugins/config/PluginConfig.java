@@ -12,6 +12,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 
 import de.igslandstuhl.database.plugins.Plugin;
+import de.igslandstuhl.database.plugins.PluginLoader;
 
 public abstract class PluginConfig<T extends Plugin> {
     private final T plugin;
@@ -108,7 +109,7 @@ public abstract class PluginConfig<T extends Plugin> {
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             gson.toJson(root, writer);
         } catch (IOException e) {
-            e.printStackTrace();
+            PluginLoader.LOGGER.error("Failed to save plugin config for {}", plugin.getId(), e);
         }
     }
     public void load() {
@@ -128,7 +129,7 @@ public abstract class PluginConfig<T extends Plugin> {
             enabledOnStart = root.get("enabled").getAsBoolean();
 
         } catch (IOException e) {
-            e.printStackTrace();
+            PluginLoader.LOGGER.error("Failed to load plugin config for {}", plugin.getId(), e);
         }
     }
 }

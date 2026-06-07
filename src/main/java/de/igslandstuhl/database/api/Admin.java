@@ -2,6 +2,7 @@ package de.igslandstuhl.database.api;
 
 import java.sql.SQLException;
 
+import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
 
@@ -61,7 +62,7 @@ public class Admin extends User {
         try {
             return Server.getInstance().processSingleRequest(Admin::fromSQL, "get_admin_by_username", SQL_FIELDS, username);
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve Admin user '{}' from database", username, e);
             return null;
         }
     }
