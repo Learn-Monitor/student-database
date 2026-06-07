@@ -16,6 +16,8 @@ public abstract class Plugin {
     private boolean enabled;
     private boolean initialized = false;
 
+    private PluginDescription descriptionAnnotation;
+
     public Plugin() {
         this.enabled = false;
     }
@@ -39,6 +41,9 @@ public abstract class Plugin {
     }
     public String getDescription() {
         return description;
+    }
+    public PluginDescription getDescriptionAnnotation() {
+        return descriptionAnnotation;
     }
     public boolean isEnabled() {
         return enabled;

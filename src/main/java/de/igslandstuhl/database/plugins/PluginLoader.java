@@ -147,6 +147,18 @@ public class PluginLoader {
 
         PluginSort.sortPlugins(plugins).forEach((p) -> pluginInfos.add(p));
     }
+    public void preloadBuiltinPlugins() {
+        LOGGER.info("Preloading built-in plugins...");
+        Registry.builtinPluginRegistry().keyStream().forEach((id) -> {
+            Class<? extends BuiltinPlugin> clazz = Registry.builtinPluginRegistry().get(id);
+            try {
+                PluginDescription description = clazz.getDeclaredConstructor().newInstance().getDescriptionAnnotation();
+                pluginInfos.add(new PreLoadedPlugin(description, clazz, null, null));
+            } catch (Exception e) {
+                LOGGER.error("Failed to preload built-in plugin '{}'", id, e);
+            }
+        });
+    }
     public void loadAllPreloadedPlugins() {
         pluginInfos.forEach(this::load);
     }
@@ -171,8 +183,10 @@ public class PluginLoader {
             Registry.pluginRegistry().unregister(plugin.getId());
 
             try {
-                p.classLoader().close();
-                p.resourceLoader().close();
+                if (p.classLoader() != null)
+                    p.classLoader().close();
+                if (p.resourceLoader() != null)
+                    p.resourceLoader().close();
             } catch (IOException e) {
                 LOGGER.error("Failed to unload plugin '{}'", plugin.getId());
             }
@@ -190,6 +204,7 @@ public class PluginLoader {
     }
     public void preloadPlugins() {
         LOGGER.info("Preloading plugins from directory \"plugins\"...");
+        preloadBuiltinPlugins();
         preloadAllPlugins(new File("plugins"));
     }
     public void registerPlugins() {

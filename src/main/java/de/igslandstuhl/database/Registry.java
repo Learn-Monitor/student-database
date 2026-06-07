@@ -11,6 +11,7 @@ import de.igslandstuhl.database.client.HTMLTemplate;
 import de.igslandstuhl.database.client.dynamic.DynamicFieldType;
 import de.igslandstuhl.database.client.navigation.NavigationElement;
 import de.igslandstuhl.database.client.navigation.NavigationType;
+import de.igslandstuhl.database.plugins.BuiltinPlugin;
 import de.igslandstuhl.database.plugins.Plugin;
 import de.igslandstuhl.database.server.commands.Command;
 import de.igslandstuhl.database.server.commands.CommandDescription;
@@ -28,6 +29,7 @@ public class Registry<K, V> implements Closeable {
     private static final Registry<String,HttpHandler<GetRequest>> GET_HANDLER_REGISTRY = new Registry<>();
     private static final Registry<String,SQLRequestHandler> SQL_REQUEST_HANDLER_REGISTRY = new Registry<>();
     private static final Registry<String,Plugin> PLUGIN_REGISTRY = new Registry<>();
+    private static final Registry<String,Class<? extends BuiltinPlugin>> BUILTIN_PLUGIN_REGISTRY = new Registry<>();
     private static final Registry<String,WebPath> WEB_PATH_REGISTRY = new Registry<>();
 
     private static final EnumRegistry<NavigationType,NavigationElement> NAVIGATION_REGISTRY = new EnumRegistry<>(NavigationType.class);
@@ -48,6 +50,9 @@ public class Registry<K, V> implements Closeable {
     }
     public static Registry<String, Plugin> pluginRegistry() {
         return PLUGIN_REGISTRY;
+    }
+    public static Registry<String, Class<? extends BuiltinPlugin>> builtinPluginRegistry() {
+        return BUILTIN_PLUGIN_REGISTRY;
     }
     public static Registry<String, CommandDescription> commandDescriptionRegistry() {
         return COMMAND_DESCRIPTION_REGISTRY;
