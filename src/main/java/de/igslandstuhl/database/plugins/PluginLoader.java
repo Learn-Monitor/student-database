@@ -147,7 +147,7 @@ public class PluginLoader {
 
         PluginSort.sortPlugins(plugins).forEach((p) -> pluginInfos.add(p));
     }
-    public void loadAllPlugins(File folder) {
+    public void loadAllPreloadedPlugins() {
         pluginInfos.forEach(this::load);
     }
     public void enablePlugins() {
@@ -194,6 +194,6 @@ public class PluginLoader {
     }
     public void registerPlugins() {
         LOGGER.info("Registering plugins from directory \"plugins\"...");
-        loadAllPlugins(new File("plugins"));
+        loadAllPreloadedPlugins();
     }
 }
