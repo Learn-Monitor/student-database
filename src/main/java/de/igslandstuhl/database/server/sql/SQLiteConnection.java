@@ -80,7 +80,7 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
     public ResultSet executeStatementQuerySecure(PreparedStatement statement) throws SQLException {
         lock.readLock().lock();
         try (statement) {
-             return statement.executeQuery();
+            return statement.executeQuery();
         } finally {
             lock.readLock().unlock();
         }

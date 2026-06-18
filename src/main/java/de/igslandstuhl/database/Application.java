@@ -102,11 +102,17 @@ public final class Application {
         return topics.toArray(topicsArr);
     }
 
+    private static void registerBuiltinPlugins() {
+        LOGGER.info("Registering built-in plugins...");
+        Registry.builtinPluginRegistry().register("plugin-loader", de.igslandstuhl.database.plugins.PluginLoader.class);
+    }
+
     public static void main(String[] args) throws Exception {
         LOGGER.info("Starting up student-database...");
 
         instance = new Application(args);
 
+        registerBuiltinPlugins();
         PluginLoader.getInstance().preloadPlugins();
 
         if (!getInstance().suppressCmd()) {

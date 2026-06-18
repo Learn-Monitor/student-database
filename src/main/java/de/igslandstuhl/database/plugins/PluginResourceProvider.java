@@ -43,6 +43,7 @@ public class PluginResourceProvider implements ResourceProvider {
 
         for (PreLoadedPlugin module : PluginLoader.getInstance().getPluginInfos()) {
             ClassLoader cl = module.resourceLoader();
+            if (cl == null) continue; // built-in plugin
             InputStream stream = cl.getResourceAsStream(path);
 
             if (stream != null) {

@@ -38,7 +38,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.5.6")
 
     // built-in plugins
-    implementation("de.igs-landstuhl:plugin-loader:v1.0.1")
+    implementation("de.igs-landstuhl:plugin-loader:v1.0.4")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4") // using JUnit 5 (latest)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
