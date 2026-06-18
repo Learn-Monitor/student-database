@@ -100,6 +100,12 @@ public abstract class PluginConfig<T extends Plugin> {
         for (BoolSetting s : boolSettings) {
             values.addProperty(s.getKey(), s.getValue());
         }
+        for (IntSetting s : intSettings) {
+            values.addProperty(s.getKey(), s.getValue());
+        }
+        for (ShortAnswerSetting s : shortAnswerSettings) {
+            values.addProperty(s.getKey(), s.getValue());
+        }
         return values;
     }
     public String toJSON() {
@@ -165,6 +171,16 @@ public abstract class PluginConfig<T extends Plugin> {
                 for (BoolSetting s : boolSettings) {
                     if (values.has(s.getKey())) {
                         s.setValue(values.get(s.getKey()).getAsBoolean());
+                    }
+                }
+                for (IntSetting s : intSettings) {
+                    if (values.has(s.getKey())) {
+                        s.setValue(values.get(s.getKey()).getAsInt());
+                    }
+                }
+                for (ShortAnswerSetting s : shortAnswerSettings) {
+                    if (values.has(s.getKey())) {
+                        s.setValue(values.get(s.getKey()).getAsString());
                     }
                 }
             }
