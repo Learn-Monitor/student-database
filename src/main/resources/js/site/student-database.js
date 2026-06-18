@@ -158,6 +158,9 @@ async function togglePlugin(pluginKey) {
 async function togglePluginSetting(pluginKey, setting) {
     return await post('/toggle-plugin-setting', { key: pluginKey + ":" + setting });
 }
+async function setPluginSetting(pluginKey, setting, value) {
+    return await post('/set-plugin-setting', { key: pluginKey + ":" + setting, value });
+}
 
 async function deleteClass(classId) {
     return await post('/delete-class', { id: classId });
@@ -682,6 +685,16 @@ function loadPluginSection(pluginKey) {
             tr.innerHTML = `<td>${b.name}</td><td>${b.value}</td><td><button onclick="togglePluginSetting('${plugin.id}', '${b.key}');plugin_panels['${plugin.id}'].refresh()">Toggle</button></td>`;
             tbody.appendChild(tr);
         });
+        settings.ints.forEach((i) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${i.name}</td><td>${i.value}</td><td><input type="number" value="${i.value}" id="${plugin.id}-${i.key}-input"/><button onclick="setPluginSetting('${plugin.id}', '${i.key}', Number(document.getElementById('${plugin.id}-${i.key}-input').value));plugin_panels['${plugin.id}'].refresh()">Set</button></td>`;
+            tbody.appendChild(tr);
+        })
+        settings.shortAnswers.forEach((s) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${s.name}</td><td>${s.value}</td><td><input type="text" value="${s.value}" id="${plugin.id}-${s.key}-input"/><button onclick="setPluginSetting('${plugin.id}', '${s.key}', document.getElementById('${plugin.id}-${s.key}-input').value);plugin_panels['${plugin.id}'].refresh()">Set</button></td>`;
+            tbody.appendChild(tr);
+        })
     })
 }
 async function loadPluginsView(pluginContainer) {
