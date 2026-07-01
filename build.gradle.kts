@@ -7,7 +7,7 @@ plugins {
 
 group = "io.github.learn-monitor"
 
-version = "v2.0.0-SNAPSHOT-2"
+version = "v2.0.0-SNAPSHOT-3"
 
 application {
     mainClass.set("de.igslandstuhl.database.Application")
