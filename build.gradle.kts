@@ -1,13 +1,13 @@
 plugins {
     java
     application
-    id("com.github.johnrengelman.shadow") version "8.1.1"
-    id("maven-publish")
+    id("com.gradleup.shadow") version "9.4.3"
+    id("com.vanniktech.maven.publish") version "0.37.0"
 }
 
-group = "igs-landstuhl"
+group = "io.github.learn-monitor"
 
-version = "v2.0.0-SNAPSHOT-2"
+version = "v2.0.0-SNAPSHOT-3"
 
 application {
     mainClass.set("de.igslandstuhl.database.Application")
@@ -15,14 +15,6 @@ application {
 
 repositories {
     mavenCentral()
-    maven {
-        name = "Plugin Loader Repository"
-        url = uri("https://maven.pkg.github.com/Learn-Monitor/plugin-loader/")
-        credentials {
-            username = System.getenv("GITHUB_ACTOR")
-            password = System.getenv("GITHUB_TOKEN")
-        }
-    }
 }
 
 dependencies {
@@ -37,7 +29,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.5.6")
 
     // built-in plugins
-    implementation("de.igs-landstuhl:plugin-loader:v1.0.5")
+    implementation("io.github.learn-monitor:plugin-loader:v1.0.5")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4") // using JUnit 5 (latest)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -67,26 +59,38 @@ java {
     }
 }
 
-publishing {
-    publications {
-        create<MavenPublication>("mavenJava") {
-            from(components["java"])
+mavenPublishing {
+    publishToMavenCentral()
 
-            groupId = "igs-landstuhl"
-            artifactId = "student-database"
-            version = project.version.toString()
-        }
-    }
+    signAllPublications()
 
-    repositories {
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/Learn-Monitor/student-database/")
+    coordinates(group.toString(), "student-database", version.toString())
 
-            credentials {
-                username = System.getenv("GITHUB_ACTOR")
-                password = System.getenv("GITHUB_TOKEN")
+    pom {
+        name = "Student database"
+        description = "A Java-based application designed to manage and store student information efficiently. It allows admins to perform CRUD (Create, Read, Update, Delete) operations on student records, classes, subjects, and other school-related data, making it a valuable tool for educational institutions. Students can view their progress, and teachers can assign them topics, based on subjects."
+        url = "https://github.com/Learn-Monitor/student-database"
+
+        licenses {
+            license {
+                name = "GNU General Public License v3.0"
+                url = "http://www.gnu.org/licenses/gpl-3.0.txt"
             }
         }
+        developers {
+            developer {
+                id = "schlaumeier5"
+                name = "Lukas Morgenstern"
+                url = "https://github.com/schlaumeier5"
+            }
+        }
+        scm {
+            url = "https://github.com/Learn-Monitor/student-database"
+            connection = "scm:git:https://github.com/Learn-Monitor/student-database.git"
+            developerConnection = "scm:git:ssh://git@github.com/Learn-Monitor/student-database.git"
+        }
     }
+}
+tasks.withType<AbstractPublishToMaven>().configureEach {
+    dependsOn(tasks.withType<Sign>())
 }
