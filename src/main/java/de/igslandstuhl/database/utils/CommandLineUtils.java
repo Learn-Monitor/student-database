@@ -34,6 +34,6 @@ public class CommandLineUtils {
         String line = input();
         String[] args = line.trim().split(" ");
         String command = args[0];
-        System.out.println(Command.executeCommand(command, Arrays.copyOfRange(args, 1, args.length)));
+        Command.LOGGER.info("[Commands] {}", Command.executeCommand(command, Arrays.copyOfRange(args, 1, args.length)));
     }
 }

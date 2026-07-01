@@ -6,12 +6,14 @@ import java.io.PrintStream;
 import com.google.gson.Gson;
 
 import de.igslandstuhl.database.server.Server;
+import de.igslandstuhl.database.server.WebServer;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.server.webserver.AccessManager;
 import de.igslandstuhl.database.server.webserver.ContentType;
 import de.igslandstuhl.database.server.webserver.Cookie;
 import de.igslandstuhl.database.server.webserver.NoWebResourceException;
 import de.igslandstuhl.database.server.webserver.Status;
+import de.igslandstuhl.database.server.webserver.handlers.HttpHandler;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
 
@@ -106,7 +108,7 @@ public class PostResponse implements HttpResponse {
         out.print("HTTP/1.1 ");
         statusCode.write(out);
         out.print("\r\n");
-        out.print("Content-Type: " + contentType + "; charset=UTF-8\r\n");
+        out.print("Content-Type: " + contentType.getName() + "; charset=UTF-8\r\n");
         if (cookie != null) {
             out.print("Set-Cookie: " + cookie + "; HttpOnly; Secure\r\n");
         }
@@ -115,6 +117,7 @@ public class PostResponse implements HttpResponse {
         }
         out.print("\r\n");
         if (body != null) {
+            WebServer.LOGGER.debug("Response body: {}", body);
             out.print(body);
         }
         out.flush();
@@ -165,7 +168,7 @@ public class PostResponse implements HttpResponse {
         } catch (FileNotFoundException e) {
             return notFound("The requested resource was not found: " + resourceLocation, request);
         } catch (Exception e) {
-            e.printStackTrace();
+            HttpHandler.LOGGER.warn("Failed to get resource for request {} on resource location {}", request, resourceLocation);
             return internalServerError("An error occurred while processing your request.", request);
         }
     }

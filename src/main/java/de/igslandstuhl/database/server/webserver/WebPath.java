@@ -4,16 +4,22 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.server.webserver.requests.RequestType;
 
 public record WebPath(RequestType type, String handlerType, List<String> namespaces, String context, AccessLevel accessLevel) {
+    private static final Logger LOGGER = LoggerFactory.getLogger(WebPath.class);
+
     public static void registerPath(String path, RequestType type, String handlerType, List<String> namespaces, String context, AccessLevel accessLevel) {
         Registry.webPathRegistry().register(path, new WebPath(type, handlerType, namespaces, context, accessLevel));
     }
     public static void registerPaths() throws IOException {
+        LOGGER.info("Registering get request paths...");
         if (Registry.webPathRegistry().stream().count() > 0) return; // already registered
         ResourceLocation metaLocation = new ResourceLocation("meta", "paths", "get_paths.json");
         Map<String, ?> pathData = Server.getInstance().getResourceManager().readJsonResourceMerged(metaLocation);

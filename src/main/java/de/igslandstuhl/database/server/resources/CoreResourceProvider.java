@@ -119,7 +119,7 @@ public class CoreResourceProvider implements ResourceProvider {
                 }
             });
         } catch (IOException e) {
-            e.printStackTrace();
+            ResourceManager.LOGGER.error("Failed to get resources from directory '{}'", directory.toString(), e);
             return retval;
         }
         return retval;

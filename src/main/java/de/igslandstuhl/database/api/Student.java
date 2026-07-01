@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.api.results.StudentGenerationResult;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
@@ -86,11 +87,6 @@ public class Student extends User {
      * The current topics of the student, mapped by subject.
      */
     private final Map<Subject, Topic> currentTopics = new ConcurrentHashMap<>();
-
-    /**
-     * The current room of the student.
-     */
-    private Room currentRoom = null;
 
     /**
      * Constructs a new Student.
@@ -174,7 +170,7 @@ public class Student extends User {
             student.fetchTasks();
             return student;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Student with id {} from database", id, e);
             return null;
         }
     }
@@ -195,7 +191,7 @@ public class Student extends User {
         } catch (NullPointerException e) {
             return null;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Student with email {} from database", email, e);
             return null;
         }
     }
@@ -215,16 +211,12 @@ public class Student extends User {
                 "get_all_students", SQL_FIELDS
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve student list from database", e);
         }
         return studentIDs.stream()
             .map(Student::get)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
-    }
-
-    public static List<Student> getByRoom(Room room) {
-        return students.values().stream().filter((s) -> room.equals(s.getCurrentRoom())).toList();
     }
 
     /**
@@ -256,7 +248,7 @@ public class Student extends User {
             try {
                 Thread.sleep(new Random().nextInt(1,10)); // Sleep to ensure different seeds
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Application.LOGGER_API.error("Thread sleep while generating passwords was interrupted", e);
             }
         }
         return passwords;
@@ -351,18 +343,6 @@ public class Student extends User {
      * @return the graduation level
      */
     public GraduationLevel getGraduationLevel() { return graduationLevel; }
-
-    /**
-     * Returns the student's current room.
-     * @return the current room
-     */
-    public Room getCurrentRoom() { return currentRoom; }
-
-    /**
-     * Sets the student's current room.
-     * @param currentRoom the new room
-     */
-    public void setCurrentRoom(Room currentRoom) { this.currentRoom = currentRoom; }
 
     /**
      * Returns the set of selected tasks.
@@ -553,7 +533,6 @@ public class Student extends User {
         .append("\"selectedTasks\": ").append(selectedTasks).append(",\n")
         .append("\"completedTasks\": ").append(completedTasks).append(",\n")
         .append("\"lockedTasks\": ").append(lockedTasks).append(",\n")
-        .append("\"currentRoom\": ").append(String.valueOf(currentRoom)).append(",\n")
         .append("\"currentRequests\": {").append(currentRequests.entrySet().stream()
             .map(entry -> "\"" + entry.getKey() + "\": " + entry.getValue().stream().map((r) -> '"' + r.getGermanTranslation() + '"').toList())
             .reduce((a, b) -> a + ", " + b).orElse("")).append("},\n")
@@ -603,7 +582,7 @@ public class Student extends User {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to load current topics for '{}'", this.email, e);
         }
     }
 

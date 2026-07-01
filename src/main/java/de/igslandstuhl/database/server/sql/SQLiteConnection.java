@@ -10,6 +10,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.utils.TrackingReadWriteLock;
 
@@ -37,6 +40,8 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
     private ThreadLocal<PreparedStatement> pendingStatement = new ThreadLocal<>();
 
     private final TrackingReadWriteLock lock = new TrackingReadWriteLock();
+
+    private final Logger LOGGER = LoggerFactory.getLogger(getClass());
 
     /**
      * Creates the necessary tables in the database by executing SQL scripts.
@@ -75,7 +80,7 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
     public ResultSet executeStatementQuerySecure(PreparedStatement statement) throws SQLException {
         lock.readLock().lock();
         try (statement) {
-             return statement.executeQuery();
+            return statement.executeQuery();
         } finally {
             lock.readLock().unlock();
         }
@@ -157,6 +162,7 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
      * @throws SQLException if an SQL error occurs during table creation
      */
     public void createTables() throws SQLException {
+        LOGGER.debug("Creating Database Tables...");
         executeVoidProcessSecure(this::createTables);
     }
     

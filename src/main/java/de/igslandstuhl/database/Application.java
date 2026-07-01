@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.jline.reader.UserInterruptException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import de.igslandstuhl.database.api.SerializationException;
 import de.igslandstuhl.database.api.Subject;
@@ -17,6 +19,7 @@ import de.igslandstuhl.database.server.commands.Command;
 import de.igslandstuhl.database.server.webserver.WebPath;
 import de.igslandstuhl.database.server.webserver.handlers.GetRequestHandler;
 import de.igslandstuhl.database.server.webserver.handlers.PostRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.get.SQLRequestHandler;
 import de.igslandstuhl.database.utils.CommandLineUtils;
 
 /**
@@ -29,6 +32,10 @@ public final class Application {
     public static final String TITLE_DELIMITER = "¶";
     public static final String TASK_TITLE_DELIMITER = "\\|";
     public static final String TASK_DELIMITER = "¤";
+
+    public static final Logger LOGGER = LoggerFactory.getLogger(Application.class);
+    public static final Logger LOGGER_API = LoggerFactory.getLogger("de.igslandstuhl.database.api");
+
     private static Application instance = new Application(new String[] {"--test-environment", "true"});
     public static Application getInstance() {
         return instance;
@@ -88,7 +95,6 @@ public final class Application {
                 }
             }
         } catch (Throwable t) {
-            t.printStackTrace();
             throw new SerializationException("Failed to read file", t);
         }
 
@@ -96,20 +102,32 @@ public final class Application {
         return topics.toArray(topicsArr);
     }
 
+    private static void registerBuiltinPlugins() {
+        LOGGER.info("Registering built-in plugins...");
+        Registry.builtinPluginRegistry().register("plugin-loader", de.igslandstuhl.database.plugins.PluginLoader.class);
+    }
+
     public static void main(String[] args) throws Exception {
+        LOGGER.info("Starting up student-database...");
+
         instance = new Application(args);
 
+        registerBuiltinPlugins();
         PluginLoader.getInstance().preloadPlugins();
 
         if (!getInstance().suppressCmd()) {
+            LOGGER.info("Setting up command line...");
             Command.registerCommands();
             CommandLineUtils.setup();
         }
-        
+
+        LOGGER.info("Setting up server...");
+
         Server.getInstance().getConnection().createTables();
 
         Holiday.setupCurrentSchoolYear();
         PostRequestHandler.registerHandlers();
+        SQLRequestHandler.register();
         PluginLoader.getInstance().registerPlugins();
 
         WebPath.registerPaths();
@@ -117,14 +135,17 @@ public final class Application {
         GetRequestHandler.getInstance().registerHandlers();
 
         if (getInstance().runsWebServer()) {
+            LOGGER.info("Starting WebServer...");
             Server.getInstance().getWebServer().start();
         }
 
         PluginLoader.getInstance().enablePlugins();
 
+        LOGGER.info("Adding shutdown hook for plugin cleanup...");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> PluginLoader.getInstance().unloadPlugins(),"Plugin cleanup thread"));
 
         try {
+            LOGGER.info("Starting main loop...");
             while (true) {
                 if (!getInstance().suppressCmd()) {
                     CommandLineUtils.waitForCommandAndExec();

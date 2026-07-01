@@ -11,10 +11,6 @@
         "type": "HTMLFileTemplate",
         "path": "login"
     },
-    "room_info": {
-        "type": "HTMLFileTemplate",
-        "path": "room_info"
-    },
     "site": {
         "type": "HTMLFileTemplate",
         "path": "site"
@@ -26,6 +22,10 @@
     "subject_info": {
         "type": "HTMLFileTemplate",
         "path": "subject_info"
+    },
+    "student_header_builtin": {
+        "type": "HTMLFileTemplate",
+        "path": "student_header"
     },
 
     "admin_dashboard_nav": {
@@ -92,5 +92,18 @@
         "type": "HTMLNavigationTemplate",
         "navigation_type": "STUDENT_OTHER",
         "appearance": "BUTTON_APPEARANCE"
+    },
+
+    "student_header": {
+        "type": "DynamicHTMLTemplate",
+        "dynamic_field_type": "STUDENT_HEADER"
+    },
+    "student_top": {
+        "type": "DynamicHTMLTemplate",
+        "dynamic_field_type": "STUDENT_TOP"
+    },
+    "teacher_infos": {
+        "type": "DynamicHTMLTemplate",
+        "dynamic_field_type": "TEACHER_INFOS"
     }
 }

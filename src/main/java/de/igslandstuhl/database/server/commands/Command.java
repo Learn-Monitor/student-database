@@ -5,6 +5,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.*;
 import de.igslandstuhl.database.server.Server;
@@ -12,6 +15,7 @@ import de.igslandstuhl.database.utils.CommonUtils;
 
 @FunctionalInterface
 public interface Command {
+    public static final Logger LOGGER = LoggerFactory.getLogger(Command.class);
     public String execute(String[] args);
     public default CommandDescription getDescription() {
         return Registry.commandDescriptionRegistry().get(Registry.commandDescriptionRegistry()
@@ -25,7 +29,7 @@ public interface Command {
         } catch (NullPointerException e) {
             return "Command not found: " + command;
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.error("Failed to execute command '{}'", command, e);
             return "";
         }
     }
@@ -34,8 +38,9 @@ public interface Command {
         Registry.commandDescriptionRegistry().register(name, description);
     }
     public static void registerCommands() {
+        LOGGER.info("Registering commands...");
         registerCommand("exit", (args) -> {
-            System.out.println("Exiting...");
+            LOGGER.info("Program exit through command;exiting...");
             System.exit(0);
             return "";
         }, new CommandDescription("exit", "Exits the application", "exit"));
@@ -77,71 +82,6 @@ public interface Command {
             }
             return String.valueOf(level.getRatio() * 100) + "%";
         }, new CommandDescription("get-level-ratio", "Gets the ratio of a task level", "get-level-ratio [level]"));
-
-        // Room commands
-        registerCommand("list-rooms", (args) -> {
-            try {
-                Room.fetchAll();
-            } catch (SQLException e) {
-                return "Error while trying to access database:\n" + CommonUtils.getStacktrace(e);
-            }
-            return Room.getRooms().keySet().stream().reduce("Rooms:", (s1, s2) -> s1 + "\n" + s2);
-        }, new CommandDescription("list-rooms", "Lists all available rooms", "list-rooms"));
-        registerCommand("get-room-level", (args) -> {
-            if (args.length < 1) return "Usage: get-room-level [room]";
-            Room room = Room.getRoom(argsPart(args, 0, args.length));
-            if (room == null) return "Room not found. Try list-rooms for a list of available rooms";
-            return "Room " + room.getLabel() + " has access level " + room.getMinimumLevel();
-        }, new CommandDescription("get-room-level", "Gets the minimum level required to access a room", "get-room-level [room]"));
-        registerCommand("set-room-level", (args) -> {
-            if (args.length < 2) return "Usage: set-room-level [room] [level]";
-            Room room = Room.getRoom(argsPart(args, 0, args.length-1));
-            if (room == null) return "Room not found. Try list-rooms for a list of available rooms";
-            int level;
-            try {
-                level = Integer.parseInt(args[args.length - 1]);
-            } catch (NumberFormatException e) {
-                return args[1] + " is not a valid number.";
-            }
-            try {
-                room.setMinimumLevel(level);
-            } catch (SQLException e) {
-                return "Error while trying to access database: \n" + CommonUtils.getStacktrace(e);
-            } catch (IllegalArgumentException e) {
-                return e.getMessage();
-            }
-            return "Successfully changed room level";
-        }, new CommandDescription("set-room-level", "Sets the minimum level required to access a room", "set-room-level [room] [level]"));
-        registerCommand("add-room", (args) -> {
-            if (args.length < 2) return "Usage: add-room [room] [level]";
-            if (Room.getRoom(args[0]) != null) return "Room already present";
-
-            try {
-                String label = argsPart(args, 0, args.length-1);
-                int level = Integer.parseInt(args[args.length-1]);
-
-                Room.addRoom(label, level);
-            } catch (NumberFormatException e) {
-                return args[args.length - 1] + " is not a valid number.";
-            } catch (IllegalArgumentException e) {
-                return e.getMessage();
-            } catch (SQLException e) {
-                throw new IllegalStateException(e);
-            }
-            return "Room successfully added";
-        }, new CommandDescription("add-room", "Adds a new room", "add-room [room] [level]"));
-        registerCommand("remove-room", (args) -> {
-            if (args.length < 1) return "Usage: remove-room [room]";
-
-            Room room = Room.getRoom(argsPart(args, 0, args.length));
-            try {
-                room.delete();
-            } catch (SQLException e) {
-                return "Error while trying to access database: \n" + CommonUtils.getStacktrace(e);
-            }
-            return "Room successfully deleted";
-        }, new CommandDescription("remove-room", "Removes a room", "remove-room [room]"));
-
 
         // class commands
         registerCommand("list-classes", (args) -> {

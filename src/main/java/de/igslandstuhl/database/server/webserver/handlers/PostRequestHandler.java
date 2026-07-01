@@ -14,13 +14,14 @@ import java.util.function.Function;
 
 import org.owasp.html.PolicyFactory;
 import org.owasp.html.Sanitizers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.gson.reflect.TypeToken;
 
 import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.APIObject;
-import de.igslandstuhl.database.api.Room;
 import de.igslandstuhl.database.api.SchoolClass;
 import de.igslandstuhl.database.api.Student;
 import de.igslandstuhl.database.api.Subject;
@@ -30,6 +31,11 @@ import de.igslandstuhl.database.api.Teacher;
 import de.igslandstuhl.database.api.Topic;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.api.results.GenerationResult;
+import de.igslandstuhl.database.plugins.config.BoolSetting;
+import de.igslandstuhl.database.plugins.config.IntSetting;
+import de.igslandstuhl.database.plugins.config.PluginConfig;
+import de.igslandstuhl.database.plugins.config.PluginSetting;
+import de.igslandstuhl.database.plugins.config.ShortAnswerSetting;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.AccessLevel;
 import de.igslandstuhl.database.server.webserver.ContentType;
@@ -67,6 +73,8 @@ public class PostRequestHandler {
         // Private constructor to prevent instantiation
     }
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(PostRequestHandler.class);
+
     /**
      * Handles the POST request based on the path specified in the request.
      * It routes the request to the appropriate handler method based on the path.
@@ -92,7 +100,7 @@ public class PostRequestHandler {
         try {
             webInput = URLDecoder.decode(webInput, StandardCharsets.UTF_8.name());
         } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
+            LOGGER.error("Encoding is not supported by URLDecoder", e);
         }
                 ;
         if (sanitize) {
@@ -167,6 +175,7 @@ public class PostRequestHandler {
         return successMessage;
     }
     public static void registerHandlers() {
+        LOGGER.info("Registering Post Request Handlers...");
         HttpHandler.registerPostRequestHandler("/login", AccessLevel.PUBLIC, (rq) -> {
             String username = prepare(rq.getString("username"), false);
             // Do not sanitize / url-decode password to allow special characters like %
@@ -204,15 +213,6 @@ public class PostRequestHandler {
                     throw new IllegalStateException(e);
                 }
             }, PostRequestHandler::csvResult)
-        );
-        HttpHandler.registerPostRequestHandler("/add-rooms", AccessLevel.ADMIN, (rq) ->
-            handleBatchInsertCSV(rq, "rooms", ContentType.JSON, t -> {
-                try {
-                    return Room.generateRoomsFromCSV(t);
-                } catch (SQLException e) {
-                    throw new IllegalStateException(e);
-                }
-            }, Arrays::toString)
         );
         HttpHandler.registerPostRequestHandler("/add-teacher", AccessLevel.ADMIN, (rq) -> {
             String firstName = prepare(rq.getString("firstName"));
@@ -271,14 +271,6 @@ public class PostRequestHandler {
         HttpHandler.registerPostRequestHandler("/tasks", AccessLevel.USER, (rq) -> {
             return PostResponse.ok(JSONUtils.toJSON(rq.getTaskList()), ContentType.JSON, rq);
         });
-        HttpHandler.registerPostRequestHandler("/update-room", AccessLevel.USER, (rq) -> {
-            Student student = rq.getCurrentStudent();
-            if (student == null) return PostResponse.unauthorized(rq);
-            Room room = rq.getRoom();
-            if (room == null) return PostResponse.badRequest("Room not found", rq);
-            student.setCurrentRoom(room);
-            return PostResponse.ok("Changed current room", ContentType.TEXT_PLAIN, rq);
-        });
         HttpHandler.registerPostRequestHandler("/begin-task", AccessLevel.USER, (rq) -> handleTaskChange(rq, Task.STATUS_IN_PROGRESS));
         HttpHandler.registerPostRequestHandler("/complete-task", AccessLevel.USER, (rq) -> handleTaskChange(rq, Task.STATUS_COMPLETED));
         HttpHandler.registerPostRequestHandler("/cancel-task", AccessLevel.USER, (rq) -> handleTaskChange(rq, Task.STATUS_NOT_STARTED));
@@ -301,30 +293,7 @@ public class PostRequestHandler {
                     .addProperty("id", student.getId())
                     .addProperty("name", student.getFirstName() + " " + student.getLastName())
                     .addProperty("actionRequired", student.isActionRequired())
-                    .addProperty("graduationLevel", student.getGraduationLevel())
-                    .addProperty("room", student.getCurrentRoom() != null ? student.getCurrentRoom().getLabel() : "None");
-                    if (rq.getJson().containsKey("subjectId") && rq.getSubject() != null) {
-                        Set<SubjectRequest> subjectRequests = student.getCurrentRequests(rq.getSubject());
-                        builder.addProperty("experiment",subjectRequests.stream().anyMatch(r -> r == SubjectRequest.EXPERIMENT))
-                        .addProperty("help", subjectRequests.stream().anyMatch(r -> r == SubjectRequest.HELP))
-                        .addProperty("test", subjectRequests.stream().anyMatch(r -> r == SubjectRequest.EXAM))
-                        .addProperty("partner", subjectRequests.stream().anyMatch(r -> r == SubjectRequest.PARTNER));
-                    }
-                }),
-                ContentType.JSON, rq
-            );
-        });
-        HttpHandler.registerPostRequestHandler("/get-students-by-room", AccessLevel.TEACHER, (rq) -> {
-            Room room = rq.getRoom();
-            List<Student> students = Student.getByRoom(room);
-            return PostResponse.ok(
-                JSONUtils.toJSON(students, (student, builder) -> {
-                    builder
-                    .addProperty("id", student.getId())
-                    .addProperty("name", student.getFirstName() + " " + student.getLastName())
-                    .addProperty("actionRequired", student.isActionRequired())
-                    .addProperty("graduationLevel", student.getGraduationLevel())
-                    .addProperty("room", student.getCurrentRoom() != null ? student.getCurrentRoom().getLabel() : "None");
+                    .addProperty("graduationLevel", student.getGraduationLevel());
                     if (rq.getJson().containsKey("subjectId") && rq.getSubject() != null) {
                         Set<SubjectRequest> subjectRequests = student.getCurrentRequests(rq.getSubject());
                         builder.addProperty("experiment",subjectRequests.stream().anyMatch(r -> r == SubjectRequest.EXPERIMENT))
@@ -364,8 +333,7 @@ public class PostRequestHandler {
                                             .toList();
             return PostResponse.ok(JSONUtils.toJSON(students, (partner, builder) -> {
                 builder.addProperty("id", partner.getId())
-                .addProperty("name", partner.getFirstName() + " " + partner.getLastName())
-                .addProperty("room", partner.getCurrentRoom() != null ? partner.getCurrentRoom().getLabel() : "None");
+                .addProperty("name", partner.getFirstName() + " " + partner.getLastName());
             }), ContentType.JSON, rq);
         });
         HttpHandler.registerPostRequestHandler("/delete-subject", AccessLevel.ADMIN, (rq) -> 
@@ -419,6 +387,20 @@ public class PostRequestHandler {
             String[] key = rq.getString("key").split(":");
             Registry.pluginRegistry().get(key[0]).getConfig().toggleSetting(key[1]);
             return PostResponse.ok("Plugin setting toggled", ContentType.TEXT_PLAIN, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/set-plugin-setting", AccessLevel.ADMIN, (rq) -> {
+            String[] key = rq.getString("key").split(":");
+            PluginConfig<?> config = Registry.pluginRegistry().get(key[0]).getConfig();
+            PluginSetting<?> setting = config.getSetting(key[1]);
+            if (setting instanceof BoolSetting boolSetting) {
+                boolSetting.setValue(rq.getBoolean("value"));
+            } else if (setting instanceof IntSetting intSetting) {
+                intSetting.setValue(rq.getInt("value"));
+            } else if (setting instanceof ShortAnswerSetting shortAnswerSetting) {
+                shortAnswerSetting.setValue(rq.getString("value"));
+            } else {
+                return PostResponse.badRequest("Setting not found", rq);}
+            return PostResponse.ok("Plugin setting set", ContentType.TEXT_PLAIN, rq);
         });
 
         HttpHandler.registerPostRequestHandler("/student-results-csv", AccessLevel.TEACHER, (rq) -> {

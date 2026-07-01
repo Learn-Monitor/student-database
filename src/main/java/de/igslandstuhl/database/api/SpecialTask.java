@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
 
@@ -89,7 +90,7 @@ public class SpecialTask extends Task {
             specialTasks.put(id, task);
             return task;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get SpecialTask with id {} from database", id, e);
             return null;
         }
     }
@@ -114,7 +115,7 @@ public class SpecialTask extends Task {
         try {
             Server.getInstance().processRequest(SpecialTask::addToCache, "get_special_tasks_by_name", SQL_FIELDS, name);
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get SpecialTask with name {} from database", name, e);
             return new ArrayList<>();
         }
         return specialTasks.values().stream()

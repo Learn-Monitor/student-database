@@ -7,7 +7,6 @@ import java.util.List;
 import com.google.gson.reflect.TypeToken;
 
 import de.igslandstuhl.database.api.APIObject;
-import de.igslandstuhl.database.api.Room;
 import de.igslandstuhl.database.api.SchoolClass;
 import de.igslandstuhl.database.api.Student;
 import de.igslandstuhl.database.api.Subject;
@@ -58,9 +57,6 @@ public class APIPostRequest extends PostRequest {
     public SubjectRequest getSubjectRequest() {
         return SubjectRequest.fromGermanTranslation(getString("subjectRequest"));
     }
-    public Room getRoom() {
-        return Room.getRoom(getString("room"));
-    }
     public Task getTask() {
         return Task.get(getInt("taskId"));
     }
@@ -86,8 +82,6 @@ public class APIPostRequest extends PostRequest {
             return (T) getSubjectRequest();
         } else if (rawType.getTypeName().contains("Task")) {
             return (T) getTask();
-        } else if (rawType.getTypeName().contains("Room")) {
-            return (T) getRoom();
         } else if (rawType.getTypeName().contains("SchoolClass")) {
             return (T) getSchoolClass();
         } else {

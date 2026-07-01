@@ -50,10 +50,6 @@ async function fetchMyClasses() {
     const classes = await fetchJson('/myclasses');
     return classes;
 }
-async function fetchRooms() {
-    const rooms = await fetchJson('/rooms');
-    return rooms;
-}
 async function fetchTeacherClasses(teacherId) {
     const classes = await getJsonWithPost('/teacher-classes', { teacherId });
     return classes;
@@ -108,9 +104,6 @@ async function getStudents(classId) {
 async function getStudentsBySubject(classId, subjectId) {
     return await getJsonWithPost('/student-list', { classId, subjectId });
 }
-async function getStudentsByRoom(room) {
-    return await getJsonWithPost('/get-students-by-room', { room });
-}
 async function searchPartner(subjectId, topicId, classId, studentId) {
     return await getJsonWithPost('/search-partner', { subjectId, topicId, classId, studentId});
 }
@@ -159,14 +152,14 @@ async function reopenTask(studentId, taskId) {
 async function beginTask(studentId, taskId) {
     return await post('/begin-task', { studentId, taskId });
 }
-async function updateRoom(studentId, room) {
-    return await post('/update-room', { studentId, room });
-}
 async function togglePlugin(pluginKey) {
     return await post('/toggle-plugin', { key: pluginKey });
 }
 async function togglePluginSetting(pluginKey, setting) {
     return await post('/toggle-plugin-setting', { key: pluginKey + ":" + setting });
+}
+async function setPluginSetting(pluginKey, setting, value) {
+    return await post('/set-plugin-setting', { key: pluginKey + ":" + setting, value });
 }
 
 async function deleteClass(classId) {
@@ -175,6 +168,29 @@ async function deleteClass(classId) {
 async function deleteSubject(subjectId) {
     return await post('/delete-subject', { id: subjectId });
 }
+
+// Events
+function populateStudentRowEvent(row, student) {
+    const event = new CustomEvent("populate-student-row", { detail: {row, student} });
+    document.dispatchEvent(event);
+}
+function populatePartnerRowEvent(row, student) {
+    const event = new CustomEvent("populate-partner-row", { detail: {row, student} });
+    document.dispatchEvent(event);
+}
+function populateTeacherClassRowEvent(row, student) {
+    const event = new CustomEvent("populate-teacher-class-row", { detail: { row, student } });
+    document.dispatchEvent(event);
+}
+function teacherDashboardLoadEvent() {
+    const event = new Event('teacher-dashboard-load');
+    document.dispatchEvent(event);
+}
+function studentDashboardLoadEvent() {
+    const event = new Event('student-dashboard-load');
+    document.dispatchEvent(event);
+}
+
 // Populating functions
 async function populateTable(url, tableId, rowBuilder) {
     const data = await fetchJson(url);
@@ -221,21 +237,6 @@ async function populateSubjectStudentList(subjectSelectId, classSelectId, studen
       studentTable.appendChild(row);
   });
 }
-async function populateRoomStudentList(room) {
-  const students = await getStudentsByRoom(room);
-
-  const studentTable = document.getElementById("roomStudentTableBody");
-  studentTable.innerHTML = ""; // clear previous rows
-  students.forEach(student => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-          <td class="student-name">${student.name}</td>
-          <td class="student-action-required">${student.actionRequired ? "Ja" : "Nein"}</td>
-          <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
-      `;
-      studentTable.appendChild(row);
-  });
-}
 async function populatePartnerSubjectStudentList(subjectId, studentData) {
     const topicId = (await fetchMyCurrentTopic(subjectId)).id;
     const classId = studentData.schoolClass.id;
@@ -248,9 +249,9 @@ async function populatePartnerSubjectStudentList(subjectId, studentData) {
     students.forEach(student => {
         const row = document.createElement('tr');
         row.innerHTML = `
-          <td class="student-name">${student.name}</td>
-          <td class="student-room">${student.room}</td>
+            <td class="student-name">${student.name}</td>
         `;
+        populatePartnerRowEvent(row, student);
         studentTable.appendChild(row);
     });
 }
@@ -309,30 +310,6 @@ async function populateGradeSelect(gradeSelectId, subjectId) {
         option.value = grade;
         gradeSelect.appendChild(option)
     })
-}
-async function populateRoomSelect(roomSelectId) {
-    const roomSelect = document.getElementById(roomSelectId);
-    roomSelect.innerHTML = ""; // clear previous options if any
-    const rooms = await fetchRooms();
-    rooms.forEach(room => {
-        const option = document.createElement('option');
-        option.value = room.label;
-        option.textContent = room.label;
-        roomSelect.appendChild(option);
-    });
-}
-async function populateRoomSelectWithLevel(roomSelectId, graduationLevel) {
-    const roomSelect = document.getElementById(roomSelectId);
-    roomSelect.innerHTML = ""; // clear previous options if any
-    const rooms = await fetchRooms();
-    rooms.forEach(room => {
-        if (room.minimumLevel <= graduationLevel){
-            const option = document.createElement('option');
-            option.value = room.label;
-            option.textContent = room.label;
-            roomSelect.appendChild(option);
-        }
-    });
 }
 async function populateSubjectList(subjectListId, classId) {
     const subjectList = document.getElementById(subjectListId);
@@ -422,10 +399,10 @@ async function buildTeacherDashboard(classes, subjects) {
         populateStudentTable(Number(event.target.value), "studentTable", (row, student) => {
             row.innerHTML = `
                 <td class="student-name">${student.name}</td>
-                <td class="student-room">${student.room}</td>
                 <td class="student-graduation-level">${graduationLevels[student.graduationLevel]}</td>
                 <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
             `;
+            populateTeacherClassRowEvent(row, student);
         });
     }
 
@@ -442,9 +419,7 @@ async function buildTeacherDashboard(classes, subjects) {
     subjectSelect.addEventListener('change', (_) => populateSubjectStudentList('subjectSelect', 'classSelectSubject', 'subjectStudentTable'));
     populateSubjectStudentList('subjectSelect', 'classSelectSubject', 'subjectStudentTable'); // Trigger initial load
 
-    await populateRoomSelect('roomSelect');
-    document.getElementById('roomSelect').addEventListener('change', (e) => populateRoomStudentList(e.target.value));
-    populateRoomStudentList(document.getElementById('roomSelect').value); // Trigger initial load
+    teacherDashboardLoadEvent();
 }
 function createRequestButton(subject, type, label) {
     const btn = document.createElement('button');
@@ -674,26 +649,14 @@ function decodeEntities(str) {
 function loadStudentDashboard(studentData, subjects, teacherPerms) { // Show student info
     setStudentInfo(studentData);
 
-    // Show rooms
-    populateRoomSelectWithLevel('room', studentData.graduationLevel);
-
-    // Wait for the browser to render (next tick)
-    setTimeout(() => {
-        // Set room select value to current room
-        if (studentData.currentRoom && studentData.currentRoom.label) {
-            roomSelect.value = studentData.currentRoom.label;
-        }
-    }, 0);
-
-    const roomSelect = document.getElementById('room');
-    roomSelect.addEventListener('change', async () => updateRoom(studentData.id, roomSelect.value));
-
     // Show subjects
     const subjectList = document.getElementById('subject-list');
     subjects.forEach(subject => {
         const panel = createSubjectPanel(subject, studentData, teacherPerms);
         subjectList.appendChild(panel);
     });
+
+    studentDashboardLoadEvent();
 }
 let plugin_panels = {}
 function loadPluginSection(pluginKey) {
@@ -722,6 +685,16 @@ function loadPluginSection(pluginKey) {
             tr.innerHTML = `<td>${b.name}</td><td>${b.value}</td><td><button onclick="togglePluginSetting('${plugin.id}', '${b.key}');plugin_panels['${plugin.id}'].refresh()">Toggle</button></td>`;
             tbody.appendChild(tr);
         });
+        settings.ints.forEach((i) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${i.name}</td><td>${i.value}</td><td><input type="number" value="${i.value}" id="${plugin.id}-${i.key}-input"/><button onclick="setPluginSetting('${plugin.id}', '${i.key}', Number(document.getElementById('${plugin.id}-${i.key}-input').value));plugin_panels['${plugin.id}'].refresh()">Set</button></td>`;
+            tbody.appendChild(tr);
+        })
+        settings.shortAnswers.forEach((s) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${s.name}</td><td>${s.value}</td><td><input type="text" value="${s.value}" id="${plugin.id}-${s.key}-input"/><button onclick="setPluginSetting('${plugin.id}', '${s.key}', document.getElementById('${plugin.id}-${s.key}-input').value);plugin_panels['${plugin.id}'].refresh()">Set</button></td>`;
+            tbody.appendChild(tr);
+        })
     })
 }
 async function loadPluginsView(pluginContainer) {
@@ -753,10 +726,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             populateStudentTable(currentClass.id, 'studentTable', (row, student) => {
                 row.innerHTML = `
                     <td class="student-name">${student.name}</td>
-                    <td class="student-room">${student.room}</td>
                     <td class="student-graduation-level">${graduationLevels[student.graduationLevel]}</td>
                     <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
                 `;
+                populateStudentRowEvent(row, student);
             })
         }
         if (document.getElementById('subjectSelect')) {
