@@ -1,7 +1,7 @@
 plugins {
     java
     application
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("com.gradleup.shadow") version "9.4.3"
     id("com.vanniktech.maven.publish") version "0.37.0"
 }
 
