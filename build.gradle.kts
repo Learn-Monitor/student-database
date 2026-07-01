@@ -7,7 +7,7 @@ plugins {
 
 group = "igs-landstuhl"
 
-version = "v2.0.0-SNAPSHOT-1"
+version = "v2.0.0-SNAPSHOT-2"
 
 application {
     mainClass.set("de.igslandstuhl.database.Application")
@@ -15,6 +15,14 @@ application {
 
 repositories {
     mavenCentral()
+    maven {
+        name = "Plugin Loader Repository"
+        url = uri("https://maven.pkg.github.com/Learn-Monitor/plugin-loader/")
+        credentials {
+            username = System.getenv("GITHUB_ACTOR")
+            password = System.getenv("GITHUB_TOKEN")
+        }
+    }
 }
 
 dependencies {
@@ -23,11 +31,13 @@ dependencies {
     implementation("commons-codec:commons-codec:1.19.0")
     implementation("com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20260101.1")
     implementation("org.jline:jline:3.30.6") // for better console input handling
-    implementation("org.yaml:snakeyaml:2.2") // plugin imports
 
     // Logging
     implementation("org.slf4j:slf4j-api:2.0.13")
     implementation("ch.qos.logback:logback-classic:1.5.6")
+
+    // built-in plugins
+    implementation("de.igs-landstuhl:plugin-loader:v1.0.5")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4") // using JUnit 5 (latest)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

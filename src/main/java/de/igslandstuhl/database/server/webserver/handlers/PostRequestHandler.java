@@ -31,6 +31,11 @@ import de.igslandstuhl.database.api.Teacher;
 import de.igslandstuhl.database.api.Topic;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.api.results.GenerationResult;
+import de.igslandstuhl.database.plugins.config.BoolSetting;
+import de.igslandstuhl.database.plugins.config.IntSetting;
+import de.igslandstuhl.database.plugins.config.PluginConfig;
+import de.igslandstuhl.database.plugins.config.PluginSetting;
+import de.igslandstuhl.database.plugins.config.ShortAnswerSetting;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.AccessLevel;
 import de.igslandstuhl.database.server.webserver.ContentType;
@@ -382,6 +387,20 @@ public class PostRequestHandler {
             String[] key = rq.getString("key").split(":");
             Registry.pluginRegistry().get(key[0]).getConfig().toggleSetting(key[1]);
             return PostResponse.ok("Plugin setting toggled", ContentType.TEXT_PLAIN, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/set-plugin-setting", AccessLevel.ADMIN, (rq) -> {
+            String[] key = rq.getString("key").split(":");
+            PluginConfig<?> config = Registry.pluginRegistry().get(key[0]).getConfig();
+            PluginSetting<?> setting = config.getSetting(key[1]);
+            if (setting instanceof BoolSetting boolSetting) {
+                boolSetting.setValue(rq.getBoolean("value"));
+            } else if (setting instanceof IntSetting intSetting) {
+                intSetting.setValue(rq.getInt("value"));
+            } else if (setting instanceof ShortAnswerSetting shortAnswerSetting) {
+                shortAnswerSetting.setValue(rq.getString("value"));
+            } else {
+                return PostResponse.badRequest("Setting not found", rq);}
+            return PostResponse.ok("Plugin setting set", ContentType.TEXT_PLAIN, rq);
         });
 
         HttpHandler.registerPostRequestHandler("/student-results-csv", AccessLevel.TEACHER, (rq) -> {
