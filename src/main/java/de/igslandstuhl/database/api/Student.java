@@ -400,6 +400,7 @@ public class Student extends User {
      * @param type the request type
      * @deprecated Use addSubjectRequest(Subject, SubjectRequest) instead
      */
+    @Deprecated
     public void addSubjectRequest(int subjectId, String type) {
         currentRequests.computeIfPresent(subjectId, (key, value) -> {
             value.add(SubjectRequest.fromGermanTranslation(type));
@@ -421,6 +422,7 @@ public class Student extends User {
      * @param type the request type to remove
      * @deprecated Use removeSubjectRequest(Subject, SubjectRequest) instead
      */
+    @Deprecated
     public void removeSubjectRequest(int subjectId, String type) {
         currentRequests.computeIfPresent(subjectId, (key, value) -> {
             value.remove(SubjectRequest.fromGermanTranslation(type));

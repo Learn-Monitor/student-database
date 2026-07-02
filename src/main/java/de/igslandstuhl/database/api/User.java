@@ -76,8 +76,20 @@ public abstract class User implements APIObject {
      */
     public abstract String toJSON();
 
+    /**
+     * Sets the password for the user.
+     * This method should be implemented by subclasses to update the user's password.
+     * @param password the new password
+     * @return the updated User object
+     * @throws SQLException if an error occurs while updating the password
+     */
     public abstract User setPassword(String password) throws SQLException;
 
+    /**
+     * Returns the username of the user.
+     * This method should be implemented by subclasses to provide the user's username.
+     * @return the username of the user
+     */
     public abstract String getUsername();
 
     /**
@@ -113,6 +125,7 @@ public abstract class User implements APIObject {
     /**
      * Returns the password hash of the user.
      * This method should be implemented by subclasses to provide the user's password hash.
+     * @param password the password to hash
      * @return the password hash of the user
      */
     public static String passHash(String password) {

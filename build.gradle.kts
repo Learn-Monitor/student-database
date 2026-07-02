@@ -35,6 +35,9 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+tasks.javadoc {
+    classpath = sourceSets.main.get().compileClasspath
+}
 tasks.test {
     useJUnitPlatform()
     systemProperty("test.environment", "true")

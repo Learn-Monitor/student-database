@@ -28,15 +28,29 @@ import de.igslandstuhl.database.utils.CommandLineUtils;
  * It will later replace Server as main class.
  */
 public final class Application {
+    /** The delimiter for topics in LPT save files. */
     public static final String TOPIC_DELIMITER = "\n";
+    /** The delimiter for titles in LPT save files. */
     public static final String TITLE_DELIMITER = "¶";
+    /** The delimiter for task titles in LPT save files. */
     public static final String TASK_TITLE_DELIMITER = "\\|";
+    /** The delimiter for tasks in LPT save files. */
     public static final String TASK_DELIMITER = "¤";
 
+    /**
+     * The application main logger
+     */
     public static final Logger LOGGER = LoggerFactory.getLogger(Application.class);
+    /**
+     * The logger for the student-database api
+     */
     public static final Logger LOGGER_API = LoggerFactory.getLogger("de.igslandstuhl.database.api");
 
     private static Application instance = new Application(new String[] {"--test-environment", "true"});
+    /**
+     * Returns the singleton instance of the Application.
+     * @return the singleton instance of the Application
+     */
     public static Application getInstance() {
         return instance;
     }

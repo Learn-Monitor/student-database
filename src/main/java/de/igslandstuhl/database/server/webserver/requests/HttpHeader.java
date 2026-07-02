@@ -27,7 +27,6 @@ public class HttpHeader {
     /**
      * Constructs a new PostRequest with the given header and body.
      * @param header the header of the POST request
-     * @param body the body of the POST request
      */
     public HttpHeader(String header) {
         // Example: "POST /login HTTP/1.1"
