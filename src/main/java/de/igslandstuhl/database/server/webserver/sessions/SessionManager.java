@@ -134,7 +134,7 @@ public class SessionManager {
      * Adds a session to the session store.
      * This method is used to create a new session for a user.
      *
-     * @param sessionId The session ID to be added.
+     * @param session The session to be added.
      * @param username  The username associated with the session.
      */
     public void addSessionUser(Session session, String username) {

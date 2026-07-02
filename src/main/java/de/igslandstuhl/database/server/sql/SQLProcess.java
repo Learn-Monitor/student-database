@@ -11,7 +11,7 @@ import java.sql.SQLException;
 public interface SQLProcess {
     /**
      * Executes the SQL process using the given Statement.
-     * @param stmt the Statement to use for execution
+     * @param supplier the statement supplier to prepare the SQL statement
      * @return a ResultSet containing the results of the query
      * @throws SQLException if an SQL error occurs during execution
      */

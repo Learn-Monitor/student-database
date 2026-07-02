@@ -6,6 +6,9 @@ import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
 
+/**
+ * Represents an administrator user in the system.
+ */
 public class Admin extends User {
     private static final String[] SQL_FIELDS = { "username", "password_hash" };
 
@@ -17,12 +20,23 @@ public class Admin extends User {
         this.passwordHash = passwordHash;
     }
 
+    /**
+     * Creates a new Admin user with the specified username and password.
+     * @param username the username
+     * @param password the password
+     * @return the newly created Admin object
+     * @throws SQLException if there's an underlying sql error during the creation process
+     */
     public static Admin create(String username, String password) throws SQLException {
         String passwordHash = passHash(password);
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("admin", username, passwordHash));
         return new Admin(username, passwordHash);
     }
 
+    /**
+     * Deletes this Admin user from the database.
+     * @throws SQLException if there's an underlying sql error during the deletion process
+     */
     public void delete() throws SQLException {
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getDeleteObjectProcess("admin", username));
     }
@@ -58,6 +72,11 @@ public class Admin extends User {
         }
         return new Admin(fields[0], fields[1]);
     }
+    /**
+     * Retrieves an Admin user from the database by their username.
+     * @param username the username of the admin
+     * @return the Admin object if found, or null if not found
+     */
     public static Admin get(String username) {
         try {
             return Server.getInstance().processSingleRequest(Admin::fromSQL, "get_admin_by_username", SQL_FIELDS, username);

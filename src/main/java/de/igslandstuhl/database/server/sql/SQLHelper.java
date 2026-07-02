@@ -41,7 +41,6 @@ public class SQLHelper {
      * Gets an SQL query by its name and replaces placeholders with provided arguments.
      *
      * @param queryName the name of the SQL query file (without extension)
-     * @param args      the arguments to replace in the query
      * @return the SQL query as a String with placeholders replaced
      */
     public static String getSQLQuery(String queryName) {
