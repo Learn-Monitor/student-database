@@ -106,45 +106,6 @@ public class AccessManager {
 
 
     }
-    
-    /**
-     * Checks if a user has access to a specific resource.
-     * 
-     * @param user the username of the user, or null if not authenticated
-     * @param resource the ResourceLocation representing the resource to check access for
-     * @return true if the user has access to the resource, false otherwise
-     * @deprecated Use <code>hasAccess(String user, String path)</code>
-     */
-    @Deprecated
-    public boolean hasAccess(String user, ResourceLocation resource) {
-        return hasAccess(User.getUser(user), resource);
-    }
-    /**
-     * Checks if a user has access to a specific resource.
-     * 
-     * @param user the user, or null if not authenticated
-     * @param resource the ResourceLocation representing the resource to check access for
-     * @return true if the user has access to the resource, false otherwise
-     * @deprecated Use <code>hasAccess(User user, String path)</code>
-     */
-    @Deprecated
-    public boolean hasAccess(User user, ResourceLocation resource) {
-        if (Arrays.asList(PUBLIC_SPACES).contains(resource.namespace()) || Arrays.asList(PUBLIC_LOCATIONS).contains(resource.resource())) {
-            return true;
-        } else if (user != null) {
-            if (resource.namespace().equals(USER_SPACE) || resource.resource().startsWith("my") && !(user == User.ANONYMOUS)) {
-                return true;
-            } else if (resource.namespace().equals(TEACHER_SPACE)) {
-                return user.isTeacher() || user.isAdmin();
-            } else if (resource.namespace().equals(ADMIN_SPACE) || Arrays.asList(ADMIN_LOCATIONS).contains(resource.resource())) {
-                return user.isAdmin();
-            } else {
-                return false;
-            }
-        } else {
-            return false;
-        }
-    }
     /**
      * Checks if a user has access to a specific access level
      * @param user the user, can be null to indicate no user logged in
