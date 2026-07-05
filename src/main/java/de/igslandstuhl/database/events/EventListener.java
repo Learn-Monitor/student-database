@@ -14,8 +14,12 @@ public abstract class EventListener<T extends Event> {
     public EventListener(ListenerPriority priority) {
         this.priority = priority;
     }
+
     public abstract void onEvent(T event);
     public abstract EventType<T> getEventType();
+    public EventFilter<T> getFilter() {
+        return event -> true;
+    }
 
     public ListenerPriority getPriority() {
         return priority;
@@ -36,6 +40,7 @@ public abstract class EventListener<T extends Event> {
         Set<EventListener<T>> eventListeners = getListeners(EventType.of(event));
         if (eventListeners != null) {
             new LinkedList<>(eventListeners).stream()
+                .filter(listener -> listener.getFilter().filter(event))
                 .sorted((a, b) -> a.getPriority().compareTo(b.getPriority()))
                 .forEach(listener -> {
                     if (!event.isCancelled()) {
