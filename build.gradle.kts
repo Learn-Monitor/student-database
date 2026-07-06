@@ -7,7 +7,7 @@ plugins {
 
 group = "io.github.learn-monitor"
 
-version = "s2607b1-SNAPSHOT"
+version = "s2607b2-SNAPSHOT"
 
 application {
     mainClass.set("de.igslandstuhl.database.Application")
@@ -29,7 +29,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.5.6")
 
     // built-in plugins
-    implementation("io.github.learn-monitor:plugin-loader:v1.0.5")
+    implementation("io.github.learn-monitor:plugin-loader:v1.0.6")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4") // using JUnit 5 (latest)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
