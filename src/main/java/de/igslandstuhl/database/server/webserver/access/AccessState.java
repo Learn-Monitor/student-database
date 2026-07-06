@@ -1,5 +1,8 @@
 package de.igslandstuhl.database.server.webserver.access;
 
+/**
+ * AccessState represents the different states of access a user can have to a resource.
+ */
 public enum AccessState {
     /**
      * The user is not logged in and does not have access to the resource.
