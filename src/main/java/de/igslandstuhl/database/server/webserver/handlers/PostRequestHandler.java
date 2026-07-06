@@ -37,8 +37,8 @@ import de.igslandstuhl.database.plugins.config.PluginConfig;
 import de.igslandstuhl.database.plugins.config.PluginSetting;
 import de.igslandstuhl.database.plugins.config.ShortAnswerSetting;
 import de.igslandstuhl.database.server.Server;
-import de.igslandstuhl.database.server.webserver.AccessLevel;
 import de.igslandstuhl.database.server.webserver.ContentType;
+import de.igslandstuhl.database.server.webserver.access.AccessLevel;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
 import de.igslandstuhl.database.server.webserver.responses.HttpResponse;
@@ -79,8 +79,6 @@ public class PostRequestHandler {
      * Handles the POST request based on the path specified in the request.
      * It routes the request to the appropriate handler method based on the path.
      * @param request
-     * @param in
-     * @param out
      * @throws IOException
      */
     public HttpResponse handlePostRequest(PostRequest request) throws IOException {

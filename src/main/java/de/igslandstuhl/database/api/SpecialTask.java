@@ -126,9 +126,9 @@ public class SpecialTask extends Task {
      * Adds a new special task to the database.
      * This method creates a new task associated with a specific topic and level of difficulty.
      *
-     * @param topic the topic to which the task belongs, or null if not associated with any topic
      * @param name  the name of the task
-     * @param niveau the level of difficulty for the task
+     * @param ratio the ratio indicating the proportion of progress achievable at this level
+     * @param subject the subject area to which the task belongs
      * @throws SQLException if there is an error accessing the database
      * @return the newly created SpecialTask object, or null if the task could not be added
      */

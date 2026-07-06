@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
+import de.igslandstuhl.database.server.webserver.access.AccessLevel;
 import de.igslandstuhl.database.server.webserver.requests.RequestType;
 
 public record WebPath(RequestType type, String handlerType, List<String> namespaces, String context, AccessLevel accessLevel) {
