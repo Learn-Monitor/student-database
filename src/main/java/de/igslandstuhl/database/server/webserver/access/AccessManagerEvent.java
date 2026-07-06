@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.events.access;
+package de.igslandstuhl.database.server.webserver.access;
 
 import java.util.Optional;
 
@@ -10,14 +10,20 @@ public class AccessManagerEvent extends Event {
 
     private final AccessState accessState;
 
+    private final String path;
+
     private Optional<AccessState> changedAccessState = Optional.empty();
 
-    public AccessManagerEvent(AccessState accessState) {
+    public AccessManagerEvent(AccessState accessState, String path) {
         this.accessState = accessState;
+        this.path = path;
     }
 
     public AccessState getAccessState() {
         return accessState;
+    }
+    public String getPath() {
+        return path;
     }
     public Optional<AccessState> getChangedAccessState() {
         return changedAccessState;
@@ -32,16 +38,16 @@ public class AccessManagerEvent extends Event {
         this.cancel();
     }
 
-    public static AccessManagerEvent unauthorized() {
-        return new AccessManagerEvent(AccessState.UNAUTHORIZED);
+    public static AccessManagerEvent unauthorized(String path) {
+        return new AccessManagerEvent(AccessState.UNAUTHORIZED, path);
     }
-    public static AccessManagerEvent authorized() {
-        return new AccessManagerEvent(AccessState.AUTHORIZED);
+    public static AccessManagerEvent authorized(String path) {
+        return new AccessManagerEvent(AccessState.AUTHORIZED, path);
     }
-    public static AccessManagerEvent restricted() {
-        return new AccessManagerEvent(AccessState.RESTRICTED);
+    public static AccessManagerEvent restricted(String path) {
+        return new AccessManagerEvent(AccessState.RESTRICTED, path);
     }
-    public static AccessManagerEvent pending() {
-        return new AccessManagerEvent(AccessState.PENDING);
+    public static AccessManagerEvent pending(String path) {
+        return new AccessManagerEvent(AccessState.PENDING, path);
     }
 }

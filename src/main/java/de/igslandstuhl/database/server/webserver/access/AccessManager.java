@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.server.webserver;
+package de.igslandstuhl.database.server.webserver.access;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -6,8 +6,6 @@ import org.slf4j.LoggerFactory;
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.events.EventListener;
-import de.igslandstuhl.database.events.access.AccessManagerEvent;
-import de.igslandstuhl.database.events.access.AccessState;
 
 /**
  * AccessManager is responsible for managing access to resources based on user roles and resource locations.
@@ -27,9 +25,9 @@ public class AccessManager {
      * Checks if a user has access to a specific access level
      * @param user the user, can be null to indicate no user logged in
      * @param accessLevel the access level
-     * @return true, if the user has access, otherwise false
+     * @return the access state of the user for the given access level
      */
-    public boolean hasAccess(User user, AccessLevel accessLevel) {
+    private AccessState getAccessState(User user, AccessLevel accessLevel) {
         AccessState result;
         if (accessLevel == AccessLevel.PUBLIC) {
             result = AccessState.PERMITTED;
@@ -40,19 +38,16 @@ public class AccessManager {
         } else if (accessLevel == AccessLevel.USER) {
             result = AccessState.AUTHORIZED;
         } else if (accessLevel == AccessLevel.STUDENT) {
-            result = user.isStudent() ? AccessState.AUTHORIZED : AccessState.UNAUTHORIZED;
+            result = user.isStudent() ? AccessState.AUTHORIZED : AccessState.RESTRICTED;
         } else if (user.isStudent()) {
-            result = AccessState.UNAUTHORIZED;
+            result = AccessState.RESTRICTED;
         } else if (accessLevel == AccessLevel.TEACHER) {
             result = AccessState.AUTHORIZED;
         } else {
-            result = user.isAdmin() ? AccessState.AUTHORIZED : AccessState.UNAUTHORIZED; // Must be AccessLevel.ADMIN
+            result = user.isAdmin() ? AccessState.AUTHORIZED : AccessState.RESTRICTED; // Must be AccessLevel.ADMIN
         }
         // Fire an AccessManagerEvent to allow for external modifications of the access decision
-        AccessManagerEvent event = new AccessManagerEvent(result);
-        EventListener.fireEvent(event);
-        result = event.getChangedAccessState().orElse(result);
-        return result == AccessState.AUTHORIZED || result == AccessState.PERMITTED;
+        return result;
     }
     /**
      * Checks if a user has access to a specific web path
@@ -71,6 +66,13 @@ public class AccessManager {
      */
     public boolean hasAccess(User user, String path) {
         AccessLevel accessLevel = Registry.webPathRegistry().get(path).accessLevel();
-        return hasAccess(user, accessLevel);
+        AccessState result = getAccessState(user, accessLevel);
+
+        AccessManagerEvent event = new AccessManagerEvent(result, path);
+        EventListener.fireEvent(event);
+
+        result = event.getChangedAccessState().orElse(result);
+
+        return result == AccessState.AUTHORIZED || result == AccessState.PERMITTED;
     }
 }

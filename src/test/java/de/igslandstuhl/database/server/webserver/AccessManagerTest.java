@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import de.igslandstuhl.database.api.User;
+import de.igslandstuhl.database.server.webserver.access.AccessManager;
 
 public class AccessManagerTest {
     private User teacher;

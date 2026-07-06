@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.events.access;
+package de.igslandstuhl.database.server.webserver.access;
 
 import de.igslandstuhl.database.events.EventFilter;
 
