@@ -97,3 +97,15 @@ mavenPublishing {
 tasks.withType<AbstractPublishToMaven>().configureEach {
     dependsOn(tasks.withType<Sign>())
 }
+publishing {
+    repositories {
+        maven {
+            name = "snapshots"
+            url = uri("https://maven.pkg.github.com/Learn-Monitor/student-database")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR") ?: findProperty("gpr.user") as String?
+                password = System.getenv("GITHUB_TOKEN") ?: findProperty("gpr.key") as String?
+            }
+        }
+    }
+}
