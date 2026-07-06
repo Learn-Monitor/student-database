@@ -7,7 +7,7 @@ plugins {
 
 group = "io.github.learn-monitor"
 
-version = "v2.0.0-SNAPSHOT-3"
+version = "s2607b1-SNAPSHOT"
 
 application {
     mainClass.set("de.igslandstuhl.database.Application")
@@ -96,4 +96,16 @@ mavenPublishing {
 }
 tasks.withType<AbstractPublishToMaven>().configureEach {
     dependsOn(tasks.withType<Sign>())
+}
+publishing {
+    repositories {
+        maven {
+            name = "snapshots"
+            url = uri("https://maven.pkg.github.com/Learn-Monitor/student-database")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR") ?: findProperty("gpr.user") as String?
+                password = System.getenv("GITHUB_TOKEN") ?: findProperty("gpr.key") as String?
+            }
+        }
+    }
 }

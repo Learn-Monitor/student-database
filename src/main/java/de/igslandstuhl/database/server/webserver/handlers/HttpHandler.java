@@ -5,8 +5,8 @@ import org.slf4j.LoggerFactory;
 
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.server.Server;
-import de.igslandstuhl.database.server.webserver.AccessLevel;
 import de.igslandstuhl.database.server.webserver.Status;
+import de.igslandstuhl.database.server.webserver.access.AccessLevel;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;

@@ -1,13 +1,16 @@
 # .github/workflows/publish.yml
-
 name: Publish
 on:
   release:
     types: [released, prereleased]
+
 jobs:
   publish:
     name: Release build and publish
     runs-on: macOS-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -16,7 +19,15 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: 21
-      - name: Publish to MavenCentral
+      - name: Publish SNAPSHOT to snapshot repo
+        if: github.event.action == 'prereleased'
+        run: ./gradlew publishAllPublicationsToSnapshotsRepository --no-configuration-cache
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish release to Maven Central
+        if: github.event.action == 'released'
         run: ./gradlew publishToMavenCentral --no-configuration-cache
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
@@ -24,4 +35,3 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_KEY_CONTENTS }}
-

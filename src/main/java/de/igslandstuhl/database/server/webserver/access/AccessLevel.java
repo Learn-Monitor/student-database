@@ -1,4 +1,4 @@
-package de.igslandstuhl.database.server.webserver;
+package de.igslandstuhl.database.server.webserver.access;
 
 import de.igslandstuhl.database.api.User;
 
