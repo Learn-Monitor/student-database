@@ -1,6 +1,9 @@
 package de.igslandstuhl.database.api;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.server.Server;
@@ -84,6 +87,29 @@ public class Admin extends User {
             Application.LOGGER_API.error("Failed to retrieve Admin user '{}' from database", username, e);
             return null;
         }
+    }
+    /**
+     * Retrieves all admins from the database.
+     * This method queries the database for all admins and returns a list of Admin objects.
+     *
+     * @return a list of all students
+     */
+    public static List<Admin> getAll() {
+        List<String> adminUsernames = new ArrayList<>();
+        try {
+            Server.getInstance().processRequest(
+                fields -> {
+                    adminUsernames.add(fields[0]);
+                },
+                "get_all_admins", SQL_FIELDS
+            );
+        } catch (SQLException e) {
+            Application.LOGGER_API.error("Failed to retrieve student list from database", e);
+        }
+        return adminUsernames.stream()
+            .map(Admin::get)
+            .filter(Objects::nonNull)
+            .toList();
     }
 
     @Override
