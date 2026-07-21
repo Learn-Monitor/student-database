@@ -155,7 +155,7 @@ public class GetResponse implements HttpResponse {
     }
     public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating, boolean isMerging, String path) {
         try {
-            if (AccessManager.getInstance().hasAccess(user, path)) {
+            if (AccessManager.getInstance().hasAccess(user, path, request)) {
                 return new GetResponse(request, Status.OK, resourceLocation, ContentType.ofResourceLocation(resourceLocation), user, isTemplating, isMerging);
             } else {
                 return unauthorized(request);
