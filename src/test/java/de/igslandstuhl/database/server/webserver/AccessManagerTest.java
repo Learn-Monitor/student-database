@@ -120,37 +120,37 @@ public class AccessManagerTest {
     }
     @Test
     public void testIconAccess() {
-        assertTrue(AccessManager.getInstance().hasAccess(anonymous, "/favicon.ico"));
-        assertTrue(AccessManager.getInstance().hasAccess(student, "/favicon.ico"));
-        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/favicon.ico"));
-        assertTrue(AccessManager.getInstance().hasAccess(admin, "/favicon.ico"));
+        assertTrue(AccessManager.getInstance().hasAccess(anonymous, "/favicon.ico", null));
+        assertTrue(AccessManager.getInstance().hasAccess(student, "/favicon.ico", null));
+        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/favicon.ico", null));
+        assertTrue(AccessManager.getInstance().hasAccess(admin, "/favicon.ico", null));
     }
     @Test
     public void testLoginAccess() {
-        assertTrue(AccessManager.getInstance().hasAccess(anonymous, "/login"));
-        assertTrue(AccessManager.getInstance().hasAccess(student, "/login"));
-        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/login"));
-        assertTrue(AccessManager.getInstance().hasAccess(admin, "/login"));
+        assertTrue(AccessManager.getInstance().hasAccess(anonymous, "/login", null));
+        assertTrue(AccessManager.getInstance().hasAccess(student, "/login", null));
+        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/login", null));
+        assertTrue(AccessManager.getInstance().hasAccess(admin, "/login", null));
     }
     @Test
     public void testDashboardAccess() {
-        assertFalse(AccessManager.getInstance().hasAccess(anonymous, "/dashboard"));
-        assertTrue(AccessManager.getInstance().hasAccess(student, "/dashboard"));
-        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/dashboard"));
-        assertTrue(AccessManager.getInstance().hasAccess(admin, "/dashboard"));
+        assertFalse(AccessManager.getInstance().hasAccess(anonymous, "/dashboard", null));
+        assertTrue(AccessManager.getInstance().hasAccess(student, "/dashboard", null));
+        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/dashboard", null));
+        assertTrue(AccessManager.getInstance().hasAccess(admin, "/dashboard", null));
     }
     @Test
     public void testStudentManagementAccess() {
-        assertFalse(AccessManager.getInstance().hasAccess(anonymous, "/student"));
-        assertFalse(AccessManager.getInstance().hasAccess(student, "/student"));
-        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/student"));
-        assertTrue(AccessManager.getInstance().hasAccess(admin, "/student"));
+        assertFalse(AccessManager.getInstance().hasAccess(anonymous, "/student", null));
+        assertFalse(AccessManager.getInstance().hasAccess(student, "/student", null));
+        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/student", null));
+        assertTrue(AccessManager.getInstance().hasAccess(admin, "/student", null));
     }
     @Test
     public void testTeacherManagementAccess() {
-        assertFalse(AccessManager.getInstance().hasAccess(anonymous, "/teacher"));
-        assertFalse(AccessManager.getInstance().hasAccess(student, "/teacher"));
-        assertFalse(AccessManager.getInstance().hasAccess(teacher, "/teacher"));
-        assertTrue(AccessManager.getInstance().hasAccess(admin, "/teacher"));
+        assertFalse(AccessManager.getInstance().hasAccess(anonymous, "/teacher", null));
+        assertFalse(AccessManager.getInstance().hasAccess(student, "/teacher", null));
+        assertFalse(AccessManager.getInstance().hasAccess(teacher, "/teacher", null));
+        assertTrue(AccessManager.getInstance().hasAccess(admin, "/teacher", null));
     }
 }

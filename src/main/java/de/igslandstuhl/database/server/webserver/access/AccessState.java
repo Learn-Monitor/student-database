@@ -21,7 +21,7 @@ public enum AccessState {
      */
     PENDING,
     /**
-     * The user is logged in and has been granted access to the resource.
+     * The user has been granted access to the resource, regardless of their login state.
      */
     PERMITTED
 }

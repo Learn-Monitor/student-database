@@ -1,6 +1,8 @@
 package de.igslandstuhl.database.api;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import org.apache.commons.codec.digest.DigestUtils;
@@ -110,6 +112,20 @@ public abstract class User implements APIObject {
         Admin admin = Admin.get(username);
         if (admin != null) return admin;
         return null;
+    }
+
+    public static List<User> getAllUsers() {
+        List<Admin> allAdmins = Admin.getAll();
+        List<Teacher> allTeachers = Teacher.getAll();
+        List<Student> allStudents = Student.getAll();
+
+        List<User> result = new ArrayList<>(allAdmins.size() + allTeachers.size() + allStudents.size() + 1);
+        result.addAll(allAdmins);
+        result.addAll(allTeachers);
+        result.addAll(allStudents);
+        result.add(ANONYMOUS);
+
+        return result;
     }
 
     public static String generateRandomPassword(int length, long seed) {

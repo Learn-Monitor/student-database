@@ -158,7 +158,7 @@ public class PostResponse implements HttpResponse {
      */
     public static PostResponse getResource(ResourceLocation resourceLocation, String user, PostRequest request, String path) {
         try {
-            if (AccessManager.getInstance().hasAccess(user, path)) {
+            if (AccessManager.getInstance().hasAccess(user, path, request)) {
                 return new PostResponse(Status.OK, GetResponse.getResource(request, resourceLocation, user, false, path).getResponseBody(), ContentType.ofResourceLocation(resourceLocation), request);
             } else {
                 return unauthorized("You have to be logged in to access this resource.", request);

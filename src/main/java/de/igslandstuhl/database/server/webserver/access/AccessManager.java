@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.events.EventListener;
+import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 
 /**
  * AccessManager is responsible for managing access to resources based on user roles and resource locations.
@@ -55,8 +56,8 @@ public class AccessManager {
      * @param path the web path
      * @return true, if the user has access, otherwise false
      */
-    public boolean hasAccess(String user, String path)  {
-        return hasAccess(User.getUser(user), path);
+    public boolean hasAccess(String user, String path, HttpRequest request)  {
+        return hasAccess(User.getUser(user), path, request);
     }
     /**
      * Checks if a user has access to a specific web path
@@ -64,11 +65,11 @@ public class AccessManager {
      * @param path the web path
      * @return true, if the user has access, otherwise false
      */
-    public boolean hasAccess(User user, String path) {
+    public boolean hasAccess(User user, String path, HttpRequest request) {
         AccessLevel accessLevel = Registry.webPathRegistry().get(path).accessLevel();
         AccessState result = getAccessState(user, accessLevel);
 
-        AccessManagerEvent event = new AccessManagerEvent(result, path);
+        AccessManagerEvent event = new AccessManagerEvent(result, path, request);
         EventListener.fireEvent(event);
 
         result = event.getChangedAccessState().orElse(result);
