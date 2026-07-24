@@ -34,6 +34,23 @@ public class MergeHelper {
             }
         );
     }
+    public static Map<String, ?> readJsonObjectFullMerged(ResourceManager manager, ResourceLocation location) {
+        Gson gson = new Gson();
+
+        return manager.mergeResources(location,
+                MergeHelper::deepMerge,
+                //start supplier
+                () -> (Map<String,Object>)new LinkedHashMap<String, Object>(),
+                // parser
+                (is) -> {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                        return gson.fromJson(reader, new TypeToken<Map<String, Object>>(){}.getType());
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+        );
+    }
     public static <T> List<T> readJsonListMerged(ResourceManager manager, ResourceLocation location, TypeToken<List<T>> listType) {
         Gson gson = new Gson();
 
@@ -78,5 +95,24 @@ public class MergeHelper {
                 }
             }
         );
+    }
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> deepMerge(Map<String, Object> a, Map<String, Object> b) {
+        for (Map.Entry<String, Object> entry : b.entrySet()) {
+            String key = entry.getKey();
+            Object newValue = entry.getValue();
+            Object oldValue = a.get(key);
+            if (oldValue instanceof Map && newValue instanceof Map) {
+                a.put(key, deepMerge((Map<String, Object>) oldValue, (Map<String, Object>) newValue));
+            }
+            else if (oldValue instanceof List && newValue instanceof List) {
+                ((List<Object>) oldValue).addAll((List<Object>) newValue);
+            }
+            else {
+                a.put(key, newValue);
+            }
+        }
+
+        return a;
     }
 }
