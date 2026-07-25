@@ -131,7 +131,7 @@ public abstract class User implements APIObject {
     public static String generateRandomPassword(int length, long seed) {
         StringBuilder password = new StringBuilder();
         Random random = new Random(seed);
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-+";
+        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz123456789,.!?";
         for (int i = 0; i < length; i++) {
             password.append(chars.charAt(random.nextInt(chars.length())));
         }
