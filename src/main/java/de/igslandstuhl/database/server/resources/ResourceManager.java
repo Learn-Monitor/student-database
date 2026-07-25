@@ -197,6 +197,9 @@ public class ResourceManager {
     public Map<String,?> readJsonResourceMerged(ResourceLocation location) {
         return MergeHelper.readJsonObjectMerged(this, location);
     }
+    public Map<String,?> readJsonResourceFullMerged(ResourceLocation location) {
+        return MergeHelper.readJsonObjectFullMerged(this, location);
+    }
     public <T> List<T> readJsonListMerged(ResourceLocation location, TypeToken<List<T>> token) {
         return MergeHelper.readJsonListMerged(this, location, token);
     }
