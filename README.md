@@ -54,6 +54,12 @@ Ensure you have the following installed:
      keytool -genkey -keyalg RSA -keystore keys/web/keystore.jks -storetype JKS
      ```
 
+     For a PKCS12 keystore, use for example:
+
+     ```bash
+     keytool -genkeypair -alias student-database -keyalg RSA -keystore keys/web/keystore.p12 -storetype PKCS12
+     ```
+
 ### ⬇️ Download latest release
 
 #### 🥖 Prerequisites
@@ -98,6 +104,9 @@ There are a few command line arguments you can give the program:
     Specifies the path to the keystore
 - `--keystore-password (keystore pass)`
     The password you entered when generating the keystore.
+- `--keystore-type (keystore type)`
+    Specifies the keystore type used by the web server, for example `JKS` or `PKCS12`.
+    Default value: `JKS`
 
 ### 🌐 Web interface
 
