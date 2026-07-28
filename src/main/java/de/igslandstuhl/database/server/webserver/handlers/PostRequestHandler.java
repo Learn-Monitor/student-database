@@ -226,7 +226,7 @@ public class PostRequestHandler {
         });
         HttpHandler.registerPostRequestHandler("/add-class", AccessLevel.ADMIN, (rq) -> {
             SchoolClass.addClass(rq.getString("className"), rq.getInt("grade"));
-            return PostResponse.redirect("/manage_subjects", rq);
+            return PostResponse.redirect("/manage_classes", rq);
         });
         HttpHandler.registerPostRequestHandler("/lpt-file", AccessLevel.ADMIN, (rq) -> {
             String file = prepare(rq.getBodyAsString().replaceFirst("file=", "").replace("Â", ""));
