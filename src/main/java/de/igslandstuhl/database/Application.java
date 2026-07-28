@@ -12,6 +12,7 @@ import de.igslandstuhl.database.api.SerializationException;
 import de.igslandstuhl.database.api.Subject;
 import de.igslandstuhl.database.api.Topic;
 import de.igslandstuhl.database.client.HTMLTemplate;
+import de.igslandstuhl.database.events.EventListener;
 import de.igslandstuhl.database.holidays.Holiday;
 import de.igslandstuhl.database.plugins.PluginLoader;
 import de.igslandstuhl.database.server.Server;
@@ -134,6 +135,9 @@ public final class Application {
             Command.registerCommands();
             CommandLineUtils.setup();
         }
+
+        LOGGER.info("Registering event types...");
+        EventListener.registerTypes();
 
         LOGGER.info("Setting up server...");
 

@@ -5,6 +5,7 @@ import java.util.LinkedList;
 import java.util.Set;
 
 import de.igslandstuhl.database.Registry;
+import de.igslandstuhl.database.server.webserver.access.AccessManagerEvent;
 
 public abstract class EventListener<T extends Event> {
     private static final Registry<EventType<?>, Set<EventListener<?>>> listeners = new Registry<>();
@@ -30,6 +31,9 @@ public abstract class EventListener<T extends Event> {
 
     public static void register(EventType<?> type) {
         listeners.register(type, new HashSet<>());
+    }
+    public static void registerTypes() {
+        register(AccessManagerEvent.TYPE);
     }
 
     @SuppressWarnings("unchecked")
