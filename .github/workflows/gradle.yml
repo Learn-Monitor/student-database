@@ -42,6 +42,9 @@ jobs:
     - name: Build fat JAR
       run: ./gradlew shadowJar --stacktrace --info
 
+    - name: Build ZIP with regular JAR and resources
+      run: ./gradlew releaseZip --stacktrace --info
+
     - name: Upload fat JAR as artifact
       uses: actions/upload-artifact@v4
       with:
@@ -52,7 +55,9 @@ jobs:
       if: github.event_name == 'release'
       uses: softprops/action-gh-release@v2
       with:
-        files: build/libs/student-database-*-fat.jar
+        files: |
+          build/libs/student-database-*-fat.jar
+          build/distributions/student-database-*-resources.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

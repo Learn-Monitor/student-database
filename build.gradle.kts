@@ -109,3 +109,27 @@ publishing {
         }
     }
 }
+
+/**
+ * Creates a release archive containing the regular JAR and the resource
+ * directory used by FileResourceProvider.
+ */
+tasks.register<org.gradle.api.tasks.bundling.Zip>("releaseZip") {
+    group = "distribution"
+    description = "Bundles the regular JAR and external resource files."
+
+    val regularJar = tasks.named<org.gradle.api.tasks.bundling.Jar>("jar")
+
+    dependsOn(regularJar)
+
+    archiveBaseName.set("student-database")
+    archiveVersion.set(project.version.toString())
+    archiveClassifier.set("resources")
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+
+    from(regularJar.flatMap { it.archiveFile })
+
+    from("src/main/resources") {
+        into("resources")
+    }
+}
