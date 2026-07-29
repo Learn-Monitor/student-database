@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.owasp.html.PolicyFactory;
 import org.owasp.html.Sanitizers;
@@ -298,6 +299,11 @@ public class PostRequestHandler {
                         .addProperty("help", subjectRequests.stream().anyMatch(r -> r == SubjectRequest.HELP))
                         .addProperty("test", subjectRequests.stream().anyMatch(r -> r == SubjectRequest.EXAM))
                         .addProperty("partner", subjectRequests.stream().anyMatch(r -> r == SubjectRequest.PARTNER));
+                        String currentTask = student.getSelectedTasks().stream()
+                            .filter(task -> task.getSubject() != null && task.getSubject().equals(rq.getSubject()))
+                            .map(Task::getName)
+                            .collect(Collectors.joining(", "));
+                        builder.addProperty("currentTask", currentTask);
                     }
                 }),
                 ContentType.JSON, rq
