@@ -31,7 +31,7 @@ dependencies {
     // built-in plugins
     implementation("io.github.learn-monitor:plugin-loader:v1.0.6")
 
-    testImplementation("org.junit.jupiter:junit-jupiter:5.13.4") // using JUnit 5 (latest)
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.2") // using JUnit 5 (latest)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
