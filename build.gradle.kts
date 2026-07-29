@@ -18,7 +18,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.xerial:sqlite-jdbc:3.50.3.0")
+    implementation("org.xerial:sqlite-jdbc:3.53.2.1")
     implementation("com.google.code.gson:gson:2.14.0")
     implementation("commons-codec:commons-codec:1.19.0")
     implementation("com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20260313.1")
