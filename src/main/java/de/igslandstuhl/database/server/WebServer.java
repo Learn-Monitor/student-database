@@ -56,10 +56,10 @@ public class WebServer implements Runnable {
         return userManager;
     }
 
-    public WebServer(int port, String keystorePath, String keystorePassword)
+    public WebServer(int port, String keystorePath, String keystorePassword, String keystoreType)
             throws KeyStoreException, FileNotFoundException, IOException,
             NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException, KeyManagementException {
-        KeyStore ks = KeyStore.getInstance("JKS");
+        KeyStore ks = KeyStore.getInstance(keystoreType);
         try (FileInputStream fis = new FileInputStream(keystorePath)) {
             ks.load(fis, keystorePassword.toCharArray());
         }

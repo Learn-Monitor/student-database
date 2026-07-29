@@ -7,6 +7,7 @@ import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.Status;
 import de.igslandstuhl.database.server.webserver.access.AccessLevel;
+import de.igslandstuhl.database.server.webserver.access.AccessManager;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
@@ -32,7 +33,8 @@ public class HttpHandler<Rq extends HttpRequest> {
         if (contentLength <= 0 && !(request instanceof GetRequest)) {
             return HttpResponse.error(request, Status.BAD_REQUEST);
         }
-        if (!accessLevel.hasAccess(sessionManager.getSessionUser(request))) {
+        if (!AccessManager.getInstance().hasAccess(
+                sessionManager.getSessionUser(request), path, request)) {
             return HttpResponse.error(request, Status.UNAUTHORIZED);
         } else if (!path.equals(request.getPath().split("\\?")[0])) {
             LOGGER.error("Wrong path for HTTP handler: path {} does not match handler path {}", request.getPath(), path);
