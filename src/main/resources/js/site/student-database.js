@@ -228,6 +228,7 @@ async function populateSubjectStudentList(subjectSelectId, classSelectId, studen
       const row = document.createElement('tr');
       row.innerHTML = `
           <td class="student-name">${student.name}</td>
+          <td class="student-current-task">${student.currentTask || "–"}</td>
           <td class="student-help">${student.help ? "Ja" : "Nein"}</td>
           <td class="student-experiment">${student.experiment ? "Ja" : "Nein"}</td>
           <td class="student-partner">${student.partner ? "Ja" : "Nein"}</td>
