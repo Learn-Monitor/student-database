@@ -1,8 +1,5 @@
 package de.igslandstuhl.database.server.webserver.requests;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import de.igslandstuhl.database.server.webserver.Cookie;
 
 public class HttpHeader {
@@ -41,15 +38,7 @@ public class HttpHeader {
             if (line.startsWith("Content-Length:")) {
                 contentLength = Integer.parseInt(line.split(":")[1].trim());
             } else if (line.startsWith("Cookie:")) {
-                String[] cookieData = line.substring(7).split(";");
-                List<Cookie> cookieList = new ArrayList<>();
-                for (String cookie : cookieData) {
-                    String[] keyValue = cookie.trim().split("=");
-                    if (keyValue.length == 2) {
-                        cookieList.add(new Cookie(keyValue[0].trim(), keyValue[1].trim()));
-                    }
-                }
-                cookies = cookieList.toArray(new Cookie[0]);
+                cookies = Cookie.parse(line.substring(7));
             } else if (line.startsWith("User-Agent:")) {
                 userAgent = line.split(":")[1].trim();
             } else if (line.startsWith("Accept-Language:")) {
