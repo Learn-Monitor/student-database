@@ -101,7 +101,7 @@ public abstract class User implements APIObject {
      * @return the User object if found, or null if not found
      */
     public static User getUser(String username) {
-        if (username == null || username.isEmpty()) {
+        if (username == null || username.isEmpty() || username.equals("ANONYMOUS")) {
             return ANONYMOUS;
         }
         username = username.replace("%40", "@");
