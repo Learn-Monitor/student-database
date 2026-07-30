@@ -64,6 +64,38 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
             lock.writeLock().unlock();
         }
     }
+    /**
+     * Applies schema migrations to the database by executing SQL scripts.
+     * This method reads SQL files matching the pattern "./migrations/*.sql" (regex: .*migrations.+\.sql) and executes their content.
+     * Migrations are expected to be idempotent-safe: if a migration was already applied (e.g. a column
+     * already exists), the resulting SQL error is logged at debug level and ignored, so that re-running
+     * migrations on an already up-to-date database is harmless.
+     * @param supplier the Statement object used to execute the SQL commands
+     * @throws SQLException if an SQL error occurs during migration that is not an "already applied" error
+     */
+    private void migrateTables(PreparedStatementSupplier supplier) throws SQLException {
+        lock.writeLock().lock();
+        try {
+            for (BufferedReader in : Server.getInstance().getResourceManager().openResourcesAsReader(Pattern.compile(".*migrations.+\\.sql"))) {
+                try (in) {
+                    String request = Server.getInstance().getResourceManager().readResourceCompletely(in);
+                    try {
+                        supplier.executeUpdate(request);
+                    } catch (SQLException e) {
+                        if (e.getMessage() != null && e.getMessage().toLowerCase().contains("duplicate column name")) {
+                            LOGGER.debug("Skipping already applied migration: {}", request);
+                        } else {
+                            throw e;
+                        }
+                    }
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         if (pendingStatement.get() != null && !pendingStatement.get().isClosed()) throw new SQLMultipleAccessesException("Multiple statements created at one time in one thread - use another Thread for callbacks etc.");
@@ -164,6 +196,15 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
     public void createTables() throws SQLException {
         LOGGER.debug("Creating Database Tables...");
         executeVoidProcessSecure(this::createTables);
+    }
+    /**
+     * Applies schema migrations to the database by executing SQL scripts.
+     * This method reads SQL files matching the pattern "./migrations/*.sql" (regex: .*migrations.+\.sql) and executes their content.
+     * @throws SQLException if an SQL error occurs during migration
+     */
+    public void migrateTables() throws SQLException {
+        LOGGER.debug("Applying database migrations...");
+        executeVoidProcessSecure(this::migrateTables);
     }
     
     /**

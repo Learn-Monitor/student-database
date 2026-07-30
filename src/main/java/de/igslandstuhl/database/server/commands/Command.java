@@ -1,6 +1,8 @@
 package de.igslandstuhl.database.server.commands;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -219,6 +221,22 @@ public interface Command {
             }
             return "School Year successfully removed";
         }, new CommandDescription("remove-school-year", "Removes a school year", "remove-school-year [label]"));
+        registerCommand("set-school-year-dates", (args) -> {
+            if (args.length != 3) return "Usage: set-school-year-dates [label] [start date yyyy-MM-dd] [end date yyyy-MM-dd]";
+            SchoolYear schoolYear = SchoolYear.get(args[0]);
+            if (schoolYear == null) return "School year not found";
+            try {
+                LocalDate startDate = LocalDate.parse(args[1]);
+                LocalDate endDate = LocalDate.parse(args[2]);
+                schoolYear.setStartDate(startDate);
+                schoolYear.setEndDate(endDate);
+            } catch (DateTimeParseException e) {
+                return "Invalid date format, expected yyyy-MM-dd";
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+            return "School year dates successfully updated";
+        }, new CommandDescription("set-school-year-dates", "Sets the start and end date of a school year", "set-school-year-dates [label] [start date yyyy-MM-dd] [end date yyyy-MM-dd]"));
         // User commands
         registerCommand("regenerate-user-password", (args) -> {
             if (args.length != 1) return "Usage: regenerate-user-password [user]";
