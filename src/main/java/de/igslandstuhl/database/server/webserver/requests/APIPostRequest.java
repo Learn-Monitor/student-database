@@ -49,18 +49,22 @@ public class APIPostRequest extends PostRequest {
         return Server.getInstance().getWebServer().getSessionManager().getSessionUser(this);
     }
     public Subject getSubject() {
+        if (!containsKey("subjectId")) return null;
         return Subject.get(getInt("subjectId"));
     }
     public Topic getTopic() {
+        if (!containsKey("topicId")) return null;
         return Topic.get(getInt("topicId"));
     }
     public SubjectRequest getSubjectRequest() {
         return SubjectRequest.fromGermanTranslation(getString("subjectRequest"));
     }
     public Task getTask() {
+        if (!containsKey("taskId")) return null;
         return Task.get(getInt("taskId"));
     }
     public SchoolClass getSchoolClass() {
+        if (!containsKey("classId")) return null;
         return SchoolClass.get(getInt("classId"));
     }
     @SuppressWarnings("unchecked")
