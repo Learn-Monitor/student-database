@@ -168,7 +168,7 @@ public class PostResponse implements HttpResponse {
         } catch (FileNotFoundException e) {
             return notFound("The requested resource was not found: " + resourceLocation, request);
         } catch (Exception e) {
-            HttpHandler.LOGGER.warn("Failed to get resource for request {} on resource location {}", request, resourceLocation);
+            HttpHandler.LOGGER.warn("Failed to get resource for request {} on resource location {}", request, resourceLocation, e);
             return internalServerError("An error occurred while processing your request.", request);
         }
     }
