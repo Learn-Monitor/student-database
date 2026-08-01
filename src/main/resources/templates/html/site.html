@@ -8,6 +8,12 @@
     <script src="student-database.js"></script>
 </head>
     <body>
+        <header>
+            <form action="/logout" method="post">
+                <input type="hidden" name="test-key" value="Value just so BadRequest is not triggered because of an empty post request">
+                <button type="submit">Ausloggen</button>
+            </form>
+        </header>
         %{content}
     </body>
 </html>

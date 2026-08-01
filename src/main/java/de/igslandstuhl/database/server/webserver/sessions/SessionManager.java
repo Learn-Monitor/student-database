@@ -99,6 +99,14 @@ public class SessionManager {
         return SessionValidationResult.OK;
     }
 
+    /**
+     * Logs out the user that supplied this request. This removes the session.
+     * @param request
+     */
+    public void logout(HttpRequest request) {
+        removeSession(getSession(request));
+    }
+
     public Session getSession(UUID sessionUUID) {
         return sessionStore.get(sessionUUID);
     }
