@@ -4,7 +4,7 @@ import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.server.webserver.WebPath;
-import de.igslandstuhl.database.server.webserver.RequestType;
+import de.igslandstuhl.database.server.webserver.requests.RequestType;
 
 /**
  * Handles the mapping of web resource paths to resource locations.

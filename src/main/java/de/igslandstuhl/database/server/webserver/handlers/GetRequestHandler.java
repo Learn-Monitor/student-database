@@ -71,9 +71,9 @@ public class GetRequestHandler {
     public final void registerHandlers() {
         LOGGER.info("Registering Get Request Handlers...");
         if (Registry.getRequestHandlerRegistry().stream().count() > 0) return; // already registered
-        List<String> getPaths = Registry.webPathRegistry().keyStream().filter((p) -> Registry.webPathRegistry().get(p).type() == RequestType.GET).toList();
-        for (String path : getPaths) {
-            WebPath webPath = Registry.webPathRegistry().get(path);
+        List<WebPath.PathInfo> getPaths = Registry.webPathRegistry().keyStream().filter((p) -> p.type().equals(RequestType.GET)).toList();
+        for (WebPath.PathInfo pathInfo : getPaths) {
+            WebPath webPath = Registry.webPathRegistry().get(pathInfo);
             ThrowingFunction<GetRequest, HttpResponse> handlerFunction = switch (webPath.handlerType()) {
                 case "FileRequestHandler" -> GetRequestHandler::handleFileRequest;
                 case "TemplatingFileRequestHandler" -> GetRequestHandler::handleTemplatingFileRequest;
@@ -82,7 +82,7 @@ public class GetRequestHandler {
                 case "PluginRequestHandler" -> GetRequestHandler::handlePluginRequest;
                 default -> throw new IllegalArgumentException("Unknown handler type: " + webPath.handlerType());
             };
-            HttpHandler.registerGetRequestHandler(path, webPath.accessLevel(), handlerFunction);
+            HttpHandler.registerGetRequestHandler(pathInfo.path(), webPath.accessLevel(), handlerFunction);
         }
     }
 }
