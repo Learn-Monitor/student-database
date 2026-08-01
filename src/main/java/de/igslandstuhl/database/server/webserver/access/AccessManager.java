@@ -8,6 +8,7 @@ import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.events.EventListener;
 import de.igslandstuhl.database.server.webserver.WebPath;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
+import de.igslandstuhl.database.server.webserver.requests.RequestType;
 
 /**
  * AccessManager is responsible for managing access to resources based on user roles and resource locations.
@@ -55,19 +56,43 @@ public class AccessManager {
      * Checks if a user has access to a specific web path
      * @param user the username of the user, can be null to indicate no user logged in
      * @param path the web path
+     * @param request the HTTP request
      * @return true, if the user has access, otherwise false
      */
     public boolean hasAccess(String user, String path, HttpRequest request)  {
-        return hasAccess(User.getUser(user), path, request);
+        return hasAccess(User.getUser(user), path, request, request.getRequestType());
+    }
+    /**
+     * Checks if a user has access to a specific web path
+     * @param user the username of the user, can be null to indicate no user logged in
+     * @param path the web path
+     * @param request the HTTP request
+     * @param requestType the HTTP request type (GET, POST, etc.)
+     * @return true, if the user has access, otherwise false
+     */
+    public boolean hasAccess(String user, String path, HttpRequest request, RequestType requestType)  {
+        return hasAccess(User.getUser(user), path, request, requestType);
     }
     /**
      * Checks if a user has access to a specific web path
      * @param user user, can be null to indicate no user logged in
      * @param path the web path
+     * @param request the HTTP request
      * @return true, if the user has access, otherwise false
      */
-    public boolean hasAccess(User user, String path, HttpRequest request) {
-        AccessLevel accessLevel = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, request.getRequestType())).accessLevel();
+    public boolean hasAccess(User user, String path, HttpRequest request)  {
+        return hasAccess(user, path, request, request.getRequestType());
+    }
+    /**
+     * Checks if a user has access to a specific web path
+     * @param user user, can be null to indicate no user logged in
+     * @param path the web path
+     * @param request the HTTP request
+     * @param requestType the HTTP request type (GET, POST, etc.)
+     * @return true, if the user has access, otherwise false
+     */
+    public boolean hasAccess(User user, String path, HttpRequest request, RequestType requestType) {
+        AccessLevel accessLevel = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, requestType)).accessLevel();
         AccessState result = getAccessState(user, accessLevel);
 
         AccessManagerEvent event = new AccessManagerEvent(result, path, request);
