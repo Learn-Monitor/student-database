@@ -10,3 +10,4 @@ build
 /modules
 /plugins
 logs
+.aider*
