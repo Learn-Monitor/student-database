@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.events.EventListener;
+import de.igslandstuhl.database.server.webserver.WebPath;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 
 /**
@@ -66,7 +67,7 @@ public class AccessManager {
      * @return true, if the user has access, otherwise false
      */
     public boolean hasAccess(User user, String path, HttpRequest request) {
-        AccessLevel accessLevel = Registry.webPathRegistry().get(path).accessLevel();
+        AccessLevel accessLevel = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, request.getRequestType())).accessLevel();
         AccessState result = getAccessState(user, accessLevel);
 
         AccessManagerEvent event = new AccessManagerEvent(result, path, request);

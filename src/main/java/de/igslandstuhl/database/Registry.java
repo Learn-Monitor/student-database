@@ -30,7 +30,7 @@ public class Registry<K, V> implements Closeable {
     private static final Registry<String,SQLRequestHandler> SQL_REQUEST_HANDLER_REGISTRY = new Registry<>();
     private static final Registry<String,Plugin> PLUGIN_REGISTRY = new Registry<>();
     private static final Registry<String,Class<? extends BuiltinPlugin>> BUILTIN_PLUGIN_REGISTRY = new Registry<>();
-    private static final Registry<String,WebPath> WEB_PATH_REGISTRY = new Registry<>();
+    private static final Registry<WebPath.PathInfo,WebPath> WEB_PATH_REGISTRY = new Registry<>();
 
     private static final EnumRegistry<NavigationType,NavigationElement> NAVIGATION_REGISTRY = new EnumRegistry<>(NavigationType.class);
     private static final EnumRegistry<DynamicFieldType,String> DYNAMIC_TEMPLATES_REGISTRY = new EnumRegistry<>(DynamicFieldType.class);
@@ -57,7 +57,7 @@ public class Registry<K, V> implements Closeable {
     public static Registry<String, CommandDescription> commandDescriptionRegistry() {
         return COMMAND_DESCRIPTION_REGISTRY;
     }
-    public static Registry<String, WebPath> webPathRegistry() {
+    public static Registry<WebPath.PathInfo, WebPath> webPathRegistry() {
         return WEB_PATH_REGISTRY;
     }
     public static EnumRegistry<NavigationType, NavigationElement> navigationRegistry() {
