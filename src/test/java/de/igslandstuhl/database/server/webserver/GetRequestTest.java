@@ -2,6 +2,9 @@ package de.igslandstuhl.database.server.webserver;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.IOException;
+
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -11,6 +14,10 @@ import de.igslandstuhl.database.server.webserver.requests.GetRequest;
 public class GetRequestTest {
     private static final String LOCALHOST = "127.0.0.1";
     GetRequest validRequest;
+    @BeforeAll
+    public static void registerWebPaths() throws IOException {
+        WebPath.registerPaths();
+    }
     @BeforeEach
     void initRequest() {
         validRequest = new GetRequest("GET /login HTTP/1.1", LOCALHOST, true);
