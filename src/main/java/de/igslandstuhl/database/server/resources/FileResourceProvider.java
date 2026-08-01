@@ -45,6 +45,9 @@ public class FileResourceProvider implements ResourceProvider {
     public Collection<ResourceLocation> list(Pattern pattern) {
         List<ResourceLocation> result = new ArrayList<>();
 
+        if (!Files.exists(root) || !Files.isDirectory(root)) {
+            return result;
+        }
         try {
             Files.walk(root).forEach(path -> {
                 if (Files.isRegularFile(path)) {
