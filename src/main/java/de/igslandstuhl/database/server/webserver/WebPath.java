@@ -19,10 +19,7 @@ public record WebPath(RequestType type, String handlerType, List<String> namespa
     public static void registerPath(String path, RequestType type, String handlerType, List<String> namespaces, String context, AccessLevel accessLevel) {
         Registry.webPathRegistry().register(path, new WebPath(type, handlerType, namespaces, context, accessLevel));
     }
-    public static void registerPaths() throws IOException {
-        LOGGER.info("Registering get request paths...");
-        if (Registry.webPathRegistry().stream().count() > 0) return; // already registered
-        ResourceLocation metaLocation = new ResourceLocation("meta", "paths", "get_paths.json");
+    private static void registerPaths(ResourceLocation metaLocation) throws IOException {
         Map<String, ?> pathData = Server.getInstance().getResourceManager().readJsonResourceMerged(metaLocation);
         pathData.keySet().forEach((path) -> {
             @SuppressWarnings("unchecked")
@@ -35,5 +32,13 @@ public record WebPath(RequestType type, String handlerType, List<String> namespa
             AccessLevel accessLevel = AccessLevel.valueOf(((String) pathInfo.get("access_level")).toUpperCase());
             registerPath(path, requestType, handlerType, namespaces, context, accessLevel);
         });
+    }
+    public static void registerPaths() throws IOException {
+        LOGGER.info("Registering get request paths...");
+        if (Registry.webPathRegistry().stream().count() > 0) return; // already registered
+        ResourceLocation getPathLocation = new ResourceLocation("meta", "paths", "get_paths.json");
+        registerPaths(getPathLocation);
+        ResourceLocation postPathLocation = new ResourceLocation("meta", "paths", "post_paths.json");
+        registerPaths(postPathLocation);
     }
 }
