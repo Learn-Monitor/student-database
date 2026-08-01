@@ -22,9 +22,6 @@ public class AccessManagerTest {
     private User admin;
     private User anonymous;
 
-    // Replace all request parameters currently set to null with the field getRequest. AI!
-    // Replace all request parameters currently set to null with the field getRequest.
-
     @BeforeAll
     public static void setup() throws IOException {
         WebPath.registerPaths();
