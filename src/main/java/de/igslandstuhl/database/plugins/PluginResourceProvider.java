@@ -61,6 +61,7 @@ public class PluginResourceProvider implements ResourceProvider {
         final Path virtualRoot = Paths.get("").toAbsolutePath().normalize();
 
         for (PreLoadedPlugin plugin : PluginLoader.getInstance().getPluginInfos()) {
+            if (plugin.resourceLoader() == null) continue; // built-in plugin
             try (ZipFile zip = new ZipFile(new File(plugin.resourceLoader().getURLs()[0].toURI()))) {
 
                 Enumeration<? extends ZipEntry> entries = zip.entries();
