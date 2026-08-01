@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.PrintStream;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import de.igslandstuhl.database.server.resources.ResourceLocation;
@@ -14,6 +16,10 @@ import de.igslandstuhl.database.server.webserver.responses.GetResponse;
 
 public class GetResponseTest {
     GetRequest request = new GetRequest("GET / HTTP/1.1", "127.0.0.1", true);
+    @BeforeAll
+    public static void registerWebPaths() throws IOException {
+        WebPath.registerPaths();
+    }
     @Test
     void testForbidden() throws FileNotFoundException {
         assertTrue(GetResponse.forbidden(request).getResponseBody().contains("403"));
