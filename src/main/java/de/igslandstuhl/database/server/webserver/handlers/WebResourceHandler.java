@@ -11,7 +11,7 @@ import de.igslandstuhl.database.server.resources.ResourceLocation;
  */
 public final class WebResourceHandler {
     private WebResourceHandler(){}
-
+    // Replace all invocations of webPathRegistry().get(path) with webPathRegistry().get(PathInfo.get(path,RequestType.GET)) AI!
     private static boolean isSQLWebResource(String path) {
         return Registry.webPathRegistry().get(path) != null &&
                Registry.webPathRegistry().get(path).namespaces().contains("sql");
