@@ -14,6 +14,7 @@ import de.igslandstuhl.database.server.webserver.access.AccessManager;
 import de.igslandstuhl.database.server.webserver.handlers.HttpHandler;
 import de.igslandstuhl.database.server.webserver.handlers.get.PluginRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
+import de.igslandstuhl.database.server.webserver.requests.RequestType;
 
 /**
  * Represents a response to a GET request in the web server.
@@ -155,7 +156,7 @@ public class GetResponse implements HttpResponse {
     }
     public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating, boolean isMerging, String path) {
         try {
-            if (AccessManager.getInstance().hasAccess(user, path, request)) {
+            if (AccessManager.getInstance().hasAccess(user, path, request, RequestType.GET)) {
                 return new GetResponse(request, Status.OK, resourceLocation, ContentType.ofResourceLocation(resourceLocation), user, isTemplating, isMerging);
             } else {
                 return unauthorized(request);
