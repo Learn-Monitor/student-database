@@ -43,7 +43,7 @@ public final class WebResourceHandler {
         if (path.isEmpty()) path = "/";
         WebPath webPath = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, RequestType.GET));
         if (path == null || webPath == null) {
-            return new ResourceLocation("site", "errors", "404.html");
+            return new ResourceLocation("html", "errors", "404.html");
         }
         if (isSQLWebResource(path)) {
             return new ResourceLocation("virtual", "sql", path.replaceFirst("/", ""));
