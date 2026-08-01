@@ -276,7 +276,6 @@ public class PostRequestHandler {
         HttpHandler.registerPostRequestHandler("/reopen-task", AccessLevel.USER, (rq) -> handleTaskChange(rq, Task.STATUS_NOT_STARTED));
         HttpHandler.registerPostRequestHandler("/lock-task", AccessLevel.USER, (rq) -> handleTaskChange(rq, Task.STATUS_LOCKED));
         HttpHandler.registerPostRequestHandler("/student-data", AccessLevel.TEACHER, PostRequestHandler::handleStudentGetData);
-        HttpHandler.registerPostRequestHandler("/rooms", AccessLevel.TEACHER, PostRequestHandler::handleStudentGetData);
         HttpHandler.registerPostRequestHandler("/student-subjects", AccessLevel.TEACHER, PostRequestHandler::handleStudentGetData);
         HttpHandler.registerPostRequestHandler("/teacher-classes", AccessLevel.ADMIN, PostRequestHandler::handleTeacherGetData);
         HttpHandler.registerPostRequestHandler("/teacher-subjects", AccessLevel.ADMIN, PostRequestHandler::handleTeacherGetData);
@@ -430,6 +429,10 @@ public class PostRequestHandler {
             int grade = rq.getInt("grade");
             Subject subject = rq.getSubject(); 
             return PostResponse.ok(SchoolClass.getResultsCSV(grade, subject), ContentType.CSV, rq);
+        });
+        HttpHandler.registerPostRequestHandler("/logout", AccessLevel.USER, (rq) -> {
+            Server.getInstance().getWebServer().getSessionManager().logout(rq);
+            return PostResponse.redirect("/login", rq);
         });
     }
 }

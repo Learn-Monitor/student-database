@@ -129,5 +129,10 @@ public class GetRequest implements HttpRequest {
     public boolean isSecureConnection() {
         return secureConnection;
     }
+
+    @Override
+    public RequestType getRequestType() {
+        return RequestType.GET;
+    }
     
 }
