@@ -8,7 +8,6 @@ import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.events.EventListener;
 import de.igslandstuhl.database.server.webserver.WebPath;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
-import de.igslandstuhl.database.server.webserver.requests.RequestType;
 
 /**
  * AccessManager is responsible for managing access to resources based on user roles and resource locations.
@@ -68,7 +67,7 @@ public class AccessManager {
      * @return true, if the user has access, otherwise false
      */
     public boolean hasAccess(User user, String path, HttpRequest request) {
-        AccessLevel accessLevel = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, RequestType.GET)).accessLevel();
+        AccessLevel accessLevel = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, request.getRequestType())).accessLevel();
         AccessState result = getAccessState(user, accessLevel);
 
         AccessManagerEvent event = new AccessManagerEvent(result, path, request);
