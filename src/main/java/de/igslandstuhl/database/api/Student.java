@@ -679,7 +679,7 @@ public class Student extends User {
     /**
      * Predicts the student's progress for a given subject based on the current week of the school year.
      * @param subject the subject to predict progress for
-     * @return the predicted progress in tokens, considering the current week and any completed special tasks
+     * @return the predicted progress in tokens, considering the current week and any completed individual tasks
      */
     public int getPredictedProgress(Subject subject) {
         int progress = getCurrentProgress(subject);

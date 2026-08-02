@@ -15,17 +15,17 @@ public class IndividualTask extends Task {
     private static final String[] SQL_FIELDS = {"id", "name", "tokens", "subject_id"};
     private static final Map<Integer, IndividualTask> individualTasks = new HashMap<>();
     /**
-     * The subject associated with this special task.
-     * This is the subject area to which the special task belongs.
+     * The subject associated with this individual task.
+     * This is the subject area to which the individual task belongs.
      */
     private final Subject subject;
     /**
      * Constructs a new IndividualTask.
      *
-     * @param id    the unique identifier for the special task
-     * @param name  the name of the special task
-     * @param subject the subject associated with the special task
-     * @param tokens the number of tokens for the special task
+     * @param id    the unique identifier for the individual task
+     * @param name  the name of the individual task
+     * @param subject the subject associated with the individual task
+     * @param tokens the number of tokens for the individual task
      */
     public IndividualTask(int id, String name, Subject subject, int tokens) {
         super(id, null, name, TaskLevel.SPECIAL, tokens);
@@ -33,7 +33,7 @@ public class IndividualTask extends Task {
     }
 
     /**
-     * Returns the ratio of the special task.
+     * Returns the ratio of the individual task.
      * This method now only returns 0, as ratios are no longer used.
      * @deprecated This method is deprecated and will be removed in future versions. Use getTokens() instead.
      */
@@ -77,7 +77,7 @@ public class IndividualTask extends Task {
      * If the task is cached, it returns the cached version.
      * Otherwise, it queries the database for the task.
      *
-     * @param id the unique identifier of the special task
+     * @param id the unique identifier of the individual task
      * @return the IndividualTask object if found, or null if not found
      */
     public static IndividualTask get(int id) {
@@ -93,7 +93,7 @@ public class IndividualTask extends Task {
     }
     /**
      * Adds a IndividualTask to the cache from SQL result fields.
-     * This method is used to populate the static map of special tasks from database query results.
+     * This method is used to populate the static map of individual tasks from database query results.
      *
      * @param fields the SQL fields retrieved from the database
      */
@@ -102,10 +102,10 @@ public class IndividualTask extends Task {
         individualTasks.put(task.getId(), task);
     }
     /**
-     * Retrieves a list of special tasks by their names.
-     * This method queries the database for special tasks matching the given name.
+     * Retrieves a list of individual tasks by their names.
+     * This method queries the database for individual tasks matching the given name.
      *
-     * @param name the name of the special tasks
+     * @param name the name of the individual tasks
      * @return a list of IndividualTask objects if found, or an empty list if not found
      */
     public static List<IndividualTask> getIndividualTasksByName(String name) {
@@ -120,7 +120,7 @@ public class IndividualTask extends Task {
                 .toList();
     }
     /**
-     * Adds a new special task to the database.
+     * Adds a new individual task to the database.
      * This method creates a new task associated with a specific topic and level of difficulty.
      *
      * @param name  the name of the task
