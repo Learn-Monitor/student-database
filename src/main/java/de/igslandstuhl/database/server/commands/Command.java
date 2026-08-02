@@ -1,6 +1,8 @@
 package de.igslandstuhl.database.server.commands;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -198,16 +200,24 @@ public interface Command {
             return "Week successfully changed";
         }, new CommandDescription("inc-week", "Increases the current week by 1", "inc-week"));
         registerCommand("add-school-year", (args) -> {
-            if (args.length != 2) return "Usage: add-school-year [label] [week count]";
+            if (args.length != 2 && args.length != 4) return "Usage: add-school-year [label] [week count] [optional: start date yyyy-MM-dd] [optional: end date yyyy-MM-dd]";
             try {
-                SchoolYear.addSchoolYear(args[0], Integer.parseInt(args[1]), 1);
+                if (args.length == 2) {
+                    SchoolYear.addSchoolYear(args[0], Integer.parseInt(args[1]), 1);
+                } else {
+                    LocalDate startDate = LocalDate.parse(args[2]);
+                    LocalDate endDate = LocalDate.parse(args[3]);
+                    SchoolYear.addSchoolYear(args[0], Integer.parseInt(args[1]), 1, startDate, endDate);
+                }
             } catch (NumberFormatException e) {
                 return "No valid week count";
+            } catch (DateTimeParseException e) {
+                return "Invalid date format, expected yyyy-MM-dd";
             } catch (SQLException e) {
                 throw new IllegalStateException(e);
             }
             return "Successfully added school year";
-        }, new CommandDescription("add-school-year", "Adds a new school year", "add-school-year [label] [week count]"));
+        }, new CommandDescription("add-school-year", "Adds a new school year", "add-school-year [label] [week count] [optional: start date yyyy-MM-dd] [optional: end date yyyy-MM-dd]"));
         registerCommand("remove-school-year", (args) -> {
             if (args.length != 1) return "Usage: remove-school-year [label]";
             SchoolYear schoolYear = SchoolYear.get(args[0]);

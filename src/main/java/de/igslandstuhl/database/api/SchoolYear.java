@@ -1,6 +1,7 @@
 package de.igslandstuhl.database.api;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.*;
 
 import de.igslandstuhl.database.Application;
@@ -16,7 +17,7 @@ public class SchoolYear implements APIObject {
      * SQL fields for the SchoolYear table.
      * Used for database queries to retrieve school year information.
      */
-    private static final String[] SQL_FIELDS = {"id", "label", "week_count", "current_week"};
+    private static final String[] SQL_FIELDS = {"id", "label", "week_count", "current_week", "start_date", "end_date"};
     /**
      * A map to cache school years by their unique identifier.
      * This helps avoid repeated database queries for the same school year.
@@ -40,6 +41,16 @@ public class SchoolYear implements APIObject {
      * This is used to track the progress within the school year.
      */
     private int currentWeek;
+    /**
+     * The start date of the school year. May be null if not configured.
+     * Immutable: can only be set when the school year is created.
+     */
+    private final LocalDate startDate;
+    /**
+     * The end date of the school year. May be null if not configured.
+     * Immutable: can only be set when the school year is created.
+     */
+    private final LocalDate endDate;
 
     /**
      * Constructs a new SchoolYear.
@@ -48,12 +59,16 @@ public class SchoolYear implements APIObject {
      * @param label       the label of the school year
      * @param weekCount   the total number of weeks in the school year
      * @param currentWeek the current week of the school year
+     * @param startDate   the start date of the school year, or null if not configured
+     * @param endDate     the end date of the school year, or null if not configured
      */
-    public SchoolYear(int id, String label, int weekCount, int currentWeek) {
+    public SchoolYear(int id, String label, int weekCount, int currentWeek, LocalDate startDate, LocalDate endDate) {
         this.id = id;
         this.label = label;
         this.weekCount = weekCount;
         this.currentWeek = currentWeek;
+        this.startDate = startDate;
+        this.endDate = endDate;
     }
 
     /**
@@ -97,6 +112,18 @@ public class SchoolYear implements APIObject {
             "UPDATE school_years SET current_week = " + week + " WHERE id = " + id
         );
     }
+    /**
+     * Returns the start date of the school year.
+     *
+     * @return the start date of the school year, or null if not configured
+     */
+    public LocalDate getStartDate() { return startDate; }
+    /**
+     * Returns the end date of the school year.
+     *
+     * @return the end date of the school year, or null if not configured
+     */
+    public LocalDate getEndDate() { return endDate; }
 
     /**
      * Creates a SchoolYear object from SQL query result fields.
@@ -109,7 +136,9 @@ public class SchoolYear implements APIObject {
         String label = fields[1];
         int weekCount = Integer.parseInt(fields[2]);
         int currentWeek = Integer.parseInt(fields[3]);
-        return new SchoolYear(id, label, weekCount, currentWeek);
+        LocalDate startDate = fields.length > 4 && fields[4] != null ? LocalDate.parse(fields[4]) : null;
+        LocalDate endDate = fields.length > 5 && fields[5] != null ? LocalDate.parse(fields[5]) : null;
+        return new SchoolYear(id, label, weekCount, currentWeek, startDate, endDate);
     }
     /**
      * Retrieves a SchoolYear by its unique identifier.
@@ -194,12 +223,30 @@ public class SchoolYear implements APIObject {
      * @throws SQLException if there is an error accessing the database
      */
     public static SchoolYear addSchoolYear(String label, int weekCount, int currentWeek) throws SQLException {
+        return addSchoolYear(label, weekCount, currentWeek, null, null);
+    }
+    /**
+     * Adds a new school year to the database, with an optional start and end date.
+     * This method creates a new school year with the specified label, week count, current week,
+     * and optionally a start and end date.
+     *
+     * @param label       the label of the new school year
+     * @param weekCount   the total number of weeks in the new school year
+     * @param currentWeek the current week of the new school year
+     * @param startDate   the start date of the new school year, or null if not configured
+     * @param endDate     the end date of the new school year, or null if not configured
+     * @return the newly created SchoolYear object
+     * @throws SQLException if there is an error accessing the database
+     */
+    public static SchoolYear addSchoolYear(String label, int weekCount, int currentWeek, LocalDate startDate, LocalDate endDate) throws SQLException {
         Server.getInstance().getConnection().executeVoidProcessSecure(
             SQLHelper.getAddObjectProcess(
                 "school_year",
                 label,
                 String.valueOf(weekCount),
-                String.valueOf(currentWeek)
+                String.valueOf(currentWeek),
+                startDate == null ? null : startDate.toString(),
+                endDate == null ? null : endDate.toString()
             )
         );
         // Fetch the newly created year
@@ -212,7 +259,9 @@ public class SchoolYear implements APIObject {
 
     @Override
     public String toString() {
-        return "{\"id\":" + id + ",\"label\":\"" + label + "\",\"weekCount\":" + weekCount + ",\"currentWeek\":" + currentWeek + "}";
+        return "{\"id\":" + id + ",\"label\":\"" + label + "\",\"weekCount\":" + weekCount + ",\"currentWeek\":" + currentWeek
+            + ",\"startDate\":" + (startDate == null ? "null" : "\"" + startDate + "\"")
+            + ",\"endDate\":" + (endDate == null ? "null" : "\"" + endDate + "\"") + "}";
     }
 
     @Override
@@ -245,6 +294,8 @@ public class SchoolYear implements APIObject {
 
     @Override
     public String toJSON() {
-        return "{\"id\":" + id + ",\"label\":\"" + label + "\",\"weekCount\":" + weekCount + ",\"currentWeek\":" + currentWeek + "}";
+        return "{\"id\":" + id + ",\"label\":\"" + label + "\",\"weekCount\":" + weekCount + ",\"currentWeek\":" + currentWeek
+            + ",\"startDate\":" + (startDate == null ? "null" : "\"" + startDate + "\"")
+            + ",\"endDate\":" + (endDate == null ? "null" : "\"" + endDate + "\"") + "}";
     }
 }

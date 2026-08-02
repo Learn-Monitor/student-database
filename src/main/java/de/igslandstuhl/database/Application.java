@@ -142,6 +142,7 @@ public final class Application {
         LOGGER.info("Setting up server...");
 
         Server.getInstance().getConnection().createTables();
+        Server.getInstance().getConnection().migrateTables();
 
         Holiday.setupCurrentSchoolYear();
         PostRequestHandler.registerHandlers();
