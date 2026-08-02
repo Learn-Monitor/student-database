@@ -22,6 +22,7 @@ public class StudentTest {
     @Test
     public void testAssignTopicToStudent() throws SQLException {
         PreConditions.addSampleStudent();
+        PreConditions.addSampleSchoolYear();
         PreConditions.addSampleSubject();
         PreConditions.addSampleTopic();
         Student student = Student.get(0);

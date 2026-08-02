@@ -16,6 +16,7 @@ import de.igslandstuhl.database.server.webserver.access.AccessManager;
 import de.igslandstuhl.database.server.webserver.handlers.HttpHandler;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
+import de.igslandstuhl.database.server.webserver.requests.RequestType;
 
 /**
  * Represents a response to a POST request in the web server.
@@ -158,7 +159,7 @@ public class PostResponse implements HttpResponse {
      */
     public static PostResponse getResource(ResourceLocation resourceLocation, String user, PostRequest request, String path) {
         try {
-            if (AccessManager.getInstance().hasAccess(user, path, request)) {
+            if (AccessManager.getInstance().hasAccess(user, path, request, RequestType.GET)) {
                 return new PostResponse(Status.OK, GetResponse.getResource(request, resourceLocation, user, false, path).getResponseBody(), ContentType.ofResourceLocation(resourceLocation), request);
             } else {
                 return unauthorized("You have to be logged in to access this resource.", request);
@@ -168,7 +169,7 @@ public class PostResponse implements HttpResponse {
         } catch (FileNotFoundException e) {
             return notFound("The requested resource was not found: " + resourceLocation, request);
         } catch (Exception e) {
-            HttpHandler.LOGGER.warn("Failed to get resource for request {} on resource location {}", request, resourceLocation);
+            HttpHandler.LOGGER.warn("Failed to get resource for request {} on resource location {}", request, resourceLocation, e);
             return internalServerError("An error occurred while processing your request.", request);
         }
     }

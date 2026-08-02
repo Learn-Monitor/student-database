@@ -3,6 +3,8 @@ package de.igslandstuhl.database.server.webserver.handlers;
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
+import de.igslandstuhl.database.server.webserver.WebPath;
+import de.igslandstuhl.database.server.webserver.requests.RequestType;
 
 /**
  * Handles the mapping of web resource paths to resource locations.
@@ -11,38 +13,43 @@ import de.igslandstuhl.database.server.resources.ResourceLocation;
  */
 public final class WebResourceHandler {
     private WebResourceHandler(){}
-
+    
     private static boolean isSQLWebResource(String path) {
-        return Registry.webPathRegistry().get(path) != null &&
-               Registry.webPathRegistry().get(path).namespaces().contains("sql");
+        WebPath webPath = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, RequestType.GET));
+        return webPath != null && webPath.namespaces().contains("sql");
     }
 
     private static boolean inUserOnlySpace(String path) {
-        return Registry.webPathRegistry().get(path) != null &&
-               Registry.webPathRegistry().get(path).namespaces().contains("user");
+        WebPath webPath = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, RequestType.GET));
+        return webPath != null && webPath.namespaces().contains("user");
     }
+    
     private static boolean inTeacherOnlySpace(String path) {
-        return Registry.webPathRegistry().get(path) != null &&
-               Registry.webPathRegistry().get(path).namespaces().contains("teacher");
+        WebPath webPath = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, RequestType.GET));
+        return webPath != null && webPath.namespaces().contains("teacher");
     }
+    
     private static boolean inAdminOnlySpace(String path) {
-        return Registry.webPathRegistry().get(path) != null &&
-               Registry.webPathRegistry().get(path).namespaces().contains("admin");
+        WebPath webPath = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, RequestType.GET));
+        return webPath != null && webPath.namespaces().contains("admin");
     }
+    
     private static String getDefaultNamespace(String path) {
-        return Registry.webPathRegistry().get(path) != null ? Registry.webPathRegistry().get(path).namespaces().get(0) : "site";
+        WebPath webPath = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, RequestType.GET));
+        return webPath != null ? webPath.namespaces().get(0) : "site";
     }
 
     public static ResourceLocation locationFromPath(String path, User user) {
         if (path.isEmpty()) path = "/";
-        if (path == null || Registry.webPathRegistry().get(path) == null) {
-            return new ResourceLocation("site", "errors", "404.html");
+        WebPath webPath = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, RequestType.GET));
+        if (path == null || webPath == null) {
+            return new ResourceLocation("html", "errors", "404.html");
         }
         if (isSQLWebResource(path)) {
             return new ResourceLocation("virtual", "sql", path.replaceFirst("/", ""));
         }
         
-        String context = Registry.webPathRegistry().get(path).context();
+        String context = webPath.context();
 
         if (user == null) user = User.ANONYMOUS;
 

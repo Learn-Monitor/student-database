@@ -199,4 +199,8 @@ public class PostRequest implements HttpRequest {
     public ResourceLocation toResourceLocation(String username) {
         return de.igslandstuhl.database.server.webserver.handlers.WebResourceHandler.locationFromPath(path, User.getUser(username));
     }
+    @Override
+    public RequestType getRequestType() {
+        return RequestType.POST;
+    }
 }

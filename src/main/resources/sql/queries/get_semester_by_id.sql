@@ -1,0 +1,1 @@
+SELECT * FROM semesters WHERE id = ?;
