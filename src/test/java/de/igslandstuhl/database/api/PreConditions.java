@@ -16,7 +16,7 @@ public class PreConditions {
         Subject.addSubject("Mathematik");
     }
     public static void addSampleTopic() throws SQLException {
-        Topic.addTopic("Bruchrechnung", Subject.get(1), 100, 5, 1);
+        Topic.addTopic("Bruchrechnung", Subject.get(1), 100, 5, 1, SchoolYear.getCurrentYear().getCurrentSemester());
     }
     public static void addSampleTask() throws SQLException {
         Task.addTask(Topic.get(1), "Addition", TaskLevel.LEVEL1);
