@@ -139,7 +139,7 @@ public class Task implements APIObject {
      */
     @Deprecated
     public double getRatio() {
-        return niveau.getRatio() * topic.getRatio() / (100.0 * topic.getTasksByLevel(niveau).size());
+        return niveau.getRatio()  / (100.0 * topic.getTasksByLevel(niveau).size());
     }
     /**
      * Returns the subject associated with the task's topic.

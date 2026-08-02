@@ -16,7 +16,7 @@ public class TopicTest {
     }
     @Test
     public void addTopic() throws SQLException {
-        Topic added = Topic.addTopic("Bruchrechnung", Subject.get(1), 100, 5, 1, SchoolYear.getCurrentYear().getCurrentSemester());
+        Topic added = Topic.addTopic("Bruchrechnung", Subject.get(1), 5, 1, SchoolYear.getCurrentYear().getCurrentSemester());
         Topic topic = Topic.get(1);
         assertNotNull(topic);
         assertEquals(added, topic);
