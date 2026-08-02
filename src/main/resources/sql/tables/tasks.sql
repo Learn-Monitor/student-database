@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     topic INTEGER NOT NULL,
     name TEXT NOT NULL,
     niveau INTEGER NOT NULL,
+    tokens INTEGER NOT NULL,
     UNIQUE(topic, name),
     FOREIGN KEY (topic) REFERENCES topics(id) ON DELETE CASCADE
 )
