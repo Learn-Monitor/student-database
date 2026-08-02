@@ -96,6 +96,7 @@ public class Semester implements APIObject {
      */
     public void delete() throws SQLException {
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getDeleteObjectProcess("semester", String.valueOf(id)));
+        CACHE.remove(id);
     }
 
     private static Semester fromSQL(String[] fields) {
