@@ -12,6 +12,7 @@ public class TaskTest {
     public static void setupServer() throws SQLException {
         PreConditions.setupDatabase();
         PreConditions.addSampleSubject();
+        PreConditions.addSampleSchoolYear();
         PreConditions.addSampleTopic();
     }
     @Test

@@ -12,6 +12,7 @@ public class TopicTest {
     public static void setupServer() throws SQLException {
         PreConditions.setupDatabase();
         PreConditions.addSampleSubject();
+        PreConditions.addSampleSchoolYear();
     }
     @Test
     public void addTopic() throws SQLException {
