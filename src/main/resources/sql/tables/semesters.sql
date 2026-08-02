@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS semesters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL UNIQUE,
+    position INTEGER NOT NULL,
+    school_year INTEGER NOT NULL,
+
+    FOREIGN KEY (school_year) REFERENCES school_years(id) ON DELETE CASCADE
+);

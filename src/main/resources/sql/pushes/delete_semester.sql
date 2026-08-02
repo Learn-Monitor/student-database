@@ -1,0 +1,1 @@
+DELETE FROM semesters WHERE id = ?;

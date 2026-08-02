@@ -17,7 +17,7 @@ public class SchoolYear implements APIObject {
      * SQL fields for the SchoolYear table.
      * Used for database queries to retrieve school year information.
      */
-    private static final String[] SQL_FIELDS = {"id", "label", "week_count", "current_week", "start_date", "end_date"};
+    private static final String[] SQL_FIELDS = {"id", "label", "week_count", "current_week", "start_date", "end_date", "current_semester"};
     /**
      * A map to cache school years by their unique identifier.
      * This helps avoid repeated database queries for the same school year.
@@ -53,6 +53,12 @@ public class SchoolYear implements APIObject {
     private final LocalDate endDate;
 
     /**
+     * The current semester of the school year.
+     * This is used to track which semester is currently active within the school year.
+     */
+    private final Semester currentSemester;
+
+    /**
      * Constructs a new SchoolYear.
      *
      * @param id          the unique identifier for the school year
@@ -61,14 +67,16 @@ public class SchoolYear implements APIObject {
      * @param currentWeek the current week of the school year
      * @param startDate   the start date of the school year, or null if not configured
      * @param endDate     the end date of the school year, or null if not configured
+     * @param currentSemester the current semester of the school year
      */
-    public SchoolYear(int id, String label, int weekCount, int currentWeek, LocalDate startDate, LocalDate endDate) {
+    public SchoolYear(int id, String label, int weekCount, int currentWeek, LocalDate startDate, LocalDate endDate, Semester currentSemester) {
         this.id = id;
         this.label = label;
         this.weekCount = weekCount;
         this.currentWeek = currentWeek;
         this.startDate = startDate;
         this.endDate = endDate;
+        this.currentSemester = currentSemester;
     }
 
     /**
@@ -113,6 +121,14 @@ public class SchoolYear implements APIObject {
         );
     }
     /**
+     * Returns the current semester of the school year.
+     * This is used to track which semester is currently active within the school year.
+     * @return the current semester
+     */
+    public Semester getCurrentSemester() {
+        return currentSemester;
+    }
+    /**
      * Returns the start date of the school year.
      *
      * @return the start date of the school year, or null if not configured
@@ -138,7 +154,8 @@ public class SchoolYear implements APIObject {
         int currentWeek = Integer.parseInt(fields[3]);
         LocalDate startDate = fields.length > 4 && fields[4] != null ? LocalDate.parse(fields[4]) : null;
         LocalDate endDate = fields.length > 5 && fields[5] != null ? LocalDate.parse(fields[5]) : null;
-        return new SchoolYear(id, label, weekCount, currentWeek, startDate, endDate);
+        Semester currentSemester = fields.length > 6 && fields[6] != null ? Semester.get(Integer.parseInt(fields[6])) : null;
+        return new SchoolYear(id, label, weekCount, currentWeek, startDate, endDate, currentSemester);
     }
     /**
      * Retrieves a SchoolYear by its unique identifier.
@@ -198,6 +215,13 @@ public class SchoolYear implements APIObject {
      * @return the current SchoolYear object, or null if not found
      */
     public static SchoolYear getCurrentYear() {
+        List<SchoolYear> allYears = getAll();
+        Optional<SchoolYear> currentYear = allYears.stream().filter((s) -> s.getStartDate() != null && s.getEndDate() != null)
+            .filter((s) -> {
+                LocalDate now = LocalDate.now();
+                return !now.isBefore(s.getStartDate()) && !now.isAfter(s.getEndDate());
+            }).findAny();
+        if (currentYear.isPresent()) return currentYear.get();
         try {
             SchoolYear year = Server.getInstance().processSingleRequest(
                 SchoolYear::fromSQL,
@@ -255,6 +279,13 @@ public class SchoolYear implements APIObject {
 
     public void delete() throws SQLException {
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getDeleteObjectProcess("school_year", String.valueOf(id)));
+    }
+
+    public SchoolYear setCurrentSemester(Semester semester) throws SQLException {
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("current_semester_of_school_year", String.valueOf(semester.getId()), String.valueOf(id)));
+        SchoolYear updated = new SchoolYear(id, label, weekCount, currentWeek, startDate, endDate, semester);
+        years.put(id, updated);
+        return updated;
     }
 
     @Override

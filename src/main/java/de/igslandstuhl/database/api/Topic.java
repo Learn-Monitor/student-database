@@ -20,7 +20,7 @@ public class Topic implements APIObject {
      * SQL fields for the Topic table.
      * Used for database queries to retrieve topic information.
      */
-    private static final String[] SQL_FIELDS = {"id", "name", "subject", "ratio", "grade", "number"};
+    private static final String[] SQL_FIELDS = {"id", "name", "subject", "ratio", "grade", "number", "semester"};
     /**
      * A map to cache topics by their unique identifier.
      * This helps avoid repeated database queries for the same topic.
@@ -51,6 +51,10 @@ public class Topic implements APIObject {
      * Number of the topic.
      */
     private final int number;
+    /**
+     * Semester this topic belongs to. This field may be null for archived topics.
+     */
+    private final Semester semester;
 
     /**
      * List of tasks associated with the topic.
@@ -79,14 +83,16 @@ public class Topic implements APIObject {
      * @param ratio   the ratio of the topic
      * @param grade   the grade level of the topic
      * @param number  the number of the topic
+     * @param semester the semester this topic belongs to
      */
-    public Topic(int id, String name, Subject subject, int ratio, int grade, int number) {
+    public Topic(int id, String name, Subject subject, int ratio, int grade, int number, Semester semester) {
         this.id = id;
         this.name = name;
         this.subject = subject;
         this.ratio = ratio;
         this.grade = grade;
         this.number = number;
+        this.semester = semester;
     }
 
     /**
@@ -103,7 +109,8 @@ public class Topic implements APIObject {
         int ratio = Integer.parseInt(fields[3]);
         int grade = Integer.parseInt(fields[4]);
         int number = Integer.parseInt(fields[5]);
-        return new Topic(id, name, subject, ratio, grade, number);
+        Semester semester = Semester.get(Integer.parseInt(fields[6]));
+        return new Topic(id, name, subject, ratio, grade, number, semester);
     }
     /**
      * Retrieves a Topic by its unique identifier.
@@ -155,6 +162,11 @@ public class Topic implements APIObject {
      * @return
      */
     public int getNumber() { return number; }
+    /**
+     * Returns the semester this topic belongs to.
+     * @return
+     */
+    public Semester getSemester() { return semester; }
     /**
      * Retrieves all tasks associated with the topic.
      * If the tasks are not loaded yet, it loads them from the database.
@@ -315,10 +327,10 @@ public class Topic implements APIObject {
      * @param number the number of the topic
      * @throws SQLException if a database error occurs
      */
-    public static Topic addTopic(String name, Subject subject, int ratio, int grade, int number) throws SQLException {
-        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("topic", name, subject == null ? "-1" : String.valueOf(subject.getId()), String.valueOf(ratio), String.valueOf(grade), String.valueOf(number)));
+    public static Topic addTopic(String name, Subject subject, int ratio, int grade, int number, Semester semester) throws SQLException {
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("topic", name, subject == null ? "-1" : String.valueOf(subject.getId()), String.valueOf(ratio), String.valueOf(grade), String.valueOf(number), String.valueOf(semester.getId())));
         return getByName(name).stream()
-                .filter(t -> t.getSubject() == subject && t.getRatio() == ratio && t.getGrade() == grade && t.getNumber() == number)
+                .filter(t -> t.getSubject() == subject && t.getRatio() == ratio && t.getGrade() == grade && t.getNumber() == number && t.getSemester() == semester)
                 .sorted((t1, t2) -> Integer.compare(t2.getId(), t1.getId())) // Sort by ID in descending order
                 .findFirst()
                 .orElse(null);
@@ -398,7 +410,7 @@ public class Topic implements APIObject {
             return false;
         return true;
     }
-    public static Topic fromSerialized(String serialized, Subject subject, int grade, int number) throws SerializationException, SQLException {
+    public static Topic fromSerialized(String serialized, Subject subject, int grade, int number, Semester semester) throws SerializationException, SQLException {
         Application.LOGGER_API.debug("Reading topic from serialized...");;
         // Gathering general info (topic name and ratio)
         String[] parts = serialized.split(Application.TITLE_DELIMITER);
@@ -416,7 +428,7 @@ public class Topic implements APIObject {
         }
 
         // Adding topic to the database, creating a new topic object
-        Topic topic = addTopic(name, subject, (int)(ratio * 100), grade, number);
+        Topic topic = addTopic(name, subject, (int)(ratio * 100), grade, number, semester);
 
         // Deserializing the tasks, and adding them to the object
         if (parts.length > 1) {

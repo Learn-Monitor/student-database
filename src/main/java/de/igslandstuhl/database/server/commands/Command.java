@@ -229,6 +229,56 @@ public interface Command {
             }
             return "School Year successfully removed";
         }, new CommandDescription("remove-school-year", "Removes a school year", "remove-school-year [label]"));
+        registerCommand("add-semester", (args) -> {
+            if (args.length != 2) return "Usage: add-semester [label] [position]";
+            SchoolYear current = SchoolYear.getCurrentYear();
+            if (current == null) return "No current school year found";
+            try {
+                Semester.addSemester(args[0], Integer.parseInt(args[1]), current);
+            } catch (NumberFormatException e) {
+                return "Position must be a valid number";
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+            return "Successfully added semester";
+        }, new CommandDescription("add-semester", "Adds a new semester to the current school year", "add-semester [label] [position]"));
+        registerCommand("remove-semester", (args) -> {
+            if (args.length != 1) return "Usage: remove-semester [label]";
+            Semester semester = Semester.get(args[0]);
+            if (semester == null) return "Semester not found";
+            try {
+                semester.delete();
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+            return "Successfully removed semester";
+        }, new CommandDescription("remove-semester", "Removes a semester", "remove-semester [label]"));
+        registerCommand("list-semesters", (args) -> {
+            SchoolYear current = SchoolYear.getCurrentYear();
+            if (current == null) return "No current school year found";
+            return Semester.getBySchoolYear(current).stream().map(s -> s.getLabel() + " (Position: " + s.getPosition() + ", School Year: " + s.getSchoolYear().getLabel() + ")").reduce("Semesters:", (s1,s2) -> s1 + "\n" + s2);
+        }, new CommandDescription("list-semesters", "Lists semesters of the current school year", "list-semesters"));
+        registerCommand("set-current-semester", (args) -> {
+            if (args.length != 1) return "Usage: set-current-semester [label]";
+            Semester semester = Semester.get(args[0]);
+            if (semester == null) return "Semester not found";
+            try {
+                SchoolYear current = SchoolYear.getCurrentYear();
+                if (current == null) return "No current school year found";
+                if (!semester.getSchoolYear().equals(current)) return "Semester does not belong to the current school year";
+                current.setCurrentSemester(semester);
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+            return "Successfully set current semester";
+        }, new CommandDescription("set-current-semester", "Sets the current semester of the current school year", "set-current-semester [label]"));
+        registerCommand("get-current-semester", (args) -> {
+            SchoolYear current = SchoolYear.getCurrentYear();
+            if (current == null) return "No current school year found";
+            Semester semester = current.getCurrentSemester();
+            if (semester == null) return "No current semester found";
+            return "Current semester: " + semester.getLabel() + " (Position: " + semester.getPosition() + ", School Year: " + semester.getSchoolYear().getLabel() + ")";
+        }, new CommandDescription("get-current-semester", "Gets the current semester of the current school year", "get-current-semester"));
         // User commands
         registerCommand("regenerate-user-password", (args) -> {
             if (args.length != 1) return "Usage: regenerate-user-password [user]";

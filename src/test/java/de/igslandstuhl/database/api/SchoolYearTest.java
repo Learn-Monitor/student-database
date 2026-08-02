@@ -60,8 +60,8 @@ public class SchoolYearTest {
 
     @Test
     public void addSchoolYearWithDates() throws SQLException {
-        LocalDate start = LocalDate.of(2026, 8, 1);
-        LocalDate end = LocalDate.of(2027, 7, 15);
+        LocalDate start = LocalDate.of(2005, 8, 1);
+        LocalDate end = LocalDate.of(2006, 7, 15);
         SchoolYear year = SchoolYear.addSchoolYear("0001/0002-dates", 40, 1, start, end);
         assertNotNull(year);
         assertEquals(start, year.getStartDate());
