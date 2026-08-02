@@ -149,6 +149,24 @@ public class UnscheduledTask extends Task {
                 .toList();
     }
     /**
+     * Retrieves a list of unscheduled tasks by their subjects.
+     * This method queries the database for unscheduled tasks matching the given subjects.
+     *
+     * @param subject the subject of the unscheduled tasks
+     * @return a list of UnscheduledTask objects if found, or an empty list if not found
+     */
+    public static List<UnscheduledTask> getUnscheduledTasksBySubject(Subject subject) {
+        try {
+            Server.getInstance().processRequest(UnscheduledTask::addToCache, "get_unscheduled_tasks_by_name", SQL_FIELDS, String.valueOf(subject.getId()));
+        } catch (SQLException e) {
+            Application.LOGGER_API.error("Failed to get UnscheduledTask(s) with subject {} from database", subject.getName(), e);
+            return new ArrayList<>();
+        }
+        return unscheduledTasks.values().stream()
+                .filter(task -> task.getSubject().equals(subject))
+                .toList();
+    }
+    /**
      * Adds a new unscheduled task to the database.
      * 
      * @param name  the name of the task
