@@ -26,7 +26,7 @@ public class Task implements APIObject {
      * SQL fields for the Task table.
      * Used for database queries to retrieve task information.
      */
-    private static final String[] SQL_FIELDS = {"id", "topic", "name", "niveau"};
+    private static final String[] SQL_FIELDS = {"id", "topic", "name", "niveau", "tokens"};
     /**
      * A map to cache tasks by their unique identifier.
      * This helps avoid repeated database queries for the same task.
@@ -52,6 +52,11 @@ public class Task implements APIObject {
      * It is also used to calculate the task's ratio in relation to the topic.
      */
     private final TaskLevel niveau;
+    /**
+     * The number of tokens associated with the task.
+     * This represents the value or reward for completing the task.
+     */
+    private final int tokens;
 
     /**
      * Constructs a new Task.
@@ -60,12 +65,14 @@ public class Task implements APIObject {
      * @param topic the topic associated with the task
      * @param name  the name of the task
      * @param niveau the level of difficulty for the task
+     * @param tokens the number of tokens associated with the task
      */
-    protected Task(int id, Topic topic, String name, TaskLevel niveau) {
+    protected Task(int id, Topic topic, String name, TaskLevel niveau, int tokens) {
         this.id = id;
         this.topic = topic;
         this.name = name;
         this.niveau = niveau;
+        this.tokens = tokens;
     }
     
     /**
@@ -128,7 +135,9 @@ public class Task implements APIObject {
      * The ratio is calculated based on the topic's ratio and the number of tasks at the same level.
      *
      * @return the ratio of the task
+     * @deprecated This method is deprecated and may be removed in future versions. Use tokens for task value instead.
      */
+    @Deprecated
     public double getRatio() {
         return niveau.getRatio() * topic.getRatio() / (100.0 * topic.getTasksByLevel(niveau).size());
     }
@@ -141,6 +150,15 @@ public class Task implements APIObject {
     public Subject getSubject() {
         if (topic == null) return null;
         return topic.getSubject();
+    }
+
+    /**
+     * Returns the number of tokens associated with the task.
+     * This represents the value or reward for completing the task.
+     * @return the number of tokens
+     */
+    public int getTokens() {
+        return tokens;
     }
 
     public void removeFromCache() {
@@ -163,7 +181,8 @@ public class Task implements APIObject {
         Topic topic = Topic.get(Integer.parseInt(fields[1]));
         String name = fields[2];
         TaskLevel niveau = TaskLevel.get(Integer.parseInt(fields[3]));
-        return new Task(id, topic, name, niveau);
+        int tokens = Integer.parseInt(fields[4]);
+        return new Task(id, topic, name, niveau, tokens);
     }
     /**
      * Retrieves a Task by its unique identifier.
@@ -221,7 +240,7 @@ public class Task implements APIObject {
 
     @Override
     public String toString() {
-        return "{\"id\": " + id + ", \"topic\": " + topic + ", \"name\": \"" + name + "\", \"niveau\": " + niveau + ", \"number\": \"" + getNumber() + "\", \"ratio\": " + getRatio() + "}";
+        return toJSON();
     }
 
     /**
@@ -234,8 +253,8 @@ public class Task implements APIObject {
      * @throws SQLException if there is an error accessing the database
      * @return the newly created Task object, or null if the task could not be added
      */
-    public static Task addTask(Topic topic, String name, TaskLevel niveau) throws SQLException {
-        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("task", topic == null ? "-1" : String.valueOf(topic.getId()), name, String.valueOf(niveau)));
+    public static Task addTask(Topic topic, String name, TaskLevel niveau, int tokens) throws SQLException {
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("task", topic == null ? "-1" : String.valueOf(topic.getId()), name, String.valueOf(niveau), String.valueOf(tokens)));
         return getByName(name).stream()
                 //.filter(t -> t.getTopic().equals(topic) && t.getNiveau() == niveau)
                 .sorted(Comparator.comparing(Task::getId, Comparator.reverseOrder()))
@@ -283,12 +302,13 @@ public class Task implements APIObject {
         String[] parts = serialized.split(Application.TASK_TITLE_DELIMITER);
         String name = parts[0];
         TaskLevel level = TaskLevel.get(Integer.parseInt(parts[1]));
-        return addTask(topic, name, level);
+        int tokens = Integer.parseInt(parts[4]);
+        return addTask(topic, name, level, tokens);
     }
 
     @Override
     public String toJSON() {
-        return "{\"id\": " + id + ", \"topic\": " + topic + ", \"name\": \"" + name + "\", \"niveau\": " + niveau + ", \"number\": \"" + getNumber() + "\", \"ratio\": " + getRatio() + "}";
+        return "{\"id\": " + id + ", \"topic\": " + topic + ", \"name\": \"" + name + "\", \"niveau\": " + niveau + ", \"number\": \"" + getNumber() + "\", \"tokens\": " + getTokens() + "}";
     }
     
 }

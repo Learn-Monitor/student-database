@@ -12,13 +12,8 @@ import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
 
 public class SpecialTask extends Task {
-    private static final String[] SQL_FIELDS = {"id", "name", "ratio", "subject_id"};
+    private static final String[] SQL_FIELDS = {"id", "name", "tokens", "subject_id"};
     private static final Map<Integer, SpecialTask> specialTasks = new HashMap<>();
-    /**
-     * The ratio associated with this special task.
-     * This indicates the proportion of progress that can be achieved at this level.
-     */
-    private final double ratio;
     /**
      * The subject associated with this special task.
      * This is the subject area to which the special task belongs.
@@ -30,25 +25,25 @@ public class SpecialTask extends Task {
      * @param id    the unique identifier for the special task
      * @param name  the name of the special task
      */
-    public SpecialTask(int id, String name, double ratio, Subject subject) {
-        super(id, null, name, TaskLevel.SPECIAL);
-        this.ratio = ratio;
+    public SpecialTask(int id, String name, Subject subject, int tokens) {
+        super(id, null, name, TaskLevel.SPECIAL, tokens);
         this.subject = subject;
     }
 
+    /**
+     * Returns the ratio of the special task.
+     * This method now only returns 0, as ratios are no longer used.
+     * @deprecated This method is deprecated and will be removed in future versions. Use getTokens() instead.
+     */
     @Override
+    @Deprecated
     public double getRatio() {
-        return ratio;
+        return 0;
     }
 
     @Override
     public String toString() {
-        return "{" +
-                "\"id\":" + getId() +
-                ", \"name\": \"" + getName() + '"' +
-                ", \"ratio\":" + ratio +
-                ", \"subject\": \"" + subject.getName() + '"' +
-                '}';
+        return toJSON();
     }
 
     @Override
@@ -56,7 +51,7 @@ public class SpecialTask extends Task {
         return "{" +
                 "\"id\":" + getId() +
                 ", \"name\": \"" + getName() + '"' +
-                ", \"ratio\":" + ratio +
+                ", \"tokens\": " + getTokens() +
                 ", \"subject\": \"" + subject.getName() + '"' +
                 '}';
     }
@@ -71,9 +66,9 @@ public class SpecialTask extends Task {
     private static SpecialTask fromSQLFields(String[] sqlResult) {
         int id = Integer.parseInt(sqlResult[0]);
         String name = sqlResult[1];
-        double ratio = Double.parseDouble(sqlResult[2]);
+        int tokens = Integer.parseInt(sqlResult[2]);
         Subject subject = Subject.get(Integer.parseInt(sqlResult[3]));
-        return new SpecialTask(id, name, ratio, subject);
+        return new SpecialTask(id, name, subject, tokens);
     }
     /**
      * Retrieves a SpecialTask by its unique identifier.
@@ -132,10 +127,10 @@ public class SpecialTask extends Task {
      * @throws SQLException if there is an error accessing the database
      * @return the newly created SpecialTask object, or null if the task could not be added
      */
-    public static SpecialTask addSpecialTask(String name, double ratio, Subject subject) throws SQLException {
-        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("special_task", subject == null ? "-1" : name, String.valueOf(ratio), String.valueOf(subject.getId())));
+    public static SpecialTask addSpecialTask(String name, Subject subject, int tokens) throws SQLException {
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("special_task", subject == null ? "-1" : name, String.valueOf(tokens), String.valueOf(subject.getId())));
         return getSpecialTasksByName(name).stream()
-                .filter(t -> t.getSubject() == subject && t.getRatio() == ratio)
+                .filter(t -> t.getSubject() == subject && t.getTokens() == tokens)
                 .sorted(Comparator.comparing(SpecialTask::getId, Comparator.reverseOrder()))
                 .findFirst()
                 .orElse(null);

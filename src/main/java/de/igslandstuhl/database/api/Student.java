@@ -644,20 +644,22 @@ public class Student extends User {
     /**
      * Returns the current progress of the student for a given subject.
      * @param subject the subject to get the current progress for
-     * @return the current progress as a percentage (0-1)
+     * @return the current progress in tokens
      */
-    public double getCurrentProgress(Subject subject) {
+    public int getCurrentProgress(Subject subject) {
         return completedTasks.stream()
             .filter(Objects::nonNull)
             .filter(task -> task.getSubject() != null && task.getSubject().equals(subject))
-            .mapToDouble(Task::getRatio)
+            .mapToInt(Task::getTokens)
             .sum();
     }
     /**
      * Returns the currently achieved grade for a given subject based on the current progress.
      * @param subject the subject to evaluate
+     * @deprecated we no longer use grade prediction
      * @return the grade as an integer (1-6)
      */
+    @Deprecated
     public int getCurrentlyAchievedGrade(Subject subject) {
         double progress = getCurrentProgress(subject);
         if (progress >= 0.85) {
@@ -677,22 +679,24 @@ public class Student extends User {
     /**
      * Predicts the student's progress for a given subject based on the current week of the school year.
      * @param subject the subject to predict progress for
-     * @return the predicted progress as a percentage (0-100)
+     * @return the predicted progress in tokens, considering the current week and any completed special tasks
      */
-    public double getPredictedProgress(Subject subject) {
-        double progress = getCurrentProgress(subject);
+    public int getPredictedProgress(Subject subject) {
+        int progress = getCurrentProgress(subject);
         SchoolYear currentYear = SchoolYear.getCurrentYear();
         if (currentYear == null) {
             return 0; // No current year available
         }
-        double specials = completedTasks.stream().filter((t) -> (t instanceof SpecialTask)).mapToDouble(Task::getRatio).sum();
+        int specials = completedTasks.stream().filter((t) -> (t instanceof SpecialTask)).mapToInt(Task::getTokens).sum();
         return Math.min(progress * currentYear.getWeekCount() / currentYear.getCurrentWeek(), 1 + specials);
     }
     /**
      * Predicts the student's grade for a given subject based on the predicted progress.
      * @param subject the subject to predict the grade for
+     * @deprecated we no longer use grade prediction
      * @return the predicted grade as an integer (1-6)
      */
+    @Deprecated
     public int getPredictedGrade(Subject subject) {
         double predictedProgress = getPredictedProgress(subject);
         if (predictedProgress >= 0.85) {

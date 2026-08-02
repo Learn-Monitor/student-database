@@ -52,10 +52,12 @@ public class SchoolYearTest {
         SchoolYear.addSchoolYear("2022/2023", 38, 38);
         SchoolYear.addSchoolYear("2023/2024", 39, 39);
         SchoolYear.addSchoolYear("2024/2025", 40, 10);
+        PreConditions.addSampleSchoolYear();
         SchoolYear current = SchoolYear.getCurrentYear();
         assertNotNull(current);
-        // Should be the year with the lowest current_week
-        assertEquals(10, current.getCurrentWeek());
+        // Should be the year set up in preconditions, which has the current week set to 39 and 39 total weeks
+        assertEquals(39, current.getCurrentWeek());
+        assertEquals(39, current.getWeekCount());
     }
 
     @Test
