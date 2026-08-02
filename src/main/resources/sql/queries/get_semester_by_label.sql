@@ -1,1 +1,1 @@
-SELECT * FROM semester WHERE label = ?;
+SELECT * FROM semesters WHERE label = ?;
