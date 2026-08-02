@@ -7,5 +7,5 @@ CREATE TABLE IF NOT EXISTS unscheduled_tasks (
 
     FOREIGN KEY (subject) REFERENCES subjects(id) ON DELETE CASCADE,
     FOREIGN KEY (class) REFERENCES classes(id) ON DELETE CASCADE,
-    UNIQUE (subject, name)
+    UNIQUE (subject, name, class)
 );

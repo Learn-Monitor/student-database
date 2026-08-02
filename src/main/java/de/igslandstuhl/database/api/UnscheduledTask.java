@@ -177,7 +177,7 @@ public class UnscheduledTask extends Task {
      * @return the newly created UnscheduledTask object, or null if the task could not be added
      */
     public static UnscheduledTask addUnscheduledTask(String name, SchoolClass schoolClass, Subject subject, int maxTokens) throws SQLException {
-        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("unscheduled_task", subject == null ? "-1" : name, String.valueOf(subject.getId()), String.valueOf(subject.getId()), String.valueOf(maxTokens)));
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("unscheduled_task", name, String.valueOf(schoolClass.getId()), String.valueOf(subject.getId()), String.valueOf(maxTokens)));
         return getUnscheduledTasksByName(name).stream()
                 .filter(t -> t.getSubject() == subject && t.getSchoolClass() == schoolClass && t.getMaxTokens() == maxTokens)
                 .sorted(Comparator.comparing(UnscheduledTask::getId, Comparator.reverseOrder()))
