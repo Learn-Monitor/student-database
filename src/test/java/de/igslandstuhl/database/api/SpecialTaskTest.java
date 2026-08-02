@@ -16,11 +16,11 @@ public class SpecialTaskTest {
     @Test
     public void addSpecialTask() throws SQLException {
         Subject subject = Subject.get(1);
-        SpecialTask.addSpecialTask("Nansteinaufgabe", 0.05, subject);
+        SpecialTask.addSpecialTask("Nansteinaufgabe", subject, 2);
         SpecialTask task = SpecialTask.get(1);
         assertNotNull(task);
         assertEquals("Nansteinaufgabe", task.getName());
-        assertEquals(0.05, task.getRatio(), 0.0001);
+        assertEquals(2, task.getTokens());
         assertEquals(subject, task.getSubject());
     }
     @Test

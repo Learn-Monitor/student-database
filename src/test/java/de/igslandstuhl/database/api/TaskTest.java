@@ -17,7 +17,7 @@ public class TaskTest {
     }
     @Test
     public void addTask() throws SQLException {
-        Task added = Task.addTask(Topic.get(1), "Addition", TaskLevel.LEVEL1);
+        Task added = Task.addTask(Topic.get(1), "Addition", TaskLevel.LEVEL1, 3);
         Task task = Task.get(1);
         assertNotNull(task);
         assertEquals(added, task);
