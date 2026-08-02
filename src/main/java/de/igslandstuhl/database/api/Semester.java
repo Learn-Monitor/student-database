@@ -82,6 +82,15 @@ public class Semester implements APIObject {
     }
 
     /**
+     * Returns the school year to which the semester belongs.
+     *
+     * @return The school year to which the semester belongs.
+     */
+    public SchoolYear getSchoolYear() {
+        return schoolYear;
+    }
+
+    /**
      * Deletes this semester from the database.
      * @throws SQLException if a database access error occurs or the SQL statement fails
      */
