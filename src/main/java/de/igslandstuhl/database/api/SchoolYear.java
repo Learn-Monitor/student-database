@@ -215,6 +215,13 @@ public class SchoolYear implements APIObject {
      * @return the current SchoolYear object, or null if not found
      */
     public static SchoolYear getCurrentYear() {
+        List<SchoolYear> allYears = getAll();
+        Optional<SchoolYear> currentYear = allYears.stream().filter((s) -> s.getStartDate() != null && s.getEndDate() != null)
+            .filter((s) -> {
+                LocalDate now = LocalDate.now();
+                return !now.isBefore(s.getStartDate()) && !now.isAfter(s.getEndDate());
+            }).findAny();
+        if (currentYear.isPresent()) return currentYear.get();
         try {
             SchoolYear year = Server.getInstance().processSingleRequest(
                 SchoolYear::fromSQL,
