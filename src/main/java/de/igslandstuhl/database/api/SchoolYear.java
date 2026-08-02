@@ -274,6 +274,13 @@ public class SchoolYear implements APIObject {
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getDeleteObjectProcess("school_year", String.valueOf(id)));
     }
 
+    public SchoolYear setCurrentSemester(Semester semester) throws SQLException {
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("current_semester_of_school_year", String.valueOf(semester.getId()), String.valueOf(id)));
+        SchoolYear updated = new SchoolYear(id, label, weekCount, currentWeek, startDate, endDate, semester);
+        years.put(id, updated);
+        return updated;
+    }
+
     @Override
     public String toString() {
         return "{\"id\":" + id + ",\"label\":\"" + label + "\",\"weekCount\":" + weekCount + ",\"currentWeek\":" + currentWeek

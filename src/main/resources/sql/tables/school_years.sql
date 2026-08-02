@@ -5,5 +5,5 @@ CREATE TABLE IF NOT EXISTS school_years (
     current_week INTEGER NOT NULL,
     start_date TEXT,
     end_date TEXT,
-    current_semester INTEGER NOT NULL
+    current_semester INTEGER
 );
