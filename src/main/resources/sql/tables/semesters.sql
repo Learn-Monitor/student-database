@@ -4,5 +4,5 @@ CREATE TABLE IF NOT EXISTS semesters (
     position INTEGER NOT NULL,
     school_year INTEGER NOT NULL,
 
-    FOREIGN KEY (school_year) REFERENCES school_years(id) ON DELETE CASCADE,
+    FOREIGN KEY (school_year) REFERENCES school_years(id) ON DELETE CASCADE
 );
