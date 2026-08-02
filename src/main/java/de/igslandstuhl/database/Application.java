@@ -8,6 +8,7 @@ import org.jline.reader.UserInterruptException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import de.igslandstuhl.database.api.SchoolYear;
 import de.igslandstuhl.database.api.SerializationException;
 import de.igslandstuhl.database.api.Subject;
 import de.igslandstuhl.database.api.Topic;
@@ -106,7 +107,7 @@ public final class Application {
                 } else if (i == 1) {
                     grade = Integer.parseInt(line);
                 } else {
-                    topics.add(Topic.fromSerialized(line, subject, grade, i - 1));
+                    topics.add(Topic.fromSerialized(line, subject, grade, i - 1, SchoolYear.getCurrentYear().getCurrentSemester()));
                 }
             }
         } catch (Throwable t) {

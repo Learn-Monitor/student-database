@@ -1,0 +1,1 @@
+SELECT * FROM semester WHERE label = ?;
