@@ -146,7 +146,7 @@ public class Student extends User {
         }, "get_locked_tasks_by_student", INTERESTING_TASKSTAT_FIELDS, String.valueOf(id));
 
         Server.getInstance().processRequest((t) -> {
-            SpecialTask st = SpecialTask.get(Integer.parseInt(t[0]));
+            IndividualTask st = IndividualTask.get(Integer.parseInt(t[0]));
             if (st != null) completedTasks.add(st);
         }, "get_completed_special_tasks_by_student", INTERESTING_SPECIAL_TASK_STAT_FIELDS, String.valueOf(id));
 
@@ -687,7 +687,7 @@ public class Student extends User {
         if (currentYear == null) {
             return 0; // No current year available
         }
-        int specials = completedTasks.stream().filter((t) -> (t instanceof SpecialTask)).mapToInt(Task::getTokens).sum();
+        int specials = completedTasks.stream().filter((t) -> (t instanceof IndividualTask)).mapToInt(Task::getTokens).sum();
         return Math.min(progress * currentYear.getWeekCount() / currentYear.getCurrentWeek(), 1 + specials);
     }
     /**
@@ -726,7 +726,7 @@ public class Student extends User {
         return currentRequests.entrySet().stream().anyMatch((set) -> !set.getValue().isEmpty());
     }
 
-    public void assignCompletedSpecialTask(SpecialTask task) throws SQLException {
+    public void assignCompletedIndividualTask(IndividualTask task) throws SQLException {
         if (task == null) {
             throw new IllegalArgumentException("Special task cannot be null");
         }

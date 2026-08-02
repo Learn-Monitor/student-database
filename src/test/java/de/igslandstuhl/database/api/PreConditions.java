@@ -22,9 +22,9 @@ public class PreConditions {
     public static void addSampleTask() throws SQLException {
         Task.addTask(Topic.get(1), "Addition", TaskLevel.LEVEL1, 3);
     }
-    public static void addSampleSpecialTask() throws SQLException {
+    public static void addSampleIndividualTask() throws SQLException {
         Subject subject = Subject.get(1);
-        SpecialTask.addSpecialTask("Nansteinaufgabe", subject, 2);
+        IndividualTask.addIndividualTask("Nansteinaufgabe", subject, 2);
     }
     public static void addSampleClass() throws SQLException {
         SchoolClass.addClass("5a", 5);
