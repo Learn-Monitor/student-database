@@ -78,18 +78,4 @@ public class SchoolYearTest {
         assertNull(year.getStartDate());
         assertNull(year.getEndDate());
     }
-
-    @Test
-    public void setStartAndEndDate() throws SQLException {
-        SchoolYear year = SchoolYear.addSchoolYear("0001/0002-setdates", 40, 1);
-        LocalDate start = LocalDate.of(2028, 8, 15);
-        LocalDate end = LocalDate.of(2029, 7, 20);
-
-        year.setStartDate(start);
-        year.setEndDate(end);
-
-        SchoolYear loaded = SchoolYear.get(year.getId());
-        assertEquals(start, loaded.getStartDate());
-        assertEquals(end, loaded.getEndDate());
-    }
 }

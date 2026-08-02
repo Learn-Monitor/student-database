@@ -43,12 +43,14 @@ public class SchoolYear implements APIObject {
     private int currentWeek;
     /**
      * The start date of the school year. May be null if not configured.
+     * Immutable: can only be set when the school year is created.
      */
-    private LocalDate startDate;
+    private final LocalDate startDate;
     /**
      * The end date of the school year. May be null if not configured.
+     * Immutable: can only be set when the school year is created.
      */
-    private LocalDate endDate;
+    private final LocalDate endDate;
 
     /**
      * Constructs a new SchoolYear.
@@ -122,32 +124,6 @@ public class SchoolYear implements APIObject {
      * @return the end date of the school year, or null if not configured
      */
     public LocalDate getEndDate() { return endDate; }
-    /**
-     * Sets the start date of the school year.
-     * This updates the start date in the database and in the object.
-     *
-     * @param startDate the new start date to set, or null to clear it
-     * @throws SQLException if there is an error accessing the database
-     */
-    public void setStartDate(LocalDate startDate) throws SQLException {
-        this.startDate = startDate;
-        Server.getInstance().getConnection().executeVoidProcessSecure(
-            "UPDATE school_years SET start_date = " + (startDate == null ? "NULL" : "'" + startDate + "'") + " WHERE id = " + id
-        );
-    }
-    /**
-     * Sets the end date of the school year.
-     * This updates the end date in the database and in the object.
-     *
-     * @param endDate the new end date to set, or null to clear it
-     * @throws SQLException if there is an error accessing the database
-     */
-    public void setEndDate(LocalDate endDate) throws SQLException {
-        this.endDate = endDate;
-        Server.getInstance().getConnection().executeVoidProcessSecure(
-            "UPDATE school_years SET end_date = " + (endDate == null ? "NULL" : "'" + endDate + "'") + " WHERE id = " + id
-        );
-    }
 
     /**
      * Creates a SchoolYear object from SQL query result fields.
