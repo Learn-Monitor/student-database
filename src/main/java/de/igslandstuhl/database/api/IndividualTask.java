@@ -83,7 +83,7 @@ public class IndividualTask extends Task {
     public static IndividualTask get(int id) {
         if (individualTasks.keySet().contains(id)) return individualTasks.get(id);
         try {
-            IndividualTask task = Server.getInstance().processSingleRequest(IndividualTask::fromSQLFields, "get_special_task_by_id", SQL_FIELDS, String.valueOf(id));
+            IndividualTask task = Server.getInstance().processSingleRequest(IndividualTask::fromSQLFields, "get_individual_task_by_id", SQL_FIELDS, String.valueOf(id));
             individualTasks.put(id, task);
             return task;
         } catch (SQLException e) {
@@ -110,7 +110,7 @@ public class IndividualTask extends Task {
      */
     public static List<IndividualTask> getIndividualTasksByName(String name) {
         try {
-            Server.getInstance().processRequest(IndividualTask::addToCache, "get_special_tasks_by_name", SQL_FIELDS, name);
+            Server.getInstance().processRequest(IndividualTask::addToCache, "get_individual_tasks_by_name", SQL_FIELDS, name);
         } catch (SQLException e) {
             Application.LOGGER_API.error("Failed to get IndividualTask with name {} from database", name, e);
             return new ArrayList<>();
@@ -130,7 +130,7 @@ public class IndividualTask extends Task {
      * @return the newly created IndividualTask object, or null if the task could not be added
      */
     public static IndividualTask addIndividualTask(String name, Subject subject, int tokens) throws SQLException {
-        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("special_task", subject == null ? "-1" : name, String.valueOf(tokens), String.valueOf(subject.getId())));
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("individual_task", subject == null ? "-1" : name, String.valueOf(tokens), String.valueOf(subject.getId())));
         return getIndividualTasksByName(name).stream()
                 .filter(t -> t.getSubject() == subject && t.getTokens() == tokens)
                 .sorted(Comparator.comparing(IndividualTask::getId, Comparator.reverseOrder()))

@@ -25,7 +25,7 @@ import de.igslandstuhl.database.server.sql.SQLHelper;
 public class Student extends User {
     private static final String[] SQL_FIELDS = new String[] {"id", "first_name", "last_name", "email", "password", "class", "graduation_level"};
     private static final String[] INTERESTING_TASKSTAT_FIELDS = {"task"};
-    private static final String[] INTERESTING_SPECIAL_TASK_STAT_FIELDS = {"special_task"};
+    private static final String[] INTERESTING_SPECIAL_TASK_STAT_FIELDS = {"individual_task"};
     private static final Map<Integer, Student> students = new HashMap<>();
 
     /**
@@ -148,7 +148,7 @@ public class Student extends User {
         Server.getInstance().processRequest((t) -> {
             IndividualTask st = IndividualTask.get(Integer.parseInt(t[0]));
             if (st != null) completedTasks.add(st);
-        }, "get_completed_special_tasks_by_student", INTERESTING_SPECIAL_TASK_STAT_FIELDS, String.valueOf(id));
+        }, "get_completed_individual_tasks_by_student", INTERESTING_SPECIAL_TASK_STAT_FIELDS, String.valueOf(id));
 
         // Defensive cleanup: ensure no nulls remained
         selectedTasks.removeIf(Objects::isNull);
@@ -732,7 +732,7 @@ public class Student extends User {
         }
         // Update in DB
         Server.getInstance().getConnection().executeVoidProcessSecure(
-            SQLHelper.getAddObjectProcess("special_task_to_student",
+            SQLHelper.getAddObjectProcess("individual_task_to_student",
                 String.valueOf(id),
                 String.valueOf(task.getId())
             )
