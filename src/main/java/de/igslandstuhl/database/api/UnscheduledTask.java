@@ -157,7 +157,7 @@ public class UnscheduledTask extends Task {
      */
     public static List<UnscheduledTask> getUnscheduledTasksBySubject(Subject subject) {
         try {
-            Server.getInstance().processRequest(UnscheduledTask::addToCache, "get_unscheduled_tasks_by_name", SQL_FIELDS, String.valueOf(subject.getId()));
+            Server.getInstance().processRequest(UnscheduledTask::addToCache, "get_unscheduled_tasks_by_subject", SQL_FIELDS, String.valueOf(subject.getId()));
         } catch (SQLException e) {
             Application.LOGGER_API.error("Failed to get UnscheduledTask(s) with subject {} from database", subject.getName(), e);
             return new ArrayList<>();
@@ -179,7 +179,7 @@ public class UnscheduledTask extends Task {
     public static UnscheduledTask addUnscheduledTask(String name, SchoolClass schoolClass, Subject subject, int maxTokens) throws SQLException {
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("unscheduled_task", name, String.valueOf(schoolClass.getId()), String.valueOf(subject.getId()), String.valueOf(maxTokens)));
         return getUnscheduledTasksByName(name).stream()
-                .filter(t -> t.getSubject() == subject && t.getSchoolClass() == schoolClass && t.getMaxTokens() == maxTokens)
+                .filter(t -> t.getSubject().equals(subject) && t.getSchoolClass().equals(schoolClass) && t.getMaxTokens() == maxTokens)
                 .sorted(Comparator.comparing(UnscheduledTask::getId, Comparator.reverseOrder()))
                 .findFirst()
                 .orElse(null);
