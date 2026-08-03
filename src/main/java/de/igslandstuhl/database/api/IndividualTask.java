@@ -124,7 +124,7 @@ public class IndividualTask extends Task {
      * This method creates a new task associated with a specific topic and level of difficulty.
      *
      * @param name  the name of the task
-     * @param ratio the ratio indicating the proportion of progress achievable at this level
+     * @param tokens the count of tokens indicating the progress achievable at this level
      * @param subject the subject area to which the task belongs
      * @throws SQLException if there is an error accessing the database
      * @return the newly created IndividualTask object, or null if the task could not be added
