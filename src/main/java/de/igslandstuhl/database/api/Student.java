@@ -25,7 +25,7 @@ import de.igslandstuhl.database.server.sql.SQLHelper;
 public class Student extends User {
     private static final String[] SQL_FIELDS = new String[] {"id", "first_name", "last_name", "email", "password", "class", "graduation_level"};
     private static final String[] INTERESTING_TASKSTAT_FIELDS = {"task"};
-    private static final String[] INTERESTING_SPECIAL_TASK_STAT_FIELDS = {"special_task"};
+    private static final String[] INTERESTING_SPECIAL_TASK_STAT_FIELDS = {"individual_task"};
     private static final Map<Integer, Student> students = new HashMap<>();
 
     /**
@@ -146,9 +146,9 @@ public class Student extends User {
         }, "get_locked_tasks_by_student", INTERESTING_TASKSTAT_FIELDS, String.valueOf(id));
 
         Server.getInstance().processRequest((t) -> {
-            SpecialTask st = SpecialTask.get(Integer.parseInt(t[0]));
+            IndividualTask st = IndividualTask.get(Integer.parseInt(t[0]));
             if (st != null) completedTasks.add(st);
-        }, "get_completed_special_tasks_by_student", INTERESTING_SPECIAL_TASK_STAT_FIELDS, String.valueOf(id));
+        }, "get_completed_individual_tasks_by_student", INTERESTING_SPECIAL_TASK_STAT_FIELDS, String.valueOf(id));
 
         // Defensive cleanup: ensure no nulls remained
         selectedTasks.removeIf(Objects::isNull);
@@ -679,7 +679,7 @@ public class Student extends User {
     /**
      * Predicts the student's progress for a given subject based on the current week of the school year.
      * @param subject the subject to predict progress for
-     * @return the predicted progress in tokens, considering the current week and any completed special tasks
+     * @return the predicted progress in tokens, considering the current week and any completed individual tasks
      */
     public int getPredictedProgress(Subject subject) {
         int progress = getCurrentProgress(subject);
@@ -687,7 +687,7 @@ public class Student extends User {
         if (currentYear == null) {
             return 0; // No current year available
         }
-        int specials = completedTasks.stream().filter((t) -> (t instanceof SpecialTask)).mapToInt(Task::getTokens).sum();
+        int specials = completedTasks.stream().filter((t) -> (t instanceof IndividualTask)).mapToInt(Task::getTokens).sum();
         return Math.min(progress * currentYear.getWeekCount() / currentYear.getCurrentWeek(), 1 + specials);
     }
     /**
@@ -726,13 +726,13 @@ public class Student extends User {
         return currentRequests.entrySet().stream().anyMatch((set) -> !set.getValue().isEmpty());
     }
 
-    public void assignCompletedSpecialTask(SpecialTask task) throws SQLException {
+    public void assignCompletedIndividualTask(IndividualTask task) throws SQLException {
         if (task == null) {
             throw new IllegalArgumentException("Special task cannot be null");
         }
         // Update in DB
         Server.getInstance().getConnection().executeVoidProcessSecure(
-            SQLHelper.getAddObjectProcess("special_task_to_student",
+            SQLHelper.getAddObjectProcess("individual_task_to_student",
                 String.valueOf(id),
                 String.valueOf(task.getId())
             )
