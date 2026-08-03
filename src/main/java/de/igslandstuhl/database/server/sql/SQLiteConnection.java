@@ -68,8 +68,9 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
      * Applies schema migrations to the database by executing SQL scripts.
      * This method reads SQL files matching the pattern "./migrations/*.sql" (regex: .*migrations.+\.sql) and executes their content.
      * Migrations are expected to be idempotent-safe: if a migration was already applied (e.g. a column
-     * already exists), the resulting SQL error is logged at debug level and ignored, so that re-running
-     * migrations on an already up-to-date database is harmless.
+     * or table already exists/was already renamed/dropped), the resulting SQL error ("duplicate column
+     * name", "no such column", or "no such table") is logged at debug level and ignored, so that
+     * re-running migrations on an already up-to-date database is harmless.
      * @param supplier the Statement object used to execute the SQL commands
      * @throws SQLException if an SQL error occurs during migration that is not an "already applied" error
      */
@@ -82,7 +83,11 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
                     try {
                         supplier.executeUpdate(request);
                     } catch (SQLException e) {
-                        if (e.getMessage() != null && e.getMessage().toLowerCase().contains("duplicate column name")) {
+                        if (e.getMessage() != null && (
+                                e.getMessage().toLowerCase().contains("duplicate column name")
+                                || e.getMessage().toLowerCase().contains("no such column")
+                                || e.getMessage().toLowerCase().contains("no such table")
+                            )) {
                             LOGGER.debug("Skipping already applied migration: {}", request);
                         } else {
                             throw e;
