@@ -29,7 +29,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.6.1")
 
     // built-in plugins
-    implementation("io.github.learn-monitor:plugin-loader:v1.0.6")
+    implementation("io.github.learn-monitor:plugin-loader:v1.0.7")
 
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.2") // using JUnit 5 (latest)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
