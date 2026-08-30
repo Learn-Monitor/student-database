@@ -4,13 +4,24 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.jline.reader.UserInterruptException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import de.igslandstuhl.database.api.SchoolYear;
 import de.igslandstuhl.database.api.SerializationException;
 import de.igslandstuhl.database.api.Subject;
 import de.igslandstuhl.database.api.Topic;
+import de.igslandstuhl.database.client.HTMLTemplate;
+import de.igslandstuhl.database.events.EventListener;
 import de.igslandstuhl.database.holidays.Holiday;
+import de.igslandstuhl.database.plugins.PluginLoader;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.commands.Command;
-import de.igslandstuhl.database.server.webserver.PostRequestHandler;
+import de.igslandstuhl.database.server.webserver.WebPath;
+import de.igslandstuhl.database.server.webserver.handlers.GetRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.PostRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.get.SQLRequestHandler;
 import de.igslandstuhl.database.utils.CommandLineUtils;
 
 /**
@@ -19,11 +30,29 @@ import de.igslandstuhl.database.utils.CommandLineUtils;
  * It will later replace Server as main class.
  */
 public final class Application {
+    /** The delimiter for topics in LPT save files. */
     public static final String TOPIC_DELIMITER = "\n";
+    /** The delimiter for titles in LPT save files. */
     public static final String TITLE_DELIMITER = "¶";
+    /** The delimiter for task titles in LPT save files. */
     public static final String TASK_TITLE_DELIMITER = "\\|";
+    /** The delimiter for tasks in LPT save files. */
     public static final String TASK_DELIMITER = "¤";
+
+    /**
+     * The application main logger
+     */
+    public static final Logger LOGGER = LoggerFactory.getLogger(Application.class);
+    /**
+     * The logger for the student-database api
+     */
+    public static final Logger LOGGER_API = LoggerFactory.getLogger("de.igslandstuhl.database.api");
+
     private static Application instance = new Application(new String[] {"--test-environment", "true"});
+    /**
+     * Returns the singleton instance of the Application.
+     * @return the singleton instance of the Application
+     */
     public static Application getInstance() {
         return instance;
     }
@@ -78,11 +107,10 @@ public final class Application {
                 } else if (i == 1) {
                     grade = Integer.parseInt(line);
                 } else {
-                    topics.add(Topic.fromSerialized(line, subject, grade, i - 1));
+                    topics.add(Topic.fromSerialized(line, subject, grade, i - 1, SchoolYear.getCurrentYear().getCurrentSemester()));
                 }
             }
         } catch (Throwable t) {
-            t.printStackTrace();
             throw new SerializationException("Failed to read file", t);
         }
 
@@ -90,25 +118,61 @@ public final class Application {
         return topics.toArray(topicsArr);
     }
 
+    private static void registerBuiltinPlugins() {
+        LOGGER.info("Registering built-in plugins...");
+        Registry.builtinPluginRegistry().register("plugin-loader", de.igslandstuhl.database.plugins.PluginLoader.class);
+    }
+
     public static void main(String[] args) throws Exception {
+        LOGGER.info("Starting up student-database...");
+
         instance = new Application(args);
-        Server.getInstance().getConnection().createTables();
 
-        Holiday.setupCurrentSchoolYear();
-        PostRequestHandler.registerHandlers();
+        registerBuiltinPlugins();
+        PluginLoader.getInstance().preloadPlugins();
 
-        if (getInstance().runsWebServer()) {
-            Server.getInstance().getWebServer().start();
-        }
         if (!getInstance().suppressCmd()) {
+            LOGGER.info("Setting up command line...");
             Command.registerCommands();
             CommandLineUtils.setup();
         }
 
-        while (true) {
-            if (!getInstance().suppressCmd()) {
-                CommandLineUtils.waitForCommandAndExec();
-            }
+        LOGGER.info("Registering event types...");
+        EventListener.registerTypes();
+
+        LOGGER.info("Setting up server...");
+
+        Server.getInstance().getConnection().createTables();
+        Server.getInstance().getConnection().migrateTables();
+
+        Holiday.setupCurrentSchoolYear();
+        PostRequestHandler.registerHandlers();
+        SQLRequestHandler.register();
+        PluginLoader.getInstance().registerPlugins();
+
+        WebPath.registerPaths();
+        HTMLTemplate.registerAll();
+        GetRequestHandler.getInstance().registerHandlers();
+
+        if (getInstance().runsWebServer()) {
+            LOGGER.info("Starting WebServer...");
+            Server.getInstance().getWebServer().start();
         }
+
+        PluginLoader.getInstance().enablePlugins();
+
+        LOGGER.info("Adding shutdown hook for plugin cleanup...");
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> PluginLoader.getInstance().unloadPlugins(),"Plugin cleanup thread"));
+
+        try {
+            LOGGER.info("Starting main loop...");
+            while (true) {
+                if (!getInstance().suppressCmd()) {
+                    CommandLineUtils.waitForCommandAndExec();
+                }
+            }
+        } catch (UserInterruptException e) {
+            System.exit(0);
+        } // Program exit using Ctrl+C
     }
 }

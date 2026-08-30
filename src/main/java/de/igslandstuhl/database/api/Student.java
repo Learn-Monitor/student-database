@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -13,6 +14,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.api.results.StudentGenerationResult;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
@@ -24,7 +26,7 @@ import de.igslandstuhl.database.server.sql.SQLHelper;
 public class Student extends User {
     private static final String[] SQL_FIELDS = new String[] {"id", "first_name", "last_name", "email", "password", "class", "graduation_level"};
     private static final String[] INTERESTING_TASKSTAT_FIELDS = {"task"};
-    private static final String[] INTERESTING_SPECIAL_TASK_STAT_FIELDS = {"special_task"};
+    private static final String[] INTERESTING_SPECIAL_TASK_STAT_FIELDS = {"individual_task"};
     private static final Map<Integer, Student> students = new HashMap<>();
 
     /**
@@ -88,11 +90,6 @@ public class Student extends User {
     private final Map<Subject, Topic> currentTopics = new ConcurrentHashMap<>();
 
     /**
-     * The current room of the student.
-     */
-    private Room currentRoom = null;
-
-    /**
      * Constructs a new Student.
      *
      * @param id The student ID.
@@ -150,9 +147,9 @@ public class Student extends User {
         }, "get_locked_tasks_by_student", INTERESTING_TASKSTAT_FIELDS, String.valueOf(id));
 
         Server.getInstance().processRequest((t) -> {
-            SpecialTask st = SpecialTask.get(Integer.parseInt(t[0]));
+            IndividualTask st = IndividualTask.get(Integer.parseInt(t[0]));
             if (st != null) completedTasks.add(st);
-        }, "get_completed_special_tasks_by_student", INTERESTING_SPECIAL_TASK_STAT_FIELDS, String.valueOf(id));
+        }, "get_completed_individual_tasks_by_student", INTERESTING_SPECIAL_TASK_STAT_FIELDS, String.valueOf(id));
 
         // Defensive cleanup: ensure no nulls remained
         selectedTasks.removeIf(Objects::isNull);
@@ -174,7 +171,7 @@ public class Student extends User {
             student.fetchTasks();
             return student;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Student with id {} from database", id, e);
             return null;
         }
     }
@@ -195,7 +192,7 @@ public class Student extends User {
         } catch (NullPointerException e) {
             return null;
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get Student with email {} from database", email, e);
             return null;
         }
     }
@@ -215,16 +212,12 @@ public class Student extends User {
                 "get_all_students", SQL_FIELDS
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve student list from database", e);
         }
         return studentIDs.stream()
             .map(Student::get)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
-    }
-
-    public static List<Student> getByRoom(Room room) {
-        return students.values().stream().filter((s) -> room.equals(s.getCurrentRoom())).toList();
     }
 
     /**
@@ -256,7 +249,7 @@ public class Student extends User {
             try {
                 Thread.sleep(new Random().nextInt(1,10)); // Sleep to ensure different seeds
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Application.LOGGER_API.error("Thread sleep while generating passwords was interrupted", e);
             }
         }
         return passwords;
@@ -351,18 +344,6 @@ public class Student extends User {
      * @return the graduation level
      */
     public GraduationLevel getGraduationLevel() { return graduationLevel; }
-
-    /**
-     * Returns the student's current room.
-     * @return the current room
-     */
-    public Room getCurrentRoom() { return currentRoom; }
-
-    /**
-     * Sets the student's current room.
-     * @param currentRoom the new room
-     */
-    public void setCurrentRoom(Room currentRoom) { this.currentRoom = currentRoom; }
 
     /**
      * Returns the set of selected tasks.
@@ -495,6 +476,7 @@ public class Student extends User {
      * @param type the request type
      * @deprecated Use addSubjectRequest(Subject, SubjectRequest) instead
      */
+    @Deprecated
     public void addSubjectRequest(int subjectId, String type) {
         currentRequests.computeIfPresent(subjectId, (key, value) -> {
             value.add(SubjectRequest.fromGermanTranslation(type));
@@ -516,6 +498,7 @@ public class Student extends User {
      * @param type the request type to remove
      * @deprecated Use removeSubjectRequest(Subject, SubjectRequest) instead
      */
+    @Deprecated
     public void removeSubjectRequest(int subjectId, String type) {
         currentRequests.computeIfPresent(subjectId, (key, value) -> {
             value.remove(SubjectRequest.fromGermanTranslation(type));
@@ -580,7 +563,7 @@ public class Student extends User {
         );
     }
     public Student changeGraduationLevel(int graduationLevel) throws SQLException {
-        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("graduation_level", String.valueOf(id), String.valueOf(graduationLevel)));
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("graduation_level", String.valueOf(graduationLevel), String.valueOf(id)));
         students.remove(id);
         return get(id);
     }
@@ -631,7 +614,6 @@ public class Student extends User {
         .append("\"selectedTasks\": ").append(selectedTasks).append(",\n")
         .append("\"completedTasks\": ").append(completedTasks).append(",\n")
         .append("\"lockedTasks\": ").append(lockedTasks).append(",\n")
-        .append("\"currentRoom\": ").append(String.valueOf(currentRoom)).append(",\n")
         .append("\"currentRequests\": {").append(currentRequests.entrySet().stream()
             .map(entry -> "\"" + entry.getKey() + "\": " + entry.getValue().stream().map((r) -> '"' + r.getGermanTranslation() + '"').toList())
             .reduce((a, b) -> a + ", " + b).orElse("")).append("},\n")
@@ -681,7 +663,7 @@ public class Student extends User {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to load current topics for '{}'", this.email, e);
         }
     }
 
@@ -741,20 +723,22 @@ public class Student extends User {
     /**
      * Returns the current progress of the student for a given subject.
      * @param subject the subject to get the current progress for
-     * @return the current progress as a percentage (0-1)
+     * @return the current progress in tokens
      */
-    public double getCurrentProgress(Subject subject) {
+    public int getCurrentProgress(Subject subject) {
         return completedTasks.stream()
             .filter(Objects::nonNull)
             .filter(task -> task.getSubject() != null && task.getSubject().equals(subject))
-            .mapToDouble(Task::getRatio)
+            .mapToInt(Task::getTokens)
             .sum();
     }
     /**
      * Returns the currently achieved grade for a given subject based on the current progress.
      * @param subject the subject to evaluate
+     * @deprecated we no longer use grade prediction
      * @return the grade as an integer (1-6)
      */
+    @Deprecated
     public int getCurrentlyAchievedGrade(Subject subject) {
         double progress = getCurrentProgress(subject);
         if (progress >= 0.85) {
@@ -774,22 +758,24 @@ public class Student extends User {
     /**
      * Predicts the student's progress for a given subject based on the current week of the school year.
      * @param subject the subject to predict progress for
-     * @return the predicted progress as a percentage (0-100)
+     * @return the predicted progress in tokens, considering the current week and any completed individual tasks
      */
-    public double getPredictedProgress(Subject subject) {
-        double progress = getCurrentProgress(subject);
+    public int getPredictedProgress(Subject subject) {
+        int progress = getCurrentProgress(subject);
         SchoolYear currentYear = SchoolYear.getCurrentYear();
         if (currentYear == null) {
             return 0; // No current year available
         }
-        double specials = completedTasks.stream().filter((t) -> (t instanceof SpecialTask)).mapToDouble(Task::getRatio).sum();
+        int specials = completedTasks.stream().filter((t) -> (t instanceof IndividualTask)).mapToInt(Task::getTokens).sum();
         return Math.min(progress * currentYear.getWeekCount() / currentYear.getCurrentWeek(), 1 + specials);
     }
     /**
      * Predicts the student's grade for a given subject based on the predicted progress.
      * @param subject the subject to predict the grade for
+     * @deprecated we no longer use grade prediction
      * @return the predicted grade as an integer (1-6)
      */
+    @Deprecated
     public int getPredictedGrade(Subject subject) {
         double predictedProgress = getPredictedProgress(subject);
         if (predictedProgress >= 0.85) {
@@ -819,13 +805,13 @@ public class Student extends User {
         return currentRequests.entrySet().stream().anyMatch((set) -> !set.getValue().isEmpty());
     }
 
-    public void assignCompletedSpecialTask(SpecialTask task) throws SQLException {
+    public void assignCompletedIndividualTask(IndividualTask task) throws SQLException {
         if (task == null) {
             throw new IllegalArgumentException("Special task cannot be null");
         }
         // Update in DB
         Server.getInstance().getConnection().executeVoidProcessSecure(
-            SQLHelper.getAddObjectProcess("special_task_to_student",
+            SQLHelper.getAddObjectProcess("individual_task_to_student",
                 String.valueOf(id),
                 String.valueOf(task.getId())
             )
@@ -888,5 +874,54 @@ public class Student extends User {
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("password_hash_for_student", passHash(password), String.valueOf(getId())));
         students.remove(id);
         return get(id);
+    }
+
+    /**
+     * Generates a CSV string containing the student's results.
+     * @return a CSV string of the student's results
+     */
+    public String getResultsCSV() {
+        StringBuilder csvBuilder = new StringBuilder();
+        csvBuilder.append("Subject,Current Progress (%),Predicted Progress (%),Currently Achieved Grade,Predicted Grade\n");
+        for (Subject subject : getSchoolClass().getSubjects()) {
+            double currentProgress = getCurrentProgress(subject) * 100;
+            double predictedProgress = getPredictedProgress(subject) * 100;
+            int currentGrade = getCurrentlyAchievedGrade(subject);
+            int predictedGrade = getPredictedGrade(subject);
+            csvBuilder.append(String.format(Locale.US, "%s,%.2f,%.2f,%d,%d\n",
+                    subject.getName(),
+                    currentProgress,
+                    predictedProgress,
+                    currentGrade,
+                    predictedGrade));
+        }
+        return csvBuilder.toString();
+    }
+    /**
+     * Generates a CSV string containing all students' results.
+     * @return a CSV string of all students' results
+     */
+    public static String getAllResultsCSV() {
+        StringBuilder csvBuilder = new StringBuilder();
+        csvBuilder.append("Student ID,First Name,Last Name,Email,Subject,Current Progress (%),Predicted Progress (%),Currently Achieved Grade,Predicted Grade\n");
+        for (Student student : getAll()) {
+            for (Subject subject : student.getSchoolClass().getSubjects()) {
+                double currentProgress = student.getCurrentProgress(subject) * 100;
+                double predictedProgress = student.getPredictedProgress(subject) * 100;
+                int currentGrade = student.getCurrentlyAchievedGrade(subject);
+                int predictedGrade = student.getPredictedGrade(subject);
+                csvBuilder.append(String.format(Locale.US, "%d,%s,%s,%s,%s,%.2f,%.2f,%d,%d\n",
+                        student.getId(),
+                        student.getFirstName(),
+                        student.getLastName(),
+                        student.getEmail(),
+                        subject.getName(),
+                        currentProgress,
+                        predictedProgress,
+                        currentGrade,
+                        predictedGrade));
+            }
+        }
+        return csvBuilder.toString();
     }
 }

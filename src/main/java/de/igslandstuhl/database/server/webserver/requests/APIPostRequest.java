@@ -7,7 +7,6 @@ import java.util.List;
 import com.google.gson.reflect.TypeToken;
 
 import de.igslandstuhl.database.api.APIObject;
-import de.igslandstuhl.database.api.Room;
 import de.igslandstuhl.database.api.SchoolClass;
 import de.igslandstuhl.database.api.Student;
 import de.igslandstuhl.database.api.Subject;
@@ -17,7 +16,6 @@ import de.igslandstuhl.database.api.Teacher;
 import de.igslandstuhl.database.api.Topic;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.Server;
-import de.igslandstuhl.database.server.webserver.HttpHeader;
 
 public class APIPostRequest extends PostRequest {
     public APIPostRequest(HttpHeader header, String body, String ipAddress, boolean secureConnection) {
@@ -51,21 +49,22 @@ public class APIPostRequest extends PostRequest {
         return Server.getInstance().getWebServer().getSessionManager().getSessionUser(this);
     }
     public Subject getSubject() {
+        if (!containsKey("subjectId")) return null;
         return Subject.get(getInt("subjectId"));
     }
     public Topic getTopic() {
+        if (!containsKey("topicId")) return null;
         return Topic.get(getInt("topicId"));
     }
     public SubjectRequest getSubjectRequest() {
         return SubjectRequest.fromGermanTranslation(getString("subjectRequest"));
     }
-    public Room getRoom() {
-        return Room.getRoom(getString("room"));
-    }
     public Task getTask() {
+        if (!containsKey("taskId")) return null;
         return Task.get(getInt("taskId"));
     }
     public SchoolClass getSchoolClass() {
+        if (!containsKey("classId")) return null;
         return SchoolClass.get(getInt("classId"));
     }
     @SuppressWarnings("unchecked")
@@ -87,8 +86,6 @@ public class APIPostRequest extends PostRequest {
             return (T) getSubjectRequest();
         } else if (rawType.getTypeName().contains("Task")) {
             return (T) getTask();
-        } else if (rawType.getTypeName().contains("Room")) {
-            return (T) getRoom();
         } else if (rawType.getTypeName().contains("SchoolClass")) {
             return (T) getSchoolClass();
         } else {

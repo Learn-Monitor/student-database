@@ -16,6 +16,7 @@ public enum Status {
     METHOD_NOT_ALLOWED(405, "Method Not Allowed"),
     I_AM_A_TEAPOT(418, "I'm a teapot"),
     INTERNAL_SERVER_ERROR(500, "Internal Server Error"),
+    TOO_MANY_REQUESTS(429, "Too Many Requests")
     ;
     /**
      * The HTTP status code.

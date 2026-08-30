@@ -9,6 +9,10 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 import javax.net.ssl.*;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -22,14 +26,15 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import de.igslandstuhl.database.server.webserver.HttpHeader;
-import de.igslandstuhl.database.server.webserver.PostRequestHandler;
-import de.igslandstuhl.database.server.webserver.SessionManager;
+import de.igslandstuhl.database.server.webserver.handlers.GetRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.PostRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.SessionValidationResult;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
+import de.igslandstuhl.database.server.webserver.requests.HttpHeader;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
-import de.igslandstuhl.database.server.webserver.responses.GetResponse;
 import de.igslandstuhl.database.server.webserver.responses.HttpResponse;
 import de.igslandstuhl.database.server.webserver.responses.PostResponse;
+import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
 
 /**
  * A simple HTTPS web server that handles various requests related to student data.
@@ -39,6 +44,7 @@ public class WebServer implements Runnable {
     public static final int SESSION_DURATION = 21600; // six hours
     public static final int MAXIMUM_INACTIVITY_DURATION = 3600; // An hour
     public static final int RATELIMIT = 60;
+    public static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
     private volatile boolean running;
     private final SSLServerSocket serverSocket;
@@ -50,10 +56,10 @@ public class WebServer implements Runnable {
         return userManager;
     }
 
-    public WebServer(int port, String keystorePath, String keystorePassword)
+    public WebServer(int port, String keystorePath, String keystorePassword, String keystoreType)
             throws KeyStoreException, FileNotFoundException, IOException,
             NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException, KeyManagementException {
-        KeyStore ks = KeyStore.getInstance("JKS");
+        KeyStore ks = KeyStore.getInstance(keystoreType);
         try (FileInputStream fis = new FileInputStream(keystorePath)) {
             ks.load(fis, keystorePassword.toCharArray());
         }
@@ -111,7 +117,7 @@ public class WebServer implements Runnable {
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                LOGGER.error("Failed to handle client {}", clientIp, e);
             } finally {
                 try { clientSocket.close(); } catch (IOException ignored) {}
             }
@@ -129,15 +135,8 @@ public class WebServer implements Runnable {
         }
 
         void handleGet(String headerString, PrintStream out) {
-            SessionManager sessionManager = Server.getInstance().getWebServer().getSessionManager();
             GetRequest get = new GetRequest(headerString, clientIp, secure);
-            GetResponse response;
-            if (!sessionManager.validateSession(get)) {
-                response = GetResponse.forbidden(get);
-            } else {
-                String user = sessionManager.getSessionUser(get).getUsername();
-                response = GetResponse.getResource(get, get.toResourceLocation(user), user);
-            }
+            HttpResponse response = GetRequestHandler.getInstance().handleRequest(get);
             response.respond(out);
         }
 
@@ -153,7 +152,16 @@ public class WebServer implements Runnable {
                 body = URLDecoder.decode(raw, bodyCharset.name());
             }
             PostRequest parsedRequest = new PostRequest(postHeader, body, clientIp, secure);
-            HttpResponse response = Server.getInstance().getWebServer().getSessionManager().validateSession(parsedRequest) ? PostRequestHandler.getInstance().handlePostRequest(parsedRequest) : PostResponse.forbidden("Forbidden: session manipulation or ratelimit", parsedRequest);
+
+            SessionValidationResult v = Server.getInstance().getWebServer().getSessionManager().validateSession(parsedRequest);
+            HttpResponse response;
+            switch(v) {
+                case OK -> response = PostRequestHandler.getInstance().handlePostRequest(parsedRequest);            //OK
+                case RATE_LIMITED -> response = PostResponse.tooManyRequests("Too Many Requests", parsedRequest);    //429
+                case INVALID_SESSION -> response = PostResponse.unauthorized("Invalid Session", parsedRequest); //401
+                default -> response = PostResponse.unauthorized("Invalid Session", parsedRequest);
+            }
+
             response.respond(out);
         }
 
@@ -230,7 +238,7 @@ public class WebServer implements Runnable {
 
     public void stop() {
         running = false;
-        try { serverSocket.close(); } catch (IOException e) { e.printStackTrace(); }
+        try { serverSocket.close(); } catch (IOException e) { LOGGER.error("Failed to close server socket", e); }
         clientPool.shutdownNow();
     }
 
@@ -242,8 +250,7 @@ public class WebServer implements Runnable {
                 clientPool.submit(new ClientHandler(clientSocket));
             } catch (IOException e) {
                 if (running) {
-                    System.err.println("Error while accepting client");
-                    e.printStackTrace();
+                    LOGGER.error("Unexpected Exception while accepting client", e);
                 }
             }
         }

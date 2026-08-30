@@ -1,0 +1,88 @@
+package de.igslandstuhl.database.server.webserver.handlers;
+
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import de.igslandstuhl.database.Registry;
+import de.igslandstuhl.database.api.User;
+import de.igslandstuhl.database.server.Server;
+import de.igslandstuhl.database.server.webserver.WebPath;
+import de.igslandstuhl.database.server.webserver.handlers.get.PluginRequestHandler;
+import de.igslandstuhl.database.server.webserver.requests.GetRequest;
+import de.igslandstuhl.database.server.webserver.requests.RequestType;
+import de.igslandstuhl.database.server.webserver.responses.GetResponse;
+import de.igslandstuhl.database.server.webserver.responses.HttpResponse;
+import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
+import de.igslandstuhl.database.utils.ThrowingFunction;
+
+public class GetRequestHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(GetRequestHandler.class);
+    private static final GetRequestHandler instance = new GetRequestHandler();
+    public static GetRequestHandler getInstance() {
+        return instance;
+    }
+    private GetRequestHandler() {}
+
+    public final HttpResponse handleRequest(GetRequest request) {
+        SessionManager sessionManager = Server.getInstance().getWebServer().getSessionManager();
+
+        SessionValidationResult v = sessionManager.validateSession(request);
+        if(v != SessionValidationResult.OK){
+            return switch (v){
+                case RATE_LIMITED -> GetResponse.tooManyRequests(request);
+                case INVALID_SESSION -> GetResponse.unauthorized("Invalid Session", request);
+                default -> GetResponse.unauthorized("Invalid Session", request);
+            };
+        }
+
+        String path = request.getPath();
+        HttpHandler<GetRequest> handler = Registry.getRequestHandlerRegistry().get(path);
+        if (handler == null) return GetResponse.notFound(request);
+        return handler.handleHttpRequest(request);
+    }
+    
+    private static User getUser(GetRequest request) {
+        return Server.getInstance().getWebServer().getSessionManager().getSessionUser(request);
+    }
+
+    public static GetResponse handleFileRequest(GetRequest request) {
+        String user = getUser(request).getUsername();
+        return GetResponse.getResource(request, request.toResourceLocation(user), user, false);
+    }
+    public static GetResponse handleTemplatingFileRequest(GetRequest request) {
+        String user = getUser(request).getUsername();
+        return GetResponse.getResource(request, request.toResourceLocation(user), user, true);
+    }
+    public static GetResponse handleMergingFileRequest(GetRequest request) {
+        String user = getUser(request).getUsername();
+        return GetResponse.getResource(request, request.toResourceLocation(user), user, false, true);
+    }
+    public static GetResponse handleSQLRequest(GetRequest request) {
+        String user = getUser(request).getUsername();
+        return GetResponse.getResource(request, request.toResourceLocation(user), user, false);
+    }
+    public static GetResponse handlePluginRequest(GetRequest request) {
+        User user = getUser(request);
+        return PluginRequestHandler.handleRequest(user, request);
+    }
+
+    public final void registerHandlers() {
+        LOGGER.info("Registering Get Request Handlers...");
+        if (Registry.getRequestHandlerRegistry().stream().count() > 0) return; // already registered
+        List<WebPath.PathInfo> getPaths = Registry.webPathRegistry().keyStream().filter((p) -> p.type().equals(RequestType.GET)).toList();
+        for (WebPath.PathInfo pathInfo : getPaths) {
+            WebPath webPath = Registry.webPathRegistry().get(pathInfo);
+            ThrowingFunction<GetRequest, HttpResponse> handlerFunction = switch (webPath.handlerType()) {
+                case "FileRequestHandler" -> GetRequestHandler::handleFileRequest;
+                case "TemplatingFileRequestHandler" -> GetRequestHandler::handleTemplatingFileRequest;
+                case "MergingFileRequestHandler" -> GetRequestHandler::handleMergingFileRequest;
+                case "SQLRequestHandler" -> GetRequestHandler::handleSQLRequest;
+                case "PluginRequestHandler" -> GetRequestHandler::handlePluginRequest;
+                default -> throw new IllegalArgumentException("Unknown handler type: " + webPath.handlerType());
+            };
+            HttpHandler.registerGetRequestHandler(pathInfo.path(), webPath.accessLevel(), handlerFunction);
+        }
+    }
+}

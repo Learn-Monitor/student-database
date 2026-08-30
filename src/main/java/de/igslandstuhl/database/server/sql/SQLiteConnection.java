@@ -10,7 +10,10 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.regex.Pattern;
 
-import de.igslandstuhl.database.server.resources.ResourceHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.utils.TrackingReadWriteLock;
 
 /**
@@ -38,6 +41,8 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
 
     private final TrackingReadWriteLock lock = new TrackingReadWriteLock();
 
+    private final Logger LOGGER = LoggerFactory.getLogger(getClass());
+
     /**
      * Creates the necessary tables in the database by executing SQL scripts.
      * This method reads SQL files matching the pattern "./tables/*.sql" (regex: .*tables.+\\.sql) and executes their content.
@@ -47,10 +52,47 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
     private void createTables(PreparedStatementSupplier supplier) throws SQLException {
         lock.writeLock().lock();
         try {
-            for (BufferedReader in : ResourceHelper.openResourcesAsReader(Pattern.compile(".*tables.+\\.sql"))) {
+            for (BufferedReader in : Server.getInstance().getResourceManager().openResourcesAsReader(Pattern.compile(".*tables.+\\.sql"))) {
                 try (in) {
-                    String request = ResourceHelper.readResourceCompletely(in);
+                    String request = Server.getInstance().getResourceManager().readResourceCompletely(in);
                     supplier.executeUpdate(request);
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+    /**
+     * Applies schema migrations to the database by executing SQL scripts.
+     * This method reads SQL files matching the pattern "./migrations/*.sql" (regex: .*migrations.+\.sql) and executes their content.
+     * Migrations are expected to be idempotent-safe: if a migration was already applied (e.g. a column
+     * or table already exists/was already renamed/dropped), the resulting SQL error ("duplicate column
+     * name", "no such column", or "no such table") is logged at debug level and ignored, so that
+     * re-running migrations on an already up-to-date database is harmless.
+     * @param supplier the Statement object used to execute the SQL commands
+     * @throws SQLException if an SQL error occurs during migration that is not an "already applied" error
+     */
+    private void migrateTables(PreparedStatementSupplier supplier) throws SQLException {
+        lock.writeLock().lock();
+        try {
+            for (BufferedReader in : Server.getInstance().getResourceManager().openResourcesAsReader(Pattern.compile(".*migrations.+\\.sql"))) {
+                try (in) {
+                    String request = Server.getInstance().getResourceManager().readResourceCompletely(in);
+                    try {
+                        supplier.executeUpdate(request);
+                    } catch (SQLException e) {
+                        if (e.getMessage() != null && (
+                                e.getMessage().toLowerCase().contains("duplicate column name")
+                                || e.getMessage().toLowerCase().contains("no such column")
+                                || e.getMessage().toLowerCase().contains("no such table")
+                            )) {
+                            LOGGER.debug("Skipping already applied migration: {}", request);
+                        } else {
+                            throw e;
+                        }
+                    }
                 } catch (IOException e) {
                     throw new IllegalStateException(e);
                 }
@@ -75,7 +117,7 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
     public ResultSet executeStatementQuerySecure(PreparedStatement statement) throws SQLException {
         lock.readLock().lock();
         try (statement) {
-             return statement.executeQuery();
+            return statement.executeQuery();
         } finally {
             lock.readLock().unlock();
         }
@@ -157,7 +199,17 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
      * @throws SQLException if an SQL error occurs during table creation
      */
     public void createTables() throws SQLException {
+        LOGGER.debug("Creating Database Tables...");
         executeVoidProcessSecure(this::createTables);
+    }
+    /**
+     * Applies schema migrations to the database by executing SQL scripts.
+     * This method reads SQL files matching the pattern "./migrations/*.sql" (regex: .*migrations.+\.sql) and executes their content.
+     * @throws SQLException if an SQL error occurs during migration
+     */
+    public void migrateTables() throws SQLException {
+        LOGGER.debug("Applying database migrations...");
+        executeVoidProcessSecure(this::migrateTables);
     }
     
     /**

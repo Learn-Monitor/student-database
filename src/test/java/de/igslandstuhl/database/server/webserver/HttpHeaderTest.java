@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import de.igslandstuhl.database.server.webserver.requests.HttpHeader;
+
 public class HttpHeaderTest {
     HttpHeader postHeader;
     @BeforeEach

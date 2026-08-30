@@ -6,14 +6,17 @@ import java.io.PrintStream;
 import com.google.gson.Gson;
 
 import de.igslandstuhl.database.server.Server;
+import de.igslandstuhl.database.server.WebServer;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
-import de.igslandstuhl.database.server.webserver.AccessManager;
 import de.igslandstuhl.database.server.webserver.ContentType;
 import de.igslandstuhl.database.server.webserver.Cookie;
 import de.igslandstuhl.database.server.webserver.NoWebResourceException;
 import de.igslandstuhl.database.server.webserver.Status;
+import de.igslandstuhl.database.server.webserver.access.AccessManager;
+import de.igslandstuhl.database.server.webserver.handlers.HttpHandler;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
+import de.igslandstuhl.database.server.webserver.requests.RequestType;
 
 /**
  * Represents a response to a POST request in the web server.
@@ -106,7 +109,7 @@ public class PostResponse implements HttpResponse {
         out.print("HTTP/1.1 ");
         statusCode.write(out);
         out.print("\r\n");
-        out.print("Content-Type: " + contentType + "; charset=UTF-8\r\n");
+        out.print("Content-Type: " + contentType.getName() + "; charset=UTF-8\r\n");
         if (cookie != null) {
             out.print("Set-Cookie: " + cookie + "; HttpOnly; Secure\r\n");
         }
@@ -115,6 +118,7 @@ public class PostResponse implements HttpResponse {
         }
         out.print("\r\n");
         if (body != null) {
+            WebServer.LOGGER.debug("Response body: {}", body);
             out.print(body);
         }
         out.flush();
@@ -153,10 +157,10 @@ public class PostResponse implements HttpResponse {
      * @param user the user who made the request
      * @return the PostResponse object
      */
-    public static PostResponse getResource(ResourceLocation resourceLocation, String user, PostRequest request) {
+    public static PostResponse getResource(ResourceLocation resourceLocation, String user, PostRequest request, String path) {
         try {
-            if (AccessManager.hasAccess(user, resourceLocation)) {
-                return new PostResponse(Status.OK, GetResponse.getResource(request, resourceLocation, user).getResponseBody(), ContentType.ofResourceLocation(resourceLocation), request);
+            if (AccessManager.getInstance().hasAccess(user, path, request, RequestType.GET)) {
+                return new PostResponse(Status.OK, GetResponse.getResource(request, resourceLocation, user, false, path).getResponseBody(), ContentType.ofResourceLocation(resourceLocation), request);
             } else {
                 return unauthorized("You have to be logged in to access this resource.", request);
             }
@@ -165,7 +169,7 @@ public class PostResponse implements HttpResponse {
         } catch (FileNotFoundException e) {
             return notFound("The requested resource was not found: " + resourceLocation, request);
         } catch (Exception e) {
-            e.printStackTrace();
+            HttpHandler.LOGGER.warn("Failed to get resource for request {} on resource location {}", request, resourceLocation, e);
             return internalServerError("An error occurred while processing your request.", request);
         }
     }
@@ -227,6 +231,26 @@ public class PostResponse implements HttpResponse {
     public static PostResponse forbidden(String message, PostRequest request) {
         return new PostResponse(Status.FORBIDDEN, message, ContentType.TEXT_PLAIN, request);
     }
+
+    /**
+     * Returns a response indicating that the client has sent too many requests in a given amount of time.
+     * This is used for rate limiting.
+     * @param message The error message to include in the response.
+     * @return A PostResponse object representing the too many requests response.
+     */
+    public static PostResponse tooManyRequests(String message, PostRequest request) {
+        return new PostResponse(Status.TOO_MANY_REQUESTS, message, ContentType.TEXT_PLAIN, request);
+    }
+
+    /**
+     * Returns a response indicating that the client has sent too many requests in a given amount of time.
+     * This is used for rate limiting.
+     * @return A PostResponse object representing the too many requests response.
+     */
+    public static PostResponse tooManyRequests(PostRequest rq) {
+        return tooManyRequests("Too Many Requests", rq);
+    }
+
     public static PostResponse redirect(String location, PostRequest request) {
         return new PostResponse(Status.FOUND, "", ContentType.TEXT_PLAIN, request, new String[] {
             "Location: " + location

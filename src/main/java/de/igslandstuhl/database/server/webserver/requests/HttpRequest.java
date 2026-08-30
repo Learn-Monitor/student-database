@@ -31,4 +31,10 @@ public interface HttpRequest {
     public String getUserAgent();
     public String getAcceptLanguage();
     public boolean isSecureConnection();
+    /**
+     * Returns the type of the HTTP request (GET, POST, etc.).
+     * @return the type of the HTTP request as RequestType enum
+     * @see de.igslandstuhl.database.server.webserver.requests.RequestType
+     */
+    public RequestType getRequestType();
 }

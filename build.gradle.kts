@@ -1,11 +1,14 @@
 plugins {
     java
     application
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("com.gradleup.shadow") version "9.6.1"
+    id("com.vanniktech.maven.publish") version "0.37.0"
 }
 
-group = "igs-landstuhl"
-version = "v1.0-PATCH-3"
+group = "io.github.learn-monitor"
+
+version = "v2.0.0"
+
 application {
     mainClass.set("de.igslandstuhl.database.Application")
 }
@@ -15,14 +18,26 @@ repositories {
 }
 
 dependencies {
-    implementation("org.xerial:sqlite-jdbc:3.50.3.0")
-    implementation("com.google.code.gson:gson:2.13.1")
-    implementation("commons-codec:commons-codec:1.19.0")
-    implementation("com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20240325.1")
+    implementation("org.xerial:sqlite-jdbc:3.53.2.1")
+    implementation("com.google.code.gson:gson:2.14.0")
+    implementation("commons-codec:commons-codec:1.22.1")
+    implementation("com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20260313.1")
+    implementation("org.jline:jline:4.3.1") // for better console input handling
 
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0") // using JUnit 5 (latest)
+    // Logging
+    implementation("org.slf4j:slf4j-api:2.0.18")
+    implementation("ch.qos.logback:logback-classic:1.6.1")
+
+    // built-in plugins
+    implementation("io.github.learn-monitor:plugin-loader:v1.0.6")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.2") // using JUnit 5 (latest)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+tasks.javadoc {
+    classpath = sourceSets.main.get().compileClasspath
+}
 tasks.test {
     useJUnitPlatform()
     systemProperty("test.environment", "true")
@@ -44,5 +59,77 @@ tasks.shadowJar {
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(17)) // or another version you prefer
+    }
+}
+
+mavenPublishing {
+    publishToMavenCentral()
+
+    signAllPublications()
+
+    coordinates(group.toString(), "student-database", version.toString())
+
+    pom {
+        name = "Student database"
+        description = "A Java-based application designed to manage and store student information efficiently. It allows admins to perform CRUD (Create, Read, Update, Delete) operations on student records, classes, subjects, and other school-related data, making it a valuable tool for educational institutions. Students can view their progress, and teachers can assign them topics, based on subjects."
+        url = "https://github.com/Learn-Monitor/student-database"
+
+        licenses {
+            license {
+                name = "GNU General Public License v3.0"
+                url = "http://www.gnu.org/licenses/gpl-3.0.txt"
+            }
+        }
+        developers {
+            developer {
+                id = "schlaumeier5"
+                name = "Lukas Morgenstern"
+                url = "https://github.com/schlaumeier5"
+            }
+        }
+        scm {
+            url = "https://github.com/Learn-Monitor/student-database"
+            connection = "scm:git:https://github.com/Learn-Monitor/student-database.git"
+            developerConnection = "scm:git:ssh://git@github.com/Learn-Monitor/student-database.git"
+        }
+    }
+}
+tasks.withType<AbstractPublishToMaven>().configureEach {
+    dependsOn(tasks.withType<Sign>())
+}
+publishing {
+    repositories {
+        maven {
+            name = "snapshots"
+            url = uri("https://maven.pkg.github.com/Learn-Monitor/student-database")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR") ?: findProperty("gpr.user") as String?
+                password = System.getenv("GITHUB_TOKEN") ?: findProperty("gpr.key") as String?
+            }
+        }
+    }
+}
+
+/**
+ * Creates a release archive containing the regular JAR and the resource
+ * directory used by FileResourceProvider.
+ */
+tasks.register<org.gradle.api.tasks.bundling.Zip>("releaseZip") {
+    group = "distribution"
+    description = "Bundles the regular JAR and external resource files."
+
+    val regularJar = tasks.named<org.gradle.api.tasks.bundling.Jar>("jar")
+
+    dependsOn(regularJar)
+
+    archiveBaseName.set("student-database")
+    archiveVersion.set(project.version.toString())
+    archiveClassifier.set("resources")
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+
+    from(regularJar.flatMap { it.archiveFile })
+
+    from("src/main/resources") {
+        into("resources")
     }
 }

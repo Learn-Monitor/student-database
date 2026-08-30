@@ -3,19 +3,29 @@ package de.igslandstuhl.database.server.webserver;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.sql.SQLException;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import de.igslandstuhl.database.api.User;
-import de.igslandstuhl.database.server.resources.ResourceLocation;
+import de.igslandstuhl.database.server.webserver.access.AccessManager;
+import de.igslandstuhl.database.server.webserver.requests.GetRequest;
+import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 
 public class AccessManagerTest {
+    private HttpRequest getRequest = new GetRequest("GET /login HTTP/1.1", "127.0.0.1", false);
     private User teacher;
     private User student;
     private User admin;
     private User anonymous;
+
+    @BeforeAll
+    public static void setup() throws IOException {
+        WebPath.registerPaths();
+    }
 
     @BeforeEach
     public void setupUsers() {
@@ -112,45 +122,38 @@ public class AccessManagerTest {
         anonymous = User.ANONYMOUS;
     }
     @Test
-    public void testErrorMessageAccess() {
-        assertTrue(AccessManager.hasAccess(anonymous, ResourceLocation.get("html", "error:404")));
-        assertTrue(AccessManager.hasAccess(student, ResourceLocation.get("html", "error:404")));
-        assertTrue(AccessManager.hasAccess(teacher, ResourceLocation.get("html", "error:404")));
-        assertTrue(AccessManager.hasAccess(admin, ResourceLocation.get("html", "error:404")));
-    }
-    @Test
     public void testIconAccess() {
-        assertTrue(AccessManager.hasAccess(anonymous, ResourceLocation.get("imgs", "icons:favicon.ico")));
-        assertTrue(AccessManager.hasAccess(student, ResourceLocation.get("imgs", "icons:favicon.ico")));
-        assertTrue(AccessManager.hasAccess(teacher, ResourceLocation.get("imgs", "icons:favicon.ico")));
-        assertTrue(AccessManager.hasAccess(admin, ResourceLocation.get("imgs", "icons:favicon.ico")));
+        assertTrue(AccessManager.getInstance().hasAccess(anonymous, "/favicon.ico", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(student, "/favicon.ico", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/favicon.ico", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(admin, "/favicon.ico", getRequest));
     }
     @Test
     public void testLoginAccess() {
-        assertTrue(AccessManager.hasAccess(anonymous, ResourceLocation.get("html", "site:login")));
-        assertTrue(AccessManager.hasAccess(student, ResourceLocation.get("html", "site:login")));
-        assertTrue(AccessManager.hasAccess(teacher, ResourceLocation.get("html", "site:login")));
-        assertTrue(AccessManager.hasAccess(admin, ResourceLocation.get("html", "site:login")));
+        assertTrue(AccessManager.getInstance().hasAccess(anonymous, "/login", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(student, "/login", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/login", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(admin, "/login", getRequest));
     }
     @Test
     public void testDashboardAccess() {
-        assertFalse(AccessManager.hasAccess(anonymous, WebResourceHandler.locationFromPath("/dashboard", anonymous)));
-        assertTrue(AccessManager.hasAccess(student, WebResourceHandler.locationFromPath("/dashboard", student)));
-        assertTrue(AccessManager.hasAccess(teacher, WebResourceHandler.locationFromPath("/dashboard", teacher)));
-        assertTrue(AccessManager.hasAccess(admin, WebResourceHandler.locationFromPath("/dashboard", admin)));
+        assertFalse(AccessManager.getInstance().hasAccess(anonymous, "/dashboard", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(student, "/dashboard", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/dashboard", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(admin, "/dashboard", getRequest));
     }
     @Test
     public void testStudentManagementAccess() {
-        assertFalse(AccessManager.hasAccess(anonymous, WebResourceHandler.locationFromPath("/student", anonymous)));
-        assertFalse(AccessManager.hasAccess(student, WebResourceHandler.locationFromPath("/student", student)));
-        assertTrue(AccessManager.hasAccess(teacher, WebResourceHandler.locationFromPath("/student", teacher)));
-        assertTrue(AccessManager.hasAccess(admin, WebResourceHandler.locationFromPath("/student", admin)));
+        assertFalse(AccessManager.getInstance().hasAccess(anonymous, "/student", getRequest));
+        assertFalse(AccessManager.getInstance().hasAccess(student, "/student", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(teacher, "/student", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(admin, "/student", getRequest));
     }
     @Test
     public void testTeacherManagementAccess() {
-        assertFalse(AccessManager.hasAccess(anonymous, WebResourceHandler.locationFromPath("/teacher", anonymous)));
-        assertFalse(AccessManager.hasAccess(student, WebResourceHandler.locationFromPath("/teacher", student)));
-        assertFalse(AccessManager.hasAccess(teacher, WebResourceHandler.locationFromPath("/teacher", teacher)));
-        assertTrue(AccessManager.hasAccess(admin, WebResourceHandler.locationFromPath("/teacher", admin)));
+        assertFalse(AccessManager.getInstance().hasAccess(anonymous, "/teacher", getRequest));
+        assertFalse(AccessManager.getInstance().hasAccess(student, "/teacher", getRequest));
+        assertFalse(AccessManager.getInstance().hasAccess(teacher, "/teacher", getRequest));
+        assertTrue(AccessManager.getInstance().hasAccess(admin, "/teacher", getRequest));
     }
 }
