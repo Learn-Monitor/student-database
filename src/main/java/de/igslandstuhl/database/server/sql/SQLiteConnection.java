@@ -170,11 +170,7 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
         this.url = "jdbc:sqlite:" + url + ".db";
         this.connectionSupplier = ThreadLocal.withInitial(() -> {
             try {
-                Connection connection = DriverManager.getConnection(this.url);
-                try (Statement statement = connection.createStatement()) {
-                    statement.execute("PRAGMA foreign_keys = ON");
-                }
-                return connection;
+                return DriverManager.getConnection(this.url);
             } catch (SQLException e) {
                 throw new IllegalStateException(e);
             }

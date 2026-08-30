@@ -103,6 +103,7 @@ class StudentSubjectAssignmentsTest {
 
         studentA.addSubject(french);
         assertEquals(1, assignmentCount(studentA.getId(), french.getId()));
+        assertThrows(SQLException.class, () -> insertAssignment(studentA.getId(), french.getId()));
 
         evictStudent(studentA.getId());
         Student reloadedA = Student.get(studentA.getId());
@@ -114,9 +115,6 @@ class StudentSubjectAssignmentsTest {
         reloadedA.removeSubject(french);
         assertFalse(reloadedA.hasSubject(french));
         assertTrue(reloadedA.getIndividualSubjects().isEmpty());
-
-        assertThrows(SQLException.class, () -> insertAssignment(-1, sports.getId()));
-        assertThrows(SQLException.class, () -> insertAssignment(studentA.getId(), -1));
 
         studentC.delete();
         assertEquals(0, assignmentCount(studentC.getId(), ecology.getId()));

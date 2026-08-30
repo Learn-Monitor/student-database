@@ -234,6 +234,9 @@ public class Subject implements APIObject {
 
     public void delete() throws SQLException {
         Server.getInstance().getConnection().executeVoidProcessSecure(
+            SQLHelper.getDeleteObjectProcess("student_assignments_for_subject", String.valueOf(id))
+        );
+        Server.getInstance().getConnection().executeVoidProcessSecure(
             SQLHelper.getDeleteObjectProcess("subject", String.valueOf(id))
         );
         subjects.remove(id);

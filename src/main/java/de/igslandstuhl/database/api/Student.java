@@ -594,6 +594,9 @@ public class Student extends User {
     }
 
     public void delete() throws SQLException {
+        Server.getInstance().getConnection().executeVoidProcessSecure(
+            SQLHelper.getDeleteObjectProcess("subjects_from_student", String.valueOf(id))
+        );
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getDeleteObjectProcess("student", String.valueOf(id)));
         students.remove(id);
     }
