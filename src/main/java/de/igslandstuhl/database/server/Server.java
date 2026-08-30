@@ -202,7 +202,7 @@ public final class Server implements AutoCloseable {
         } else if (resource.equals("mysubjects")) {
             User user = User.getUser(username);
             if (user instanceof Student student) {
-                return student.getSchoolClass().getSubjects().toString();
+                return student.getSubjects().toString();
             } else if (user instanceof Teacher teacher) {
                 return teacher.getSubjects().toString();
             } else {

@@ -4,6 +4,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -405,6 +406,90 @@ public class Student extends User {
     public SchoolClass getSchoolClass() { return schoolClass; }
 
     /**
+     * Returns the subjects explicitly assigned to this student in addition to
+     * the standard subjects of the student's grade.
+     *
+     * @return the student's individual additional subjects
+     */
+    public List<Subject> getIndividualSubjects() {
+        List<Subject> individualSubjects = new ArrayList<>();
+        try {
+            Server.getInstance().processRequest(
+                fields -> individualSubjects.add(Subject.fromSQLFields(fields)),
+                "get_subjects_by_student",
+                Subject.SQL_FIELDS,
+                String.valueOf(id)
+            );
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not fetch individual subjects", e);
+        }
+        return individualSubjects;
+    }
+
+    /**
+     * Returns the effective subjects of this student: the standard subjects of
+     * the student's grade plus individually assigned subjects, deduplicated by
+     * subject ID.
+     *
+     * @return the student's effective subjects
+     */
+    public List<Subject> getSubjects() {
+        Map<Integer, Subject> effectiveSubjects = new LinkedHashMap<>();
+        if (schoolClass != null) {
+            schoolClass.getSubjects().forEach(subject -> effectiveSubjects.put(subject.getId(), subject));
+        }
+        getIndividualSubjects().forEach(subject -> effectiveSubjects.putIfAbsent(subject.getId(), subject));
+        return new ArrayList<>(effectiveSubjects.values());
+    }
+
+    /**
+     * Checks whether a subject is part of this student's effective subjects.
+     *
+     * @param subject the subject to check
+     * @return whether the subject is assigned through the grade or individually
+     */
+    public boolean hasSubject(Subject subject) {
+        return subject != null && getSubjects().stream().anyMatch(candidate -> candidate.getId() == subject.getId());
+    }
+
+    /**
+     * Adds an individual subject assignment for this student. Repeated calls
+     * with the same subject are idempotent.
+     *
+     * @param subject the additional subject to assign
+     * @throws SQLException if the assignment cannot be stored
+     */
+    public void addSubject(Subject subject) throws SQLException {
+        if (subject == null) throw new IllegalArgumentException("Subject cannot be null");
+        Server.getInstance().getConnection().executeVoidProcessSecure(
+            SQLHelper.getAddObjectProcess("subject_to_student", String.valueOf(id), String.valueOf(subject.getId()))
+        );
+    }
+
+    /**
+     * Removes only an individual subject assignment. A standard grade subject
+     * remains part of the student's effective subjects.
+     *
+     * @param subject the individual subject to remove
+     * @throws SQLException if the assignment cannot be removed
+     */
+    public void removeSubject(Subject subject) throws SQLException {
+        if (subject == null) throw new IllegalArgumentException("Subject cannot be null");
+        Server.getInstance().getConnection().executeVoidProcessSecure(
+            SQLHelper.getDeleteObjectProcess("subject_from_student", String.valueOf(id), String.valueOf(subject.getId()))
+        );
+    }
+
+    /**
+     * Checks if the student has completed a specific task.
+     * @param task the task to check
+     * @return true if the student has completed the task, false otherwise
+     */
+    public boolean hasCompletedTask(Task task) {
+        return completedTasks.contains(task);
+    }
+
+    /**
      * Adds a subject request for this student.
      * @param subjectId the subject ID
      * @param type the request type
@@ -509,6 +594,9 @@ public class Student extends User {
     }
 
     public void delete() throws SQLException {
+        Server.getInstance().getConnection().executeVoidProcessSecure(
+            SQLHelper.getDeleteObjectProcess("subjects_from_student", String.valueOf(id))
+        );
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getDeleteObjectProcess("student", String.valueOf(id)));
         students.remove(id);
     }
