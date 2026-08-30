@@ -1,6 +1,8 @@
 package de.igslandstuhl.database.api;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import org.apache.commons.codec.digest.DigestUtils;
@@ -76,8 +78,20 @@ public abstract class User implements APIObject {
      */
     public abstract String toJSON();
 
+    /**
+     * Sets the password for the user.
+     * This method should be implemented by subclasses to update the user's password.
+     * @param password the new password
+     * @return the updated User object
+     * @throws SQLException if an error occurs while updating the password
+     */
     public abstract User setPassword(String password) throws SQLException;
 
+    /**
+     * Returns the username of the user.
+     * This method should be implemented by subclasses to provide the user's username.
+     * @return the username of the user
+     */
     public abstract String getUsername();
 
     /**
@@ -87,7 +101,7 @@ public abstract class User implements APIObject {
      * @return the User object if found, or null if not found
      */
     public static User getUser(String username) {
-        if (username == null || username.isEmpty()) {
+        if (username == null || username.isEmpty() || username.equals("ANONYMOUS")) {
             return ANONYMOUS;
         }
         username = username.replace("%40", "@");
@@ -100,10 +114,24 @@ public abstract class User implements APIObject {
         return null;
     }
 
+    public static List<User> getAllUsers() {
+        List<Admin> allAdmins = Admin.getAll();
+        List<Teacher> allTeachers = Teacher.getAll();
+        List<Student> allStudents = Student.getAll();
+
+        List<User> result = new ArrayList<>(allAdmins.size() + allTeachers.size() + allStudents.size() + 1);
+        result.addAll(allAdmins);
+        result.addAll(allTeachers);
+        result.addAll(allStudents);
+        result.add(ANONYMOUS);
+
+        return result;
+    }
+
     public static String generateRandomPassword(int length, long seed) {
         StringBuilder password = new StringBuilder();
         Random random = new Random(seed);
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-+";
+        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz123456789,.!?";
         for (int i = 0; i < length; i++) {
             password.append(chars.charAt(random.nextInt(chars.length())));
         }
@@ -113,6 +141,7 @@ public abstract class User implements APIObject {
     /**
      * Returns the password hash of the user.
      * This method should be implemented by subclasses to provide the user's password hash.
+     * @param password the password to hash
      * @return the password hash of the user
      */
     public static String passHash(String password) {

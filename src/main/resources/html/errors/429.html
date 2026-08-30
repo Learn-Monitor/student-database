@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>429 – Too Many Requests</title>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #f8f9fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #333;
+        }
+
+        .error-container {
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 8px;
+            max-width: 420px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .error-code {
+            font-size: 64px;
+            font-weight: bold;
+            color: #dc3545;
+            margin-bottom: 10px;
+        }
+
+        .error-title {
+            font-size: 22px;
+            margin-bottom: 12px;
+        }
+
+        .error-message {
+            font-size: 15px;
+            line-height: 1.5;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="error-container">
+        <div class="error-code">429</div>
+        <div class="error-title">Too Many Requests</div>
+        <div class="error-message">You have sent too many requests in a short period of time.<br> Please wait a moment and try again later.
+        </div>
+    </div>
+</body>
+</html>

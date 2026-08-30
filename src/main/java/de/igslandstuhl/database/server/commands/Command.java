@@ -1,8 +1,14 @@
 package de.igslandstuhl.database.server.commands;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.*;
@@ -11,7 +17,13 @@ import de.igslandstuhl.database.utils.CommonUtils;
 
 @FunctionalInterface
 public interface Command {
+    public static final Logger LOGGER = LoggerFactory.getLogger(Command.class);
     public String execute(String[] args);
+    public default CommandDescription getDescription() {
+        return Registry.commandDescriptionRegistry().get(Registry.commandDescriptionRegistry()
+            .keyStream().filter(k -> Registry.commandRegistry().get(k) == this)
+            .findAny().orElse(null));
+    }
 
     public static String executeCommand(String command, String[] args) {
         try {
@@ -19,22 +31,24 @@ public interface Command {
         } catch (NullPointerException e) {
             return "Command not found: " + command;
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.error("Failed to execute command '{}'", command, e);
             return "";
         }
     }
-    public static void registerCommand(String name, Command command) {
+    public static void registerCommand(String name, Command command, CommandDescription description) {
         Registry.commandRegistry().register(name, command);
+        Registry.commandDescriptionRegistry().register(name, description);
     }
     public static void registerCommands() {
+        LOGGER.info("Registering commands...");
         registerCommand("exit", (args) -> {
-            System.out.println("Exiting...");
+            LOGGER.info("Program exit through command;exiting...");
             System.exit(0);
             return "";
-        });
+        }, new CommandDescription("exit", "Exits the application", "exit"));
         registerCommand("help", (args) -> {
-            return Registry.commandRegistry().keyStream().reduce("Available Commands:", (s1,s2) -> s1+"\n"+s2);
-        });
+            return Registry.commandRegistry().keyStream().reduce("Available Commands:", (s1,s2) -> s1+"\n"+Registry.commandDescriptionRegistry().get(s2).toString());
+        }, new CommandDescription("help", "Displays this help message", "help"));
         // Add admin
         registerCommand("add-admin", (args) -> {
             if (args.length < 2) return "Usage: add-admin [username] [password]";
@@ -46,7 +60,7 @@ public interface Command {
                 return "Error while trying to add admin:\n" + CommonUtils.getStacktrace(e);
             }
             return "Successfully added admin";
-        });
+        }, new CommandDescription("add-admin", "Adds a new admin", "add-admin [username] [password]"));
         registerCommand("remove-admin", (args) -> {
             if (args.length < 1) return "Usage: remove-admin [username]";
             try {
@@ -57,7 +71,7 @@ public interface Command {
                 return "Error while trying to remove admin:\n" + CommonUtils.getStacktrace(e);
             }
             return "Successfully removed admin";
-        });
+        }, new CommandDescription("remove-admin", "Removes an admin", "remove-admin [username]"));
         registerCommand("get-level-ratio", (args) -> {
             if (args.length < 1) return "Usage: get-level-ratio [level]";
             TaskLevel level;
@@ -69,77 +83,12 @@ public interface Command {
                 return e.getMessage();
             }
             return String.valueOf(level.getRatio() * 100) + "%";
-        });
-
-        // Room commands
-        registerCommand("list-rooms", (args) -> {
-            try {
-                Room.fetchAll();
-            } catch (SQLException e) {
-                return "Error while trying to access database:\n" + CommonUtils.getStacktrace(e);
-            }
-            return Room.getRooms().keySet().stream().reduce("Rooms:", (s1, s2) -> s1 + "\n" + s2);
-        });
-        registerCommand("get-room-level", (args) -> {
-            if (args.length < 1) return "Usage: get-room-level [room]";
-            Room room = Room.getRoom(argsPart(args, 0, args.length));
-            if (room == null) return "Room not found. Try list-rooms for a list of available rooms";
-            return "Room " + room.getLabel() + " has access level " + room.getMinimumLevel();
-        });
-        registerCommand("set-room-level", (args) -> {
-            if (args.length < 2) return "Usage: set-room-level [room] [level]";
-            Room room = Room.getRoom(argsPart(args, 0, args.length-1));
-            if (room == null) return "Room not found. Try list-rooms for a list of available rooms";
-            int level;
-            try {
-                level = Integer.parseInt(args[args.length - 1]);
-            } catch (NumberFormatException e) {
-                return args[1] + " is not a valid number.";
-            }
-            try {
-                room.setMinimumLevel(level);
-            } catch (SQLException e) {
-                return "Error while trying to access database: \n" + CommonUtils.getStacktrace(e);
-            } catch (IllegalArgumentException e) {
-                return e.getMessage();
-            }
-            return "Successfully changed room level";
-        });
-        registerCommand("add-room", (args) -> {
-            if (args.length < 2) return "Usage: add-room [room] [level]";
-            if (Room.getRoom(args[0]) != null) return "Room already present";
-
-            try {
-                String label = argsPart(args, 0, args.length-1);
-                int level = Integer.parseInt(args[args.length-1]);
-
-                Room.addRoom(label, level);
-            } catch (NumberFormatException e) {
-                return args[args.length - 1] + " is not a valid number.";
-            } catch (IllegalArgumentException e) {
-                return e.getMessage();
-            } catch (SQLException e) {
-                throw new IllegalStateException(e);
-            }
-            return "Room successfully added";
-        });
-        registerCommand("remove-room", (args) -> {
-            if (args.length < 1) return "Usage: remove-room [room]";
-
-            Room room = Room.getRoom(argsPart(args, 0, args.length));
-            try {
-                room.delete();
-            } catch (SQLException e) {
-                return "Error while trying to access database: \n" + CommonUtils.getStacktrace(e);
-            }
-            return "Room successfully deleted";
-        });
-
+        }, new CommandDescription("get-level-ratio", "Gets the ratio of a task level", "get-level-ratio [level]"));
 
         // class commands
         registerCommand("list-classes", (args) -> {
             return SchoolClass.getAll().stream().map(SchoolClass::getLabel).reduce("Classes:", (s1,s2) -> s1 + "\n" + s2);
-        });
+        }, new CommandDescription("list-classes", "Lists all classes", "list-classes"));
         registerCommand("add-subject-to-class", (args) -> {
             if (args.length != 2) return "Usage: add-subject-to-class [subject] [class]";
 
@@ -155,7 +104,7 @@ public interface Command {
                 throw new IllegalStateException(e);
             }
             return "Successfully added subject to class";
-        });
+        }, new CommandDescription("add-subject-to-class", "Adds a subject to a class", "add-subject-to-class [subject] [class]"));
         registerCommand(("set-class-label"), (args) -> {
             if (args.length != 2) return "Usage: set-class-label [old] [new]";
 
@@ -170,7 +119,7 @@ public interface Command {
             }
 
             return "Class label successfully updated.";
-        });
+        }, new CommandDescription("set-class-label", "Sets the label of a class", "set-class-label [old] [new]"));
         registerCommand(("set-class-grade"), (args) -> {
             if (args.length != 2) return "Usage: set-class-grade [class] [grade]";
 
@@ -191,12 +140,12 @@ public interface Command {
             }
 
             return "Class grade successfully updated.";
-        });
+        }, new CommandDescription("set-class-grade", "Sets the grade of a class", "set-class-grade [class] [grade]"));
         registerCommand("add-class", (args) -> {
             if (args.length != 1) return "Usage: add-class [class]";
             SchoolClass schoolClass = SchoolClass.getOrCreate(args[0]);
             return "Successfully created class " + schoolClass.getLabel() + " of grade " + schoolClass.getGrade();
-        });
+        }, new CommandDescription("add-class", "Adds a new class", "add-class [class]"));
         registerCommand("remove-class", (args) -> {
             if (args.length != 1) return "Usage: remove-class [class]";
             SchoolClass schoolClass = SchoolClass.get(args[0]);
@@ -207,21 +156,21 @@ public interface Command {
                 throw new IllegalStateException(e);
             }
             return "Successfully deleted class";
-        });
+        }, new CommandDescription("remove-class", "Removes a class", "remove-class [class]"));
         // school year
         registerCommand("list-school-years", (args) -> {
             return SchoolYear.getAll().stream().map(SchoolYear::getLabel).reduce("School years:", (s1,s2) -> s1 + "\n" + s2);
-        });
+        }, new CommandDescription("list-school-years", "Lists all school years", "list-school-years"));
         registerCommand("get-current-school-year", (args) -> {
             SchoolYear current = SchoolYear.getCurrentYear();
             if (current == null) return "No school year found.";
             return "Current school year: " + current.getLabel() + ", current week: " + current.getCurrentWeek() + ", total week count: " + current.getWeekCount();
-        });
+        }, new CommandDescription("get-current-school-year", "Gets the current school year", "get-current-school-year"));
         registerCommand("get-current-week", (args) -> {
             SchoolYear current = SchoolYear.getCurrentYear();
             if (current == null) return "No school year found.";
             return "Current week: " + current.getCurrentWeek();
-        });
+        }, new CommandDescription("get-current-week", "Gets the current week", "get-current-week"));
         registerCommand("set-current-week", (args) -> {
             if (args.length != 1) return "Usage: set-current-week [week]";
             int week;
@@ -239,7 +188,7 @@ public interface Command {
                 throw new IllegalStateException(e);
             }
             return "Week successfully changed";
-        });
+        }, new CommandDescription("set-current-week", "Sets the current week", "set-current-week [week]"));
         registerCommand("inc-week", (args) -> {
             SchoolYear current = SchoolYear.getCurrentYear();
             if (current == null) return "No school year found";
@@ -249,18 +198,26 @@ public interface Command {
                 throw new IllegalStateException(e);
             }
             return "Week successfully changed";
-        });
+        }, new CommandDescription("inc-week", "Increases the current week by 1", "inc-week"));
         registerCommand("add-school-year", (args) -> {
-            if (args.length != 2) return "Usage: add-school-year [label] [week count]";
+            if (args.length != 2 && args.length != 4) return "Usage: add-school-year [label] [week count] [optional: start date yyyy-MM-dd] [optional: end date yyyy-MM-dd]";
             try {
-                SchoolYear.addSchoolYear(args[0], Integer.parseInt(args[1]), 1);
+                if (args.length == 2) {
+                    SchoolYear.addSchoolYear(args[0], Integer.parseInt(args[1]), 1);
+                } else {
+                    LocalDate startDate = LocalDate.parse(args[2]);
+                    LocalDate endDate = LocalDate.parse(args[3]);
+                    SchoolYear.addSchoolYear(args[0], Integer.parseInt(args[1]), 1, startDate, endDate);
+                }
             } catch (NumberFormatException e) {
                 return "No valid week count";
+            } catch (DateTimeParseException e) {
+                return "Invalid date format, expected yyyy-MM-dd";
             } catch (SQLException e) {
                 throw new IllegalStateException(e);
             }
             return "Successfully added school year";
-        });
+        }, new CommandDescription("add-school-year", "Adds a new school year", "add-school-year [label] [week count] [optional: start date yyyy-MM-dd] [optional: end date yyyy-MM-dd]"));
         registerCommand("remove-school-year", (args) -> {
             if (args.length != 1) return "Usage: remove-school-year [label]";
             SchoolYear schoolYear = SchoolYear.get(args[0]);
@@ -271,7 +228,57 @@ public interface Command {
                 throw new IllegalStateException(e);
             }
             return "School Year successfully removed";
-        });
+        }, new CommandDescription("remove-school-year", "Removes a school year", "remove-school-year [label]"));
+        registerCommand("add-semester", (args) -> {
+            if (args.length != 2) return "Usage: add-semester [label] [position]";
+            SchoolYear current = SchoolYear.getCurrentYear();
+            if (current == null) return "No current school year found";
+            try {
+                Semester.addSemester(args[0], Integer.parseInt(args[1]), current);
+            } catch (NumberFormatException e) {
+                return "Position must be a valid number";
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+            return "Successfully added semester";
+        }, new CommandDescription("add-semester", "Adds a new semester to the current school year", "add-semester [label] [position]"));
+        registerCommand("remove-semester", (args) -> {
+            if (args.length != 1) return "Usage: remove-semester [label]";
+            Semester semester = Semester.get(args[0]);
+            if (semester == null) return "Semester not found";
+            try {
+                semester.delete();
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+            return "Successfully removed semester";
+        }, new CommandDescription("remove-semester", "Removes a semester", "remove-semester [label]"));
+        registerCommand("list-semesters", (args) -> {
+            SchoolYear current = SchoolYear.getCurrentYear();
+            if (current == null) return "No current school year found";
+            return Semester.getBySchoolYear(current).stream().map(s -> s.getLabel() + " (Position: " + s.getPosition() + ", School Year: " + s.getSchoolYear().getLabel() + ")").reduce("Semesters:", (s1,s2) -> s1 + "\n" + s2);
+        }, new CommandDescription("list-semesters", "Lists semesters of the current school year", "list-semesters"));
+        registerCommand("set-current-semester", (args) -> {
+            if (args.length != 1) return "Usage: set-current-semester [label]";
+            Semester semester = Semester.get(args[0]);
+            if (semester == null) return "Semester not found";
+            try {
+                SchoolYear current = SchoolYear.getCurrentYear();
+                if (current == null) return "No current school year found";
+                if (!semester.getSchoolYear().equals(current)) return "Semester does not belong to the current school year";
+                current.setCurrentSemester(semester);
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+            return "Successfully set current semester";
+        }, new CommandDescription("set-current-semester", "Sets the current semester of the current school year", "set-current-semester [label]"));
+        registerCommand("get-current-semester", (args) -> {
+            SchoolYear current = SchoolYear.getCurrentYear();
+            if (current == null) return "No current school year found";
+            Semester semester = current.getCurrentSemester();
+            if (semester == null) return "No current semester found";
+            return "Current semester: " + semester.getLabel() + " (Position: " + semester.getPosition() + ", School Year: " + semester.getSchoolYear().getLabel() + ")";
+        }, new CommandDescription("get-current-semester", "Gets the current semester of the current school year", "get-current-semester"));
         // User commands
         registerCommand("regenerate-user-password", (args) -> {
             if (args.length != 1) return "Usage: regenerate-user-password [user]";
@@ -282,10 +289,10 @@ public interface Command {
             } catch (SQLException e) {
                 throw new IllegalStateException(e);
             }
-        });
+        }, new CommandDescription("regenerate-user-password", "Regenerates a user's password", "regenerate-user-password [user]"));
         registerCommand("generate-password", (args) -> {
             return "Passwort: " + User.generateRandomPassword(12, CommonUtils.stringToSeed(argsPart(args, 0, args.length)) + System.currentTimeMillis() + new Random().nextInt(1000));
-        });
+        }, new CommandDescription("generate-password", "Generates a random password", "generate-password [optional seed]"));
         registerCommand("change-user-password", (args) -> {
             if (args.length != 2) return "Usage: change-user-password [user] [password]";
             User user = User.getUser(args[0]);
@@ -296,11 +303,11 @@ public interface Command {
             } catch (SQLException e) {
                 throw new IllegalStateException(e);
             }
-        });
+        }, new CommandDescription("change-user-password", "Changes a user's password", "change-user-password [user] [password]"));
         // Subject commands
         registerCommand("list-subjects", (args) -> {
             return Subject.getAll().stream().map(Subject::getName).reduce("Subjects:", (s1,s2) -> s1+"\n"+s2);
-        });
+        }, new CommandDescription("list-subjects", "Lists all subjects", "list-subjects"));
         registerCommand("add-subject", (args) -> {
             if (args.length < 1) return "Usage: add-subject [subject]";
             String name = argsPart(args, 0, args.length);
@@ -310,7 +317,7 @@ public interface Command {
             } catch (SQLException e) {
                 throw new IllegalStateException(e);
             }
-        });
+        }, new CommandDescription("add-subject", "Adds a new subject", "add-subject [subject]"));
         registerCommand("rename-subject", (args) -> {
             if (args.length < 3) return "Usage: rename-subject [old name] : [new name]";
             
@@ -327,7 +334,7 @@ public interface Command {
             } catch (SQLException e) {
                 throw new IllegalStateException(e);
             }
-        });
+        }, new CommandDescription("rename-subject", "Renames a subject", "rename-subject [old name] : [new name]"));
         registerCommand("remove-subject", (args) -> {
             if (args.length == 0) return "remove-subject [name]";
             String name = argsPart(args, 0, args.length);
@@ -339,7 +346,7 @@ public interface Command {
             } catch (SQLException e) {
                 throw new IllegalStateException(e);
             }
-        });
+        }, new CommandDescription("remove-subject", "Removes a subject", "remove-subject [name]"));
         // manual sql commands
         registerCommand("sql-update", (args) -> {
             String command = argsPart(args, 0, args.length);
@@ -349,9 +356,12 @@ public interface Command {
                 throw new IllegalArgumentException(e);
             }
             return "Successfully executed";
-        });
+        }, new CommandDescription("sql-update", "Executes an update sql command", "sql-update [command]"));
     }
     private static String argsPart(String[] args, int start, int end) {
         return Arrays.stream(Arrays.copyOfRange(args, start, end)).reduce("", (s1,s2) -> s1+" "+s2).replaceFirst(" ", "");
+    }
+    public static List<String> getAllCommandNames() {
+        return Registry.commandRegistry().keyStream().toList();
     }
 }

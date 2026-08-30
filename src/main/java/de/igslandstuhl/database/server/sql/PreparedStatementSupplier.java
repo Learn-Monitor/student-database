@@ -7,7 +7,7 @@ import java.sql.SQLException;
 public interface PreparedStatementSupplier {
     /**
      * Prepares a SQL statement for execution.
-     * @param sql the SQL query to prepare
+     * @param query the SQL query to prepare
      * @return a PreparedStatement object
      * @throws SQLException if an SQL error occurs during preparation
      */

@@ -28,6 +28,43 @@ public class Cookie {
     }
 
     /**
+     * Parses the value of a Cookie request header.
+     *
+     * <p>Cookie pairs are separated by semicolons. Each pair is split at
+     * the first equals sign so that equals signs inside cookie values are
+     * preserved. Invalid pairs and pairs without a name are ignored.</p>
+     *
+     * @param headerValue the value of the Cookie header
+     * @return the parsed cookies, or an empty array for a missing or empty
+     *         header value
+     */
+    public static Cookie[] parse(String headerValue) {
+        if (headerValue == null || headerValue.isBlank()) {
+            return new Cookie[0];
+        }
+
+        java.util.List<Cookie> cookies = new java.util.ArrayList<>();
+
+        for (String pair : headerValue.split(";")) {
+            String trimmedPair = pair.trim();
+            int separator = trimmedPair.indexOf('=');
+
+            if (separator < 0) {
+                continue;
+            }
+
+            String name = trimmedPair.substring(0, separator).trim();
+            String value = trimmedPair.substring(separator + 1).trim();
+
+            if (!name.isEmpty()) {
+                cookies.add(new Cookie(name, value));
+            }
+        }
+
+        return cookies.toArray(new Cookie[0]);
+    }
+
+    /**
      * Returns the name of the cookie.
      *
      * @return The name of the cookie.

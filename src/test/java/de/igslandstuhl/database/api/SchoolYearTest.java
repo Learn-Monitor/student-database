@@ -3,6 +3,7 @@ package de.igslandstuhl.database.api;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -51,9 +52,32 @@ public class SchoolYearTest {
         SchoolYear.addSchoolYear("2022/2023", 38, 38);
         SchoolYear.addSchoolYear("2023/2024", 39, 39);
         SchoolYear.addSchoolYear("2024/2025", 40, 10);
+        PreConditions.addSampleSchoolYear();
         SchoolYear current = SchoolYear.getCurrentYear();
         assertNotNull(current);
-        // Should be the year with the lowest current_week
-        assertEquals(10, current.getCurrentWeek());
+        // Should be the year set up in preconditions, which has the current week set to 39 and 39 total weeks
+        assertEquals(39, current.getCurrentWeek());
+        assertEquals(39, current.getWeekCount());
+    }
+
+    @Test
+    public void addSchoolYearWithDates() throws SQLException {
+        LocalDate start = LocalDate.of(2005, 8, 1);
+        LocalDate end = LocalDate.of(2006, 7, 15);
+        SchoolYear year = SchoolYear.addSchoolYear("0001/0002-dates", 40, 1, start, end);
+        assertNotNull(year);
+        assertEquals(start, year.getStartDate());
+        assertEquals(end, year.getEndDate());
+
+        SchoolYear loaded = SchoolYear.get(year.getId());
+        assertEquals(start, loaded.getStartDate());
+        assertEquals(end, loaded.getEndDate());
+    }
+
+    @Test
+    public void schoolYearWithoutDatesHasNullDates() throws SQLException {
+        SchoolYear year = SchoolYear.addSchoolYear("0001/0002-nulldates", 40, 1);
+        assertNull(year.getStartDate());
+        assertNull(year.getEndDate());
     }
 }

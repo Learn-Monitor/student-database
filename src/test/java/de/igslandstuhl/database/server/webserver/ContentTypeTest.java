@@ -2,16 +2,24 @@ package de.igslandstuhl.database.server.webserver;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.io.IOException;
 import java.sql.SQLException;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
+import de.igslandstuhl.database.server.webserver.handlers.WebResourceHandler;
 
 public class ContentTypeTest {
     private User student;
+
+    @BeforeAll
+    public static void registerWebPaths() throws IOException {
+        WebPath.registerPaths();
+    }
 
     @BeforeEach
     public void setupUsers() {

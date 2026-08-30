@@ -7,3 +7,7 @@ target
 bin
 .gradle
 build
+/modules
+/plugins
+logs
+.aider*

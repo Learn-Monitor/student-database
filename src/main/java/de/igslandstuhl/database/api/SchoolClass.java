@@ -2,10 +2,13 @@ package de.igslandstuhl.database.api;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
 
@@ -157,7 +160,7 @@ public class SchoolClass implements APIObject {
                 "get_students_by_class", new String[] {"id"}, String.valueOf(id)
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve student list from database", e);
         }
         return studentIds.stream().map(Student::get).toList();
     }
@@ -168,7 +171,6 @@ public class SchoolClass implements APIObject {
             try {
                 s.delete();
             } catch (SQLException e) {
-                e.printStackTrace();
                 throw new IllegalStateException(e);
             }
         });
@@ -214,7 +216,7 @@ public class SchoolClass implements APIObject {
         try {
             return Server.getInstance().processSingleRequest(SchoolClass::fromSQL, "get_class_by_id", SQL_FIELDS, String.valueOf(id));
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get SchoolClass with id {} from database", id, e);
             return null;
         }
     }
@@ -229,7 +231,7 @@ public class SchoolClass implements APIObject {
         try {
             return Server.getInstance().processSingleRequest(SchoolClass::fromSQL, "get_class_by_label", SQL_FIELDS, label);
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to get SchoolClass with label '{}' from database", label, e);
             return null;
         }
     }
@@ -254,7 +256,7 @@ public class SchoolClass implements APIObject {
             try {
                 schoolClass = addClass(label, grade);
             } catch (SQLException e) {
-                e.printStackTrace();
+                Application.LOGGER_API.error("Failed to create previously not existing class with label {} and grade {}", label, grade, e);
             }
         }
         return schoolClass;
@@ -268,7 +270,7 @@ public class SchoolClass implements APIObject {
                 "get_all_classes", new String[] {"id"}
             );
         } catch (SQLException e) {
-            e.printStackTrace();
+            Application.LOGGER_API.error("Failed to retrieve a list of all classes from the database", e);
         }
         return ids.stream()
             .map(SchoolClass::get)
@@ -328,5 +330,80 @@ public class SchoolClass implements APIObject {
     public String toJSON() {
         return "{\"id\": " + id + ", \"label\": \"" + label + "\", \"grade\": " + grade + "}";
     }
-    
+
+    /**
+     * Generates a CSV representation of completed tasks for each student in the class for a given subject.
+     * @param subject the subject for which to generate the CSV
+     * @return a CSV string representing the completed tasks of each student for this subject
+     */
+    public String getCompletedTasksCSV(Subject subject) {
+        StringBuilder csvBuilder = new StringBuilder();
+        List<Student> students = getStudents();
+        List<Task> tasks = new LinkedList<>();
+        subject.getTopics(grade).forEach((t) -> tasks.addAll(t.getTasks()));
+        csvBuilder.append("Student ID,First Name,Last Name,Email");
+        tasks.forEach((t) -> csvBuilder.append(",").append(t.getNumber()));
+        csvBuilder.append("\n");
+        for (Student student : students) {
+            csvBuilder.append(student.getId()).append(",")
+                      .append(student.getFirstName()).append(",")
+                      .append(student.getLastName()).append(",")
+                      .append(student.getEmail());
+            for (Task task : tasks) {
+                boolean completed = student.hasCompletedTask(task);
+                csvBuilder.append(",").append(completed ? "1" : "0");
+            }
+            csvBuilder.append("\n");
+        }
+        return csvBuilder.toString();
+    }
+
+    /**
+     * Generates a CSV representation of the results for each student in the class for a given subject.
+     * @param subject the subject for which to generate the CSV
+     * @return a CSV string representing the results of each student for this subject
+     */
+    public String getResultsCSV(Subject subject) {
+        StringBuilder csvBuilder = new StringBuilder();
+        List<Student> students = getStudents();
+
+        csvBuilder.append("Student ID,First Name,Last Name,Email,Total Score(%)\n");
+        for (Student student : students) {
+            double totalScore = student.getCurrentProgress(subject) * 100.;
+            csvBuilder.append(student.getId()).append(",")
+                      .append(student.getFirstName()).append(",")
+                      .append(student.getLastName()).append(",")
+                      .append(student.getEmail()).append(",")
+                    .append(String.format(Locale.US, "%.2f", totalScore)).append("\n");
+        }
+
+        return csvBuilder.toString();
+    }
+    /**
+     * Generates a CSV representation of the results for all students in all classes of a given grade for a given subject.
+     * @param grade the grade level for which to generate the CSV
+     * @param subject the subject for which to generate the CSV
+     * @return a CSV string representing the results of each student for this subject across all classes of the specified grade
+     */
+    public static String getResultsCSV(int grade, Subject subject) {
+        StringBuilder csvBuilder = new StringBuilder();
+        List<SchoolClass> classes = getAll().stream().filter(c -> c.getGrade() == grade).toList();
+
+        csvBuilder.append("Class,Student ID,First Name,Last Name,Email,Total Score(%)\n");
+        for (SchoolClass schoolClass : classes) {
+            List<Student> students = schoolClass.getStudents();
+            for (Student student : students) {
+                double totalScore = student.getCurrentProgress(subject) * 100.;
+                csvBuilder.append(schoolClass.getLabel()).append(",")
+                          .append(student.getId()).append(",")
+                          .append(student.getFirstName()).append(",")
+                          .append(student.getLastName()).append(",")
+                          .append(student.getEmail()).append(",")
+                          .append(String.format(Locale.US, "%.2f", totalScore)).append("\n");
+            }
+        }
+        
+        return csvBuilder.toString();
+    }
+
 }

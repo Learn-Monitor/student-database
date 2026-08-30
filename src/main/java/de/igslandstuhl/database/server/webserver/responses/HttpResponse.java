@@ -3,7 +3,6 @@ package de.igslandstuhl.database.server.webserver.responses;
 import java.io.PrintStream;
 
 import de.igslandstuhl.database.server.Server;
-import de.igslandstuhl.database.server.resources.ResourceHelper;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.server.webserver.ContentType;
 import de.igslandstuhl.database.server.webserver.Status;
@@ -36,13 +35,13 @@ public interface HttpResponse {
                 ResourceLocation resourceLocation = new ResourceLocation("html", "errors", errorStatus.getCode() + ".html");
                 String resource;
                 try {
-                    resource = ResourceHelper.readResourceCompletely(resourceLocation);
+                    resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
                     out.println(resource);
                 } catch (Exception e) {
                     if (errorStatus != Status.INTERNAL_SERVER_ERROR) {
                         resourceLocation = new ResourceLocation("html", "errors", errorStatus.getCode() + ".html");
                         try {
-                            resource = ResourceHelper.readResourceCompletely(resourceLocation);
+                            resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
                             out.println(resource);
                         } catch (Exception e2) {
                             throw new IllegalStateException(e);
@@ -81,7 +80,7 @@ public interface HttpResponse {
                 ResourceLocation resourceLocation = new ResourceLocation("html", "errors", errorStatus.getCode() + ".html");
                 String resource;
                 try {
-                    resource = ResourceHelper.readResourceCompletely(resourceLocation);
+                    resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
                     out.println(resource);
                 } catch (Exception e) {
                     throw new IllegalStateException(e);

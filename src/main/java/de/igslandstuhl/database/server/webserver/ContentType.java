@@ -61,11 +61,32 @@ public enum ContentType {
             if (l.resource().endsWith(".png") || l.resource().endsWith(".ico")) {
                 return PNG;
             } else {
-                throw new UnsupportedOperationException("Not supported");
+                throw new NoWebResourceException(l);
             }
         } else if (l.context().equals("virtual")) {
-            return JSON;
+            // For virtual resources, try to determine content type from resource name
+            if (l.resource().endsWith(".json")) {
+                return JSON;
+            } else {
+                // If we can't determine the content type, default to JSON for virtual resources
+                return JSON;
+            }
         } else {
+            // Try to infer content type from file extension
+            String resource = l.resource();
+            if (resource.endsWith(".js")) {
+                return JAVASCRIPT;
+            } else if (resource.endsWith(".css")) {
+                return CSS;
+            } else if (resource.endsWith(".png") || resource.endsWith(".ico")) {
+                return PNG;
+            } else if (resource.endsWith(".html") || resource.endsWith(".htm")) {
+                return HTML;
+            } else if (resource.endsWith(".json")) {
+                return JSON;
+            } else if (resource.endsWith(".csv")) {
+                return CSV;
+            }
             throw new NoWebResourceException(l);
         }
     }
