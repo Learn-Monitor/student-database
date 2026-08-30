@@ -10,6 +10,9 @@ public class PreConditions {
         server.getConnection().createTables();
     }
     public static void addSampleStudent() throws SQLException {
+        if (SchoolClass.get(1) == null) {
+            addSampleClass();
+        }
         Student.registerStudentWithPassword(0, "Max", "Mustermann", "max@muster.mann", "12345", SchoolClass.get(1), GraduationLevel.LEVEL1);
     }
     public static void addSampleSubject() throws SQLException {

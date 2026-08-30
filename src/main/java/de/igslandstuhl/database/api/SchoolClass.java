@@ -112,8 +112,10 @@ public class SchoolClass implements APIObject {
         }
     }
     /**
-     * Returns a list of subjects associated with this class.
-     * If subjects have not been fetched yet, it fetches them from the database.
+     * Returns the standard subjects associated with this class's grade.
+     * Individual additional student subjects are deliberately not included. If
+     * the standard subjects have not been fetched yet, this method fetches them
+     * from the database.
      *
      * @return a list of subjects for this class
      */
