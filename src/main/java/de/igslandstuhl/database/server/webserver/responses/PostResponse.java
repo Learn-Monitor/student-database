@@ -121,7 +121,8 @@ public class PostResponse implements HttpResponse {
         }
         out.print("\r\n");
         if (body != null) {
-            WebServer.LOGGER.debug("Response body: {}", body);
+            if (body.length() > 1024) WebServer.LOGGER.debug("Response body omitted ({} bytes)", body.length());
+            else WebServer.LOGGER.debug("Response body: {}", body);
             out.print(body);
         }
         out.flush();
