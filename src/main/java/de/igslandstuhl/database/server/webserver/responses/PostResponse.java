@@ -73,11 +73,14 @@ public class PostResponse implements HttpResponse {
      * @param cookie The cookie to be set in the response, or null if no cookie is needed.
      */
     private PostResponse(Status statusCode, String body, ContentType contentType, PostRequest request, Cookie cookie) {
+        this(statusCode, body, contentType, request, cookie, new String[0]);
+    }
+    private PostResponse(Status statusCode, String body, ContentType contentType, PostRequest request, Cookie cookie, String[] headers) {
         this.statusCode = statusCode;
         this.body = body;
         this.contentType = contentType;
         this.cookie = cookie;
-        this.headers = new String[0]; // Initialize headers as an empty array
+        this.headers = headers == null ? new String[0] : headers;
         this.request = request;
     }
     /**
@@ -255,6 +258,11 @@ public class PostResponse implements HttpResponse {
         return new PostResponse(Status.FOUND, "", ContentType.TEXT_PLAIN, request, new String[] {
             "Location: " + location
         });
+    }
+
+    public static PostResponse redirect(String location, PostRequest request, Cookie cookie) {
+        return new PostResponse(Status.FOUND, "", ContentType.TEXT_PLAIN, request, cookie,
+                new String[] { "Location: " + location });
     }
     public static PostResponse json(Object json, PostRequest request) {
         Gson gson = new Gson();

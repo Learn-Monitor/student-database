@@ -3,6 +3,8 @@ package de.igslandstuhl.database.server.webserver.requests;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
@@ -125,9 +127,9 @@ public class PostRequest implements HttpRequest {
         // Parse body as form data: key1=value1&key2=value2
         String[] pairs = body.split("&");
         for (String pair : pairs) {
-            String[] kv = pair.split("=");
+            String[] kv = pair.split("=", 2);
             if (kv.length == 2) {
-                params.put(kv[0], kv[1]);
+                params.put(URLDecoder.decode(kv[0], StandardCharsets.UTF_8), URLDecoder.decode(kv[1], StandardCharsets.UTF_8));
             } else {
                 throw new IllegalArgumentException("No form data");
             }

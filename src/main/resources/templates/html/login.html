@@ -76,10 +76,14 @@
         <label for="password">Password</label>
         <input id="password" name="password" type="password" required>
 
+        <input id="next" name="next" type="hidden" value="">
+
         <button type="submit">Login</button>
     </form>
 </div>
 <script> 
+     const queryNext = new URLSearchParams(window.location.search).get("next");
+     if (queryNext) document.getElementById("next").value = queryNext;
      document.getElementById("loginForm").addEventListener("submit", async (e) => { 
          e.preventDefault(); 
           
@@ -91,7 +95,8 @@
          }); 
   
          if (response.ok) { 
-             window.location.href = "/dashboard"; 
+             const next = document.getElementById("next").value;
+             window.location.href = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
          } else { 
              alert("Falsches Passwort!"); 
          } 

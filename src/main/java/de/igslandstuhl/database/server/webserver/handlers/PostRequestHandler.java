@@ -180,12 +180,15 @@ public class PostRequestHandler {
             // Do not sanitize / url-decode password to allow special characters like %
             // This is safe as we calculate the hash value anyways
             String password = rq.getString("password");
+            final String next;
+            try { next = rq.containsKey("next") ? safeLoginNext(rq.getString("next")) : "/dashboard"; }
+            catch (IllegalArgumentException e) { return PostResponse.badRequest("Ungültiges Weiterleitungsziel", rq); }
             // Check login credentials in the database
             if (Server.getInstance().isValidUser(username, password)) {
                 SessionManager manager = Server.getInstance().getWebServer().getSessionManager();
                 Session session = manager.getSession(rq);
                 manager.addSessionUser(session, username);
-                return PostResponse.ok("Login successful", ContentType.TEXT_PLAIN, rq, session.createSessionCookie());
+                return PostResponse.redirect(next, rq, session.createSessionCookie());
             } else {
                 return PostResponse.unauthorized("Wrong credentials!", rq);
             }
@@ -435,5 +438,19 @@ public class PostRequestHandler {
             Server.getInstance().getWebServer().getSessionManager().logout(rq);
             return PostResponse.redirect("/login", rq);
         });
+    }
+
+    /** Validates the optional post-login target and prevents open redirects. */
+    private static String safeLoginNext(String next) {
+        if (next == null || next.length() > 4096) throw new IllegalArgumentException("Ungültiges Weiterleitungsziel");
+        try { next = URLDecoder.decode(next, StandardCharsets.UTF_8); }
+        catch (IllegalArgumentException e) { throw new IllegalArgumentException("Ungültiges Weiterleitungsziel"); }
+        if (next.length() > 2048 || next.indexOf('\r') >= 0 || next.indexOf('\n') >= 0
+                || next.indexOf('\\') >= 0 || !next.startsWith("/") || next.startsWith("//")
+                || next.regionMatches(true, 0, "/http:", 0, 6)
+                || next.regionMatches(true, 0, "/https:", 0, 7)) {
+            throw new IllegalArgumentException("Ungültiges Weiterleitungsziel");
+        }
+        return next;
     }
 }
