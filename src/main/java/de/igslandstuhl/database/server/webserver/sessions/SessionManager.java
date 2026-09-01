@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,12 +87,12 @@ public class SessionManager {
         }
 
         String userAgent = request.getUserAgent();
-        if (!getSession(request).getUserAgent().equals(userAgent)) {
+        if (!Objects.equals(getSession(request).getUserAgent(), userAgent)) {
             LOGGER.warn("faked session id (device changed), for user {}" + getSessionUser(request));
             return SessionValidationResult.INVALID_SESSION;
         }
         String ip = request.getIP();
-        if (!getSession(request).getIpAddress().equals(ip)) {
+        if (!Objects.equals(getSession(request).getIpAddress(), ip)) {
             LOGGER.warn("faked session id (ip address changed) for user {}" + getSessionUser(request));
             return SessionValidationResult.INVALID_SESSION;
         }

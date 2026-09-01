@@ -15,6 +15,7 @@ import de.igslandstuhl.database.api.PreConditions;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
 import de.igslandstuhl.database.server.webserver.sessions.Session;
 import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
+import de.igslandstuhl.database.server.webserver.handlers.SessionValidationResult;
 
 public class SessionManagerTest {
     private static final String LOCALHOST = "127.0.0.1";
@@ -50,5 +51,20 @@ public class SessionManagerTest {
                         "Cookie: " + session1.createSessionCookie().toString(), null, LOCALHOST, true);
         Session session3 = sessionManager.getSession(sessionRequest2);
         assertEquals(session1, session3);
+    }
+
+    @Test
+    void validateSessionIsNullSafeForUserAgentAndIp() {
+        PostRequest initial = new PostRequest("POST /login HTTP/1.1", null, null, true);
+        Session session = sessionManager.getSession(initial);
+        String cookie = session.createSessionCookie().toString();
+        PostRequest same = new PostRequest("POST /dashboard HTTP/1.1\r\nCookie: " + cookie, null, null, true);
+        assertEquals(SessionValidationResult.OK, sessionManager.validateSession(same));
+
+        PostRequest changedAgent = new PostRequest("POST /dashboard HTTP/1.1\r\nUser-Agent: test\r\nCookie: " + cookie, null, null, true);
+        assertEquals(SessionValidationResult.INVALID_SESSION, sessionManager.validateSession(changedAgent));
+
+        PostRequest changedIp = new PostRequest("POST /dashboard HTTP/1.1\r\nCookie: " + cookie, null, "127.0.0.1", true);
+        assertEquals(SessionValidationResult.INVALID_SESSION, sessionManager.validateSession(changedIp));
     }
 }
