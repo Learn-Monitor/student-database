@@ -2,6 +2,7 @@ package de.igslandstuhl.database.server.webserver.responses;
 
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 
 import com.google.gson.Gson;
 
@@ -121,8 +122,10 @@ public class PostResponse implements HttpResponse {
         }
         out.print("\r\n");
         if (body != null) {
-            if (body.length() > 1024) WebServer.LOGGER.debug("Response body omitted ({} bytes)", body.length());
-            else WebServer.LOGGER.debug("Response body: {}", body);
+            WebServer.LOGGER.debug(
+                "HTTP response: status={}, contentType={}, bodyLength={}",
+                statusCode.getCode(), contentType.getName(), body.getBytes(StandardCharsets.UTF_8).length
+            );
             out.print(body);
         }
         out.flush();
