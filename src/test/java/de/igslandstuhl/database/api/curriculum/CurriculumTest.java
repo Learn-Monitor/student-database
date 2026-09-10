@@ -9,6 +9,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.sql.*;
 import de.igslandstuhl.database.server.webserver.Status;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
@@ -431,6 +433,148 @@ class CurriculumTest {
         assertThrows(CurriculumException.class,()->service.assign(admin,id,target));
         assertThrows(CurriculumException.class,()->service.transfer(admin,id,scope,target,List.of()));
         assertEquals(id,scalar("SELECT class FROM student_curriculum_contexts WHERE student=?",id));
+    }
+    @SuppressWarnings("unchecked")
+    List<Curriculum.CompletedCentralTask> centralDetails(Map<String,Object> result) {
+        return (List<Curriculum.CompletedCentralTask>) result.get("completedCentralTasks");
+    }
+    @SuppressWarnings("unchecked")
+    List<Curriculum.CompletedFlexibleTask> flexibleDetails(Map<String,Object> result) {
+        return (List<Curriculum.CompletedFlexibleTask>) result.get("completedFlexibleTasks");
+    }
+    void assertDetailSums(Map<String,Object> result) {
+        long central=centralDetails(result).stream().mapToLong(Curriculum.CompletedCentralTask::tokens).sum();
+        long flexible=flexibleDetails(result).stream().mapToLong(Curriculum.CompletedFlexibleTask::tokens).sum();
+        assertEquals(central,result.get("centralTokens"));assertEquals(flexible,result.get("flexibleTokens"));
+        assertEquals(central+flexible,result.get("totalTokens"));
+    }
+    Map<String,Object> ownDetails() throws Exception {
+        var result=service.studentProgress(Student.get(id),id,id);assertDetailSums(result);return result;
+    }
+    @Test void detailsIncludeOnlyCompletedCentralAndFlexibleTasks() throws Exception {
+        int done=central(6);Student.get(id).changeTaskStatus(Task.get(done),Task.STATUS_COMPLETED);
+        int pending=service.createCentralTask(topic,"Pending",TaskLevel.LEVEL2,3);
+        Student.get(id).changeTaskStatus(Task.get(pending),Task.STATUS_IN_PROGRESS);
+        service.createCentralTask(topic,"Not started",TaskLevel.LEVEL3,2);
+        var flexible=service.create(teacher,scope,"Completed flexible",6);service.complete(teacher,flexible.id(),id);
+        service.create(teacher,scope,"Not completed",5);
+        var result=ownDetails();
+        assertEquals(List.of(new Curriculum.CompletedCentralTask(done,"Central",6,1,topic,"Topic-"+id)),centralDetails(result));
+        assertEquals(List.of(new Curriculum.CompletedFlexibleTask(flexible.id(),"Completed flexible",6)),flexibleDetails(result));
+        assertEquals(12L,result.get("totalTokens"));
+    }
+    @Test void centralDetailsReflectCurrentTaskAndTopicDefinitions() throws Exception {
+        int task=central(6);Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);
+        assertEquals(6L,ownDetails().get("totalTokens"));
+        service.editTask(admin,task,"Renamed task",4);service.renameTopic(admin,topic,"Renamed topic");
+        var result=ownDetails();assertEquals(4L,result.get("totalTokens"));
+        assertEquals(new Curriculum.CompletedCentralTask(task,"Renamed task",4,1,topic,"Renamed topic"),centralDetails(result).get(0));
+    }
+    @Test void flexibleDetailsReflectCurrentDefinitionAfterCompletion() throws Exception {
+        var task=service.create(teacher,scope,"Flexible",6);service.complete(teacher,task.id(),id);
+        assertEquals(6L,ownDetails().get("totalTokens"));service.edit(teacher,task.id(),"Renamed flexible",4);
+        var result=ownDetails();assertEquals(4L,result.get("totalTokens"));
+        assertEquals(List.of(new Curriculum.CompletedFlexibleTask(task.id(),"Renamed flexible",4)),flexibleDetails(result));
+    }
+    @Test void detailArraysKeepZeroTokensAndDistinctIdsWithIdenticalNames() throws Exception {
+        int first=central(0);Student.get(id).changeTaskStatus(Task.get(first),Task.STATUS_COMPLETED);
+        int secondTopic=service.createTopic(admin,id,5,id,2,"Another topic");
+        int second=service.createCentralTask(secondTopic,"Central",TaskLevel.LEVEL2,0);
+        Student.get(id).changeTaskStatus(Task.get(second),Task.STATUS_COMPLETED);
+        var flexible=service.create(teacher,scope,"Central",0);service.complete(teacher,flexible.id(),id);
+        var result=ownDetails();assertEquals(0L,result.get("totalTokens"));
+        assertEquals(List.of(first,second),centralDetails(result).stream().map(Curriculum.CompletedCentralTask::id).toList());
+        assertEquals(List.of(new Curriculum.CompletedFlexibleTask(flexible.id(),"Central",0)),flexibleDetails(result));
+    }
+    @Test void assignedContextWithoutCompletionsReturnsEmptyArrays() throws Exception {
+        central(6);service.create(teacher,scope,"Not completed",6);
+        var result=ownDetails();assertTrue(centralDetails(result).isEmpty());assertTrue(flexibleDetails(result).isEmpty());
+        assertEquals(0L,result.get("totalTokens"));
+    }
+    @Test void detailsExcludeOtherStudentsTeachersSubjectsSemestersAndGrades() throws Exception {
+        int own=central(6);Student.get(id).changeTaskStatus(Task.get(own),Task.STATUS_COMPLETED);
+        for(int n=0;n<3;n++) {
+            int otherTopic=service.createTopic(admin,n==2?id+1:id,n==1?6:5,n==0?id+1:id,n==0?2:1,"Excluded topic "+n);
+            int task=service.createCentralTask(otherTopic,"Excluded task",TaskLevel.LEVEL1,10);
+            db.writeTransaction(c->{exec(c,"INSERT INTO taskstats(student,task,status) VALUES(?,?,2)",id,task);return null;});
+        }
+        db.writeTransaction(c->{exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Other','Student',?,'unused',?,1)",id+1,"details"+id+"@example.invalid",id);return null;});
+        service.assign(admin,id+1,secondScope());
+        var first=service.create(teacher,scope,"Own flexible",5);service.complete(teacher,first.id(),id);
+        var second=service.create(other,secondScope(),"Other teacher flexible",8);service.complete(other,second.id(),id+1);
+        int otherStudentOnly=service.createCentralTask(topic,"Other student central",TaskLevel.LEVEL1,7);
+        Student.get(id+1).changeTaskStatus(Task.get(otherStudentOnly),Task.STATUS_COMPLETED);
+        var nextSemester=new Curriculum.Scope(id,id,id,id+1);service.assign(admin,id,nextSemester);
+        var later=service.create(teacher,nextSemester,"Later flexible",9);service.complete(teacher,later.id(),id);
+        var result=ownDetails();assertEquals(List.of(own),centralDetails(result).stream().map(Curriculum.CompletedCentralTask::id).toList());
+        assertEquals(List.of(first.id()),flexibleDetails(result).stream().map(Curriculum.CompletedFlexibleTask::id).toList());
+        var another=service.studentProgress(Student.get(id+1),id,id);assertDetailSums(another);
+        assertEquals(List.of(second.id()),flexibleDetails(another).stream().map(Curriculum.CompletedFlexibleTask::id).toList());
+        assertEquals(List.of(otherStudentOnly),centralDetails(another).stream().map(Curriculum.CompletedCentralTask::id).toList());
+        var laterResult=service.studentProgress(Student.get(id),id,id+1);assertDetailSums(laterResult);
+        assertEquals(List.of(later.id()),flexibleDetails(laterResult).stream().map(Curriculum.CompletedFlexibleTask::id).toList());
+        db.writeTransaction(c->{exec(c,"UPDATE classes SET grade=6 WHERE id=?",id);return null;});
+        assertEquals(result,ownDetails()); // Pinned grade 5 remains the authoritative central selection.
+    }
+    @Test void transferDetailsContainOnlyTerminalCompletionAndPreserveHistory() throws Exception {
+        var a=service.create(teacher,scope,"A",6);var b=service.create(other,secondScope(),"B",6);
+        service.complete(teacher,a.id(),id);
+        service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(a.id(),b.id(),6)));
+        assertEquals(List.of(new Curriculum.CompletedFlexibleTask(b.id(),"B",6)),flexibleDetails(ownDetails()));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,a.id()));
+        var terminal=service.create(teacher,scope,"Terminal",6);
+        service.transfer(admin,id,secondScope(),scope,List.of(new Curriculum.Transfer(b.id(),terminal.id(),6)));
+        service.edit(teacher,a.id(),"Historical A",4);service.edit(other,b.id(),"Historical B",4);
+        service.edit(teacher,terminal.id(),"Current terminal",4);
+        var result=ownDetails();assertEquals(4L,result.get("totalTokens"));
+        assertEquals(List.of(new Curriculum.CompletedFlexibleTask(terminal.id(),"Current terminal",4)),flexibleDetails(result));
+        assertEquals(3,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
+        assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_completion_transfers WHERE student=?",id));
+    }
+    com.google.gson.JsonObject jsonResponse(User user,String path,String payload) {
+        var response=request(user,path,payload);assertEquals(Status.OK,response.getStatus());
+        return com.google.gson.JsonParser.parseString(responseBody(response).split("\r\n\r\n",2)[1]).getAsJsonObject();
+    }
+    @Test void bothHttpResponsesExposeSameAdditiveTypedContractWithoutPersonalData() throws Exception {
+        int task=central(6);Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);
+        var flexible=service.create(teacher,scope,"Quoted \"name\"",4);service.complete(teacher,flexible.id(),id);
+        var own=jsonResponse(Student.get(id),"/my-curriculum-progress",body());
+        var staff=jsonResponse(Teacher.get(id),"/curriculum-progress",assignmentBody());assertEquals(own,staff);
+        var adminUser=Admin.create("details-admin-"+id,"synthetic-test-only");
+        assertEquals(own,jsonResponse(adminUser,"/curriculum-progress",assignmentBody()));
+        assertEquals(Set.of("centralTokens","flexibleTokens","totalTokens","completedCentralTasks","completedFlexibleTasks"),own.keySet());
+        var central=own.getAsJsonArray("completedCentralTasks").get(0).getAsJsonObject();
+        assertEquals(Set.of("id","name","tokens","niveau","topicId","topicName"),central.keySet());
+        var detail=own.getAsJsonArray("completedFlexibleTasks").get(0).getAsJsonObject();
+        assertEquals(Set.of("id","name","tokens"),detail.keySet());assertEquals("Quoted \"name\"",detail.get("name").getAsString());
+        long centralSum=0,flexibleSum=0;
+        for(var entry:own.getAsJsonArray("completedCentralTasks"))centralSum+=entry.getAsJsonObject().get("tokens").getAsLong();
+        for(var entry:own.getAsJsonArray("completedFlexibleTasks"))flexibleSum+=entry.getAsJsonObject().get("tokens").getAsLong();
+        assertEquals(centralSum,own.get("centralTokens").getAsLong());assertEquals(flexibleSum,own.get("flexibleTokens").getAsLong());
+        assertEquals(centralSum+flexibleSum,own.get("totalTokens").getAsLong());
+    }
+    @Test void detailsDoNotWeakenAssignmentScopeOrBudgetChecks() throws Exception {
+        central(70);var task=service.create(teacher,scope,"Flexible",35);service.complete(teacher,task.id(),id);
+        assertEquals(35L,ownDetails().get("totalTokens"));
+        assertThrows(CurriculumException.class,()->service.edit(teacher,task.id(),"Too much",36));
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.progress(admin,id,secondScope())).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.progress(other,id,scope)).status);
+        unassign();
+        for(User user:List.of(Student.get(id),Teacher.get(id))) {
+            var response=request(user,user.isStudent()?"/my-curriculum-progress":"/curriculum-progress",user.isStudent()?body():assignmentBody());
+            assertEquals(Status.CONFLICT,response.getStatus());
+            assertTrue(responseBody(response).contains("context_unassigned"));assertFalse(responseBody(response).contains("completedCentralTasks"));
+        }
+    }
+    @Test void detailsAndSumsStayConsistentDuringConcurrentDefinitionEdits() throws Exception {
+        int task=central(6);Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);
+        var flexible=service.create(teacher,scope,"Flexible",6);service.complete(teacher,flexible.id(),id);
+        ExecutorService pool=Executors.newSingleThreadExecutor();
+        try {
+            var edits=pool.submit(()->{for(int n=0;n<20;n++){int value=n%2==0?4:6;service.editTask(admin,task,"Central "+value,value);service.edit(teacher,flexible.id(),"Flexible "+value,value);}return null;});
+            for(int n=0;n<20;n++)assertDetailSums(ownDetails());
+            edits.get(10,TimeUnit.SECONDS);
+        }finally{pool.shutdownNow();}
     }
     de.igslandstuhl.database.server.webserver.responses.PostResponse request(User user,String path,String body) {
         var rq=new de.igslandstuhl.database.server.webserver.requests.APIPostRequest(

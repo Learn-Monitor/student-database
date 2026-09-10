@@ -321,24 +321,37 @@ public final class Curriculum {
     public long completedTokens(int studentId,Scope scope) throws SQLException {
         return transaction(c->{requireAssignment(c,studentId,scope);return flexibleCompleted(c,studentId,scope);});
     }
-    private static long flexibleCompleted(Connection c,int studentId,Scope scope) throws SQLException {
-        return number(c,"SELECT COALESCE(SUM(t.tokens),0) FROM flexible_tasks t JOIN completed_flexible_tasks x ON x.flexible_task=t.id WHERE x.student=? AND t.owner_teacher=? AND t.subject=? AND t.class=? AND t.semester=? AND " + ACTIVE_COMPLETION,
-                studentId,scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId());
+    public record CompletedCentralTask(int id, String name, int tokens, int niveau, int topicId, String topicName) {}
+    public record CompletedFlexibleTask(int id, String name, int tokens) {}
+
+    private static List<CompletedFlexibleTask> completedFlexibleTasks(Connection c,int studentId,Scope scope) throws SQLException {
+        return rows(c,"SELECT t.id,t.name,t.tokens FROM flexible_tasks t JOIN completed_flexible_tasks x ON x.flexible_task=t.id WHERE x.student=? AND t.owner_teacher=? AND t.subject=? AND t.class=? AND t.semester=? AND " + ACTIVE_COMPLETION + " ORDER BY t.id",
+                studentId,scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId()).stream()
+                .map(r->new CompletedFlexibleTask(integer(r,"id"),(String)r.get("name"),integer(r,"tokens"))).toList();
     }
-    private static Map<String,Long> progress(Connection c,int studentId,Scope scope) throws SQLException {
+    private static long flexibleCompleted(Connection c,int studentId,Scope scope) throws SQLException {
+        return completedFlexibleTasks(c,studentId,scope).stream().mapToLong(CompletedFlexibleTask::tokens).sum();
+    }
+    private static Map<String,Object> progress(Connection c,int studentId,Scope scope) throws SQLException {
         int grade=requireAssignment(c,studentId,scope);
         limit(List.of(Budget.of(scope,grade,central(c,scope.subjectId(),grade,scope.semesterId()),flexible(c,scope))));
-        long central = number(c, "SELECT COALESCE(SUM(t.tokens),0) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE x.student=? AND x.status=2 AND p.subject=? AND p.grade=? AND p.semester=?",
-                studentId, scope.subjectId(), grade, scope.semesterId());
-        long flexible=flexibleCompleted(c,studentId,scope);
-        return Map.of("centralTokens",central,"flexibleTokens",flexible,"totalTokens",central+flexible);
+        List<CompletedCentralTask> completedCentralTasks=rows(c,
+                "SELECT t.id,t.name,t.tokens,t.niveau,p.id AS topicId,p.name AS topicName FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE x.student=? AND x.status=2 AND p.subject=? AND p.grade=? AND p.semester=? ORDER BY t.id",
+                studentId,scope.subjectId(),grade,scope.semesterId()).stream()
+                .map(r->new CompletedCentralTask(integer(r,"id"),(String)r.get("name"),integer(r,"tokens"),integer(r,"niveau"),integer(r,"topicId"),(String)r.get("topicName"))).toList();
+        List<CompletedFlexibleTask> completedFlexibleTasks=completedFlexibleTasks(c,studentId,scope);
+        // Totals are derived from the exact returned identities in this transaction, never a second query/cache.
+        long central=completedCentralTasks.stream().mapToLong(CompletedCentralTask::tokens).sum();
+        long flexible=completedFlexibleTasks.stream().mapToLong(CompletedFlexibleTask::tokens).sum();
+        return Map.of("centralTokens",central,"flexibleTokens",flexible,"totalTokens",central+flexible,
+                "completedCentralTasks",completedCentralTasks,"completedFlexibleTasks",completedFlexibleTasks);
     }
     /** Assigned total for staff; both their scope access and the student's explicit assignment apply. */
-    public Map<String,Long> progress(Actor actor, int studentId, Scope scope) throws SQLException {
+    public Map<String,Object> progress(Actor actor, int studentId, Scope scope) throws SQLException {
         return transaction(c -> {authorize(c,actor,scope,false);return progress(c,studentId,scope);});
     }
     /** Student identity comes exclusively from the session; the client cannot choose a teacher or class. */
-    public Map<String,Long> studentProgress(User user,int subject,int semester) throws SQLException {
+    public Map<String,Object> studentProgress(User user,int subject,int semester) throws SQLException {
         if(user==null || user==User.ANONYMOUS) throw error(401,"unauthorized","Please sign in.");
         if(!user.isStudent()) throw error(403,"forbidden","Student session required.");
         int studentId=user.asStudent().getId();

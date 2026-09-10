@@ -92,13 +92,89 @@ Scope fields are `teacherId, subjectId, classId, semesterId`.
 | `/assign-curriculum-context` | admin | Scope + `studentId` → `{ok:true}` |
 | `/curriculum-transfer-preview` | admin | Target scope + `studentId` → `source`, `completions`, `targets`; read-only |
 | `/transfer-curriculum-context` | admin | Target scope + `studentId`, `sourceTeacherId`, `sourceClassId`, `transfers:[{sourceTaskId,targetTaskId,tokens}]` → `{ok:true}` |
-| `/my-curriculum-progress` | student | Only `subjectId, semesterId` → `centralTokens, flexibleTokens, totalTokens` |
+| `/my-curriculum-progress` | student | Only `subjectId, semesterId` → totals and completed-task details (below) |
 
 The student endpoint uses the session student ID and resolves teacher/class/grade
 from the persisted assignment. Supplied `studentId`, `teacherId`, `classId` or
 `grade` are rejected with 400. Anonymous access is 401; staff cannot use the
 student-only handler as a way to select an arbitrary student. Staff continue to
 use `/curriculum-progress` with its strengthened assignment checks.
+
+## Additive progress details (Sprint 4½)
+
+Both existing POST routes, `/my-curriculum-progress` and `/curriculum-progress`,
+return the same extended success shape. All three existing integer totals retain
+their meanings. The two new arrays are always present, including when empty:
+
+```json
+{
+  "centralTokens": 4,
+  "flexibleTokens": 6,
+  "totalTokens": 10,
+  "completedCentralTasks": [
+    {"id": 101, "name": "Central task", "tokens": 4, "niveau": 1,
+     "topicId": 20, "topicName": "Current topic name"}
+  ],
+  "completedFlexibleTasks": [
+    {"id": 202, "name": "Flexible task", "tokens": 6}
+  ]
+}
+```
+
+These illustrative IDs are not fixture or deployment requirements. IDs, tokens,
+`niveau` and topic IDs are integers; names are strings. `niveau` is the stored
+central task level. Central and flexible task IDs belong to separate namespaces;
+the enclosing array identifies their kind. Each array is ordered by task ID,
+not by completion time. Names are never used for deduplication. Zero-token
+completions remain in the arrays even though they do not increase totals.
+
+Central details join current task and topic definitions, filtered by the session/
+authorized student, completed status, subject, pinned historical grade and
+semester. Flexible details use the same assigned teacher/subject/class/semester
+and the existing `ACTIVE_COMPLETION` predicate. After A → B, A's completion is
+retained in SQL but only B appears; after A → B → C, only C appears. No history
+is rewritten or removed by these read APIs.
+
+Current names and token definitions are read directly from SQL in the existing
+transaction, without a new cache. A completed task changed from 6 to 4 returns 4
+both in its detail entry and in the relevant total. Task/topic renames are visible
+on the next query. After transfer, target edits remain retroactive; historical
+source edits do not affect current details or totals.
+
+The shared progress implementation materializes typed `CompletedCentralTask` and
+`CompletedFlexibleTask` records and derives all totals from those exact lists:
+
+- `sum(completedCentralTasks.tokens) == centralTokens`
+- `sum(completedFlexibleTasks.tokens) == flexibleTokens`
+- `centralTokens + flexibleTokens == totalTokens`
+
+No second aggregate query computes these totals. Both arrays, the assignment
+check and budget check share the existing transaction and current database state.
+Java callers now receive `Map<String,Object>` to accommodate the typed lists;
+the existing total values remain `Long`. No completion timestamp is added:
+`last_updated` is not a uniform original-completion timestamp across status changes
+and transfers. No award snapshots or unnecessary personal identifiers are exposed.
+
+Authorization is unchanged. The student route still accepts the subject/semester
+selection and rejects student/teacher/class/grade overrides. Missing assignment
+still returns `409 context_unassigned`, never a successful empty/zero response.
+Staff still pass existing role, teacher assignment, ownership and student-context
+checks. The 105-token hard limit remains unchanged.
+
+No GET/POST route metadata or handler registration changes are needed. Existing
+Sprint-4 PM permissions (`curriculum_student_progress` and staff `curriculum_view`)
+already cover the two routes; only their response contract expands. PM is unchanged.
+The earlier PM follow-up section below describes the historical Sprint-3½ boundary.
+
+Ten additional curriculum tests exercise real SQL and HTTP serialization: exact
+completed selection, both 6 → 4 edits, current task/topic names, zero-token entries,
+distinct same-name identities, empty lists, student/teacher/subject/semester/grade
+isolation, historical grade pinning, A → B and transfer chains with retained SQL
+history, identical student/staff/admin JSON shapes without personal data, all
+three sum invariants, authorization/409/budget regressions, and concurrent edits.
+The previous 48 curriculum cases and 44 DOM cases remain in place. The no-new-route
+check compares both metadata files and the handler against each exact Sprint-3½
+base, without freezing future route development in a permanent fixture.
 
 ## Optional Permission Manager follow-up
 
