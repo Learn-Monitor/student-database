@@ -183,3 +183,47 @@ role/session checks are covered by the synthetic tests.
 
 No services, live databases or other repositories were changed; no PR was opened.
 The feature branches are local at this stage. No release artifact was replaced.
+
+## Sprint 4½: additive progress detail contract
+
+Control main `3c7895d223e14636e0a94425ca09f13189060ff3` was checked against its
+remote before work; architecture, working state and referenced Signage/SOL update
+were read. This sprint changes only student-database.
+
+| Track | Exact Sprint-3½ base | Detail feature commit |
+|---|---|---|
+| Upstream | `205f8d853c7f4011f722c621f8c306243a3bf23b` | `1dbb52717d146798cc00c133ce4d2d0c6d316cca` |
+| Canonical v2 | `739bbccadebabf2acc69911a273cfcda4f9bb665` | `5cc79a52ba308bd2e626a11ffb6c89ad10dc4273` |
+
+Successor branches:
+- `feature/curriculum-progress-details-upstream-20260910`
+- `feature/curriculum-progress-details-canonical-v2-20260910`
+
+Cherry-pick was conflict-free. Service, tests and general contract documentation
+are identical between tracks; this integration record is canonical-only. Existing
+branches and core/runtime compatibility classes were not moved or modified.
+
+`/my-curriculum-progress` and `/curriculum-progress` add typed central/flexible
+completion arrays. Existing totals now sum those same materialized lists inside
+the existing transaction. Current definitions supply names, token values and
+central topic/level data. Assignment, role/session, historical-grade, budget and
+ACTIVE_COMPLETION checks remain unchanged. No schema or timestamp field is added.
+
+Validation on both branches:
+- `./gradlew test jar shadowJar`: passed. Upstream 86 existing + 58 curriculum
+  tests; canonical 87 existing + 58 curriculum tests. No failures/errors/skips.
+- `npm test --prefix src/test/js`: all 44 existing DOM tests passed per track.
+- `git diff --check`: passed. Existing Gradle deprecation warnings remain.
+- `get_paths.json`, `post_paths.json` and `CurriculumRequestHandler.java` are
+  byte-identical to each track's Sprint-3½ base: no new route or weakened handler.
+- Ten new curriculum tests cover exact completed identities, current 6→4 token
+  values and renamed task/topics, zero-token entries, same-name distinct IDs,
+  empty lists, isolated students/teachers/subjects/semesters/grades, pinned grade,
+  A→B and A→B→C with retained source rows, identical student/staff/admin JSON,
+  all three sum invariants, missing-assignment 409, scope/budget checks and
+  concurrent definition edits. Existing override/authorization tests still pass.
+
+See [the extended response contract](student-curriculum-contexts.md) for field types,
+ordering and examples. Existing Sprint-4 PM permissions cover the same endpoints;
+Permission Manager, Results, Overlay, Attendance and Control were not changed.
+No deployment, PR, service action or live database operation was performed.
