@@ -96,3 +96,50 @@ separate work. No Canonical-v2 release artifact is replaced by these local build
 - `src/test/js/package-lock.json`
 - `src/test/js/package.json`
 - `docs/flexible-curriculum-integration-20260910.md` (integration branch only)
+
+## Sprint 3: permission-aware standard UI
+
+Read-only source-of-truth review: Control main
+`3c7895d223e14636e0a94425ca09f13189060ff3`, verified against remote main.
+Read `docs/ARCHITECTURE.md`, `docs/arcanum/ARBEITSSTAND.md` (5 September)
+and its updated `SIGNAGE-PARALLELHOST.md` reference including the 10 September
+SOL sender contract update. The one-target-repository rule applies.
+
+Permission Manager API and curriculum contract were read at Sprint-2 upstream
+`12fc737db4f39801e34c787e06898a3e851fe119` and canonical
+`bde94e87e7d3bd4bf1ca42125322c4a276a65f77`; their public JavaScript API is identical.
+It starts `permissionsLoaded`, returns an empty snapshot on loading failure and
+checks cached effective permissions via `hasPermission`. No PM changes are needed.
+
+| Track | Exact Sprint-1 base | Sprint-3 UI commit |
+|---|---|---|
+| Upstream | `1165d1f423950dd4bfd06bdc581f399d8ac1c72c` | `8dbe2b35f9d60c0309eb48b127a51c23b4109b39` |
+| Canonical v2 | `819df09231ab86378f889c44ef6f01541a69c8ac` | `78c0356dd8aa1bb4ad904ffce0f8dea3366eec58` |
+
+Successor branches:
+- `feature/flexible-curriculum-ui-permissions-upstream-20260910`
+- `feature/flexible-curriculum-ui-permissions-canonical-v2-20260910`
+
+The UI commit was cherry-picked without conflicts. All three changed feature
+files are byte-identical between tracks: `src/main/resources/js/site/curriculum.js`,
+`src/test/js/curriculum.test.cjs`, `docs/flexible-curriculum.md`. This integration
+record is the only additional canonical documentation change. No Java, route,
+core permission, plugin-loader or runtime compatibility classes were changed.
+Both original Sprint-1 branch tips remain at the exact bases above.
+
+Validation on each branch:
+- `./gradlew test jar shadowJar`: passed. Upstream 86 existing + 24 curriculum
+  tests; canonical 87 existing + 24 curriculum tests; zero failures/errors/skips.
+- `npm test --prefix src/test/js`: 36/36 passing on each branch, Node 22.21.1.
+  The existing local tool under `build/ui-tools` was added to PATH for these runs.
+- `git diff --check`: passed. Existing Gradle deprecation warnings remain.
+- Tests use synthetic local fixtures and mocked HTTP responses. There was no
+  deployed browser test, service action or live database access.
+
+The full capability table, fail-closed bootstrap, client snapshot limitations,
+safe HTTP errors and DOM coverage are documented in `flexible-curriculum.md`.
+Completion controls are absent; future controls must gate completion separately.
+A later integration test should exercise the real optional PM and standard UI
+together. Scoped progress consumers still need explicit teacher/class/semester
+selection and cache invalidation after edits; independent budgets must not be
+aggregated or replaced by token snapshots. Those are separate repository sprints.
