@@ -174,6 +174,7 @@ public class PostRequestHandler {
         return successMessage;
     }
     public static void registerHandlers() {
+        CurriculumRequestHandler.registerHandlers();
         LOGGER.info("Registering Post Request Handlers...");
         HttpHandler.registerPostRequestHandler("/login", AccessLevel.PUBLIC, (rq) -> {
             String username = prepare(rq.getString("username"), false);

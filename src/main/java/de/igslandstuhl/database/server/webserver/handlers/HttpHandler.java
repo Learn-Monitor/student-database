@@ -35,7 +35,9 @@ public class HttpHandler<Rq extends HttpRequest> {
         }
         if (!AccessManager.getInstance().hasAccess(
                 sessionManager.getSessionUser(request), path, request)) {
-            return HttpResponse.error(request, Status.UNAUTHORIZED);
+            var user = sessionManager.getSessionUser(request);
+            return HttpResponse.error(request, user == null || user == de.igslandstuhl.database.api.User.ANONYMOUS
+                    ? Status.UNAUTHORIZED : Status.FORBIDDEN);
         } else if (!path.equals(request.getPath().split("\\?")[0])) {
             LOGGER.error("Wrong path for HTTP handler: path {} does not match handler path {}", request.getPath(), path);
             return HttpResponse.error(request, Status.INTERNAL_SERVER_ERROR);

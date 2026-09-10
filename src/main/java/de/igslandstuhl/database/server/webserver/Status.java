@@ -14,6 +14,7 @@ public enum Status {
     FORBIDDEN (403, "Forbidden"),
     NOT_FOUND(404, "Not Found"),
     METHOD_NOT_ALLOWED(405, "Method Not Allowed"),
+    CONFLICT(409, "Conflict"),
     I_AM_A_TEAPOT(418, "I'm a teapot"),
     INTERNAL_SERVER_ERROR(500, "Internal Server Error"),
     TOO_MANY_REQUESTS(429, "Too Many Requests")

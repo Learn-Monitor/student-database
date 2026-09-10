@@ -268,6 +268,9 @@ public class PostResponse implements HttpResponse {
         return new PostResponse(Status.FOUND, "", ContentType.TEXT_PLAIN, request, cookie,
                 new String[] { "Location: " + location });
     }
+    public static PostResponse json(Status status, Object json, PostRequest request) {
+        return new PostResponse(status, new Gson().toJson(json), ContentType.JSON, request);
+    }
     public static PostResponse json(Object json, PostRequest request) {
         Gson gson = new Gson();
         return new PostResponse(Status.OK, gson.toJson(json), ContentType.JSON, request);
