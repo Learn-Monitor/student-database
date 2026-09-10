@@ -6,6 +6,9 @@ current `Task.getTokens()` supplies the value. Cached instances, including those
 held in student completion sets, are updated after commit. Task/Topic equality and
 hash codes use class and ID, not editable names. Names are JSON-escaped.
 
+See [explicit student contexts and transfers](student-curriculum-contexts.md) for
+the Sprint 3½ assignment requirement, student progress and per-student hard limit.
+
 ## Model and additive schema
 
 `UnscheduledTask` was considered first. It represents variable per-student rewards,
@@ -59,7 +62,8 @@ ownership, even if an extension changes the outer access decision. Teachers must
 be assigned in **both** `teacher_classes` and `teacher_subjects`, read fresh from
 SQL on every operation. Owner is derived from the session; a different supplied
 teacher ID is rejected. Administrators can inspect/correct any flexible context.
-Central mutation is administrator-only. Authenticated access denial is HTTP 403;
+Central mutation is administrator-only. Flexible completion and staff progress now
+also require the explicit student context introduced in Sprint 3½. Authenticated access denial is HTTP 403;
 missing authentication is 401.
 
 The existing assignment schema stores separate class and subject memberships,
@@ -90,7 +94,7 @@ Edit operations send the complete editable definition (name and tokens).
 | `/flexible-tasks` | teacher/admin | Context fields; own task definitions |
 | `/add-flexible-task` | teacher/admin | Context fields plus `name, tokens` |
 | `/edit-flexible-task` | teacher/admin | `taskId, name, tokens`; scope/owner cannot be reassigned |
-| `/complete-flexible-task` | teacher/admin | `taskId, studentId`; idempotent completion, same-class check |
+| `/complete-flexible-task` | teacher/admin | `taskId, studentId`; idempotent completion, same-class and assigned-context checks |
 | `/curriculum-progress` | teacher/admin | Context fields plus `studentId`; current completed central/flexible/total tokens |
 
 Context fields: `subjectId, classId, semesterId`, plus `teacherId` for an admin;

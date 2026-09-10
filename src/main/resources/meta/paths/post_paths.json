@@ -346,5 +346,35 @@
         "handler_type": "PostRequestHandler",
         "namespaces": [],
         "access_level": "teacher"
+    },
+    "/my-curriculum-progress": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "student"
+    },
+    "/curriculum-students": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
+    "/assign-curriculum-context": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
+    "/curriculum-transfer-preview": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
+    "/transfer-curriculum-context": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
     }
 }

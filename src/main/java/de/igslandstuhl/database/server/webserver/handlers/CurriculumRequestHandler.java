@@ -16,11 +16,14 @@ public final class CurriculumRequestHandler {
         for(String path:List.of("/curriculum-catalog","/curriculum-structure","/curriculum-budget","/curriculum-progress",
                 "/flexible-tasks","/add-flexible-task","/edit-flexible-task","/complete-flexible-task"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
-        for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task"))
+        for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task","/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
+        HttpHandler.registerPostRequestHandler("/my-curriculum-progress",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
     }
     private static int integer(APIPostRequest rq,String key) {
-        Object raw=rq.getJson().get(key);
+        return integer(rq.getJson().get(key),key);
+    }
+    private static int integer(Object raw,String key) {
         if(!(raw instanceof Number) && !(raw instanceof String text && text.matches("[0-9]+")))
             throw new CurriculumException(400,"invalid_input",key+" must be an integer.");
         try { int result = new java.math.BigDecimal(raw.toString()).intValueExact();
@@ -41,11 +44,32 @@ public final class CurriculumRequestHandler {
     }
     public static PostResponse handle(APIPostRequest rq) {
         try {
-            Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
             if (rq.getJson() == null) throw new CurriculumException(400,"invalid_input","JSON object required.");
             Curriculum service=Curriculum.current();
+            if(rq.getPath().equals("/my-curriculum-progress")) {
+                if(rq.containsKey("studentId") || rq.containsKey("teacherId") || rq.containsKey("classId") || rq.containsKey("grade"))
+                    throw new CurriculumException(400,"invalid_input","Student context is derived from the session and assignment.");
+                return PostResponse.json(service.studentProgress(rq.getUser(),integer(rq,"subjectId"),integer(rq,"semesterId")),rq);
+            }
+            Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
             Object result;
             switch(rq.getPath()) {
+                case "/curriculum-transfer-preview" -> result=service.transferPreview(actor,integer(rq,"studentId"),scope(rq,actor));
+                case "/transfer-curriculum-context" -> {
+                    if(!actor.admin()) throw new CurriculumException(403,"forbidden","Administrator required.");
+                    var target=scope(rq,actor);
+                    var source=new Curriculum.Scope(integer(rq,"sourceTeacherId"),target.subjectId(),integer(rq,"sourceClassId"),target.semesterId());
+                    if(!(rq.getJson().get("transfers") instanceof List<?> mappings))
+                        throw new CurriculumException(400,"invalid_input","Explicit completion mappings required.");
+                    List<Curriculum.Transfer> transfers=new ArrayList<>();
+                    for(var entry:mappings) {
+                        if(!(entry instanceof Map<?,?> mapping)) throw new CurriculumException(400,"invalid_input","Invalid transfer mapping.");
+                        transfers.add(new Curriculum.Transfer(integer(mapping.get("sourceTaskId"),"sourceTaskId"),integer(mapping.get("targetTaskId"),"targetTaskId"),integer(mapping.get("tokens"),"tokens")));
+                    }
+                    service.transfer(actor,integer(rq,"studentId"),source,target,transfers);result=Map.of("ok",true);
+                }
+                case "/curriculum-students" -> result=service.students(actor,scope(rq,actor));
+                case "/assign-curriculum-context" -> {service.assign(actor,integer(rq,"studentId"),scope(rq,actor));result=Map.of("ok",true);}
                 case "/curriculum-catalog" -> result=service.catalog(actor);
                 case "/curriculum-structure" -> result=service.centralStructure(actor,integer(rq,"subjectId"),integer(rq,"grade"),integer(rq,"semesterId"));
                 case "/curriculum-budget" -> result=service.budget(actor,scope(rq,actor));

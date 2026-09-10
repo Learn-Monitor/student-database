@@ -7,6 +7,8 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import java.sql.*;
+import de.igslandstuhl.database.server.webserver.Status;
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,6 +38,7 @@ class CurriculumTest {
             return null;
         });
         teacher=new Curriculum.Actor(false,id);other=new Curriculum.Actor(false,id+1);scope=new Curriculum.Scope(id,id,id,id);
+        service.assign(admin,id,scope);
     }
     static void exec(Connection c,String sql,Object...args)throws SQLException {
         try(PreparedStatement s=c.prepareStatement(sql)){for(int i=0;i<args.length;i++)s.setObject(i+1,args[i]);s.executeUpdate();}
@@ -159,12 +162,12 @@ class CurriculumTest {
         service.complete(teacher, own.id(), id);
         var anotherScope = new Curriculum.Scope(id+1,id,id,id);
         var another = service.create(other, anotherScope, "Other", 20);
-        service.complete(other, another.id(), id);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.complete(other,another.id(),id)).status);
         assertEquals(12L, service.progress(teacher,id,scope).get("totalTokens"));
         service.editTask(admin,central,"Central revised",4);
         service.edit(teacher,own.id(),"Own revised",4);
         assertEquals(8L, service.progress(teacher,id,scope).get("totalTokens"));
-        assertEquals(24L, service.progress(other,id,anotherScope).get("totalTokens"));
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.progress(other,id,anotherScope)).status);
     }
     @Test void quotedNamesAreValidJsonAndDuplicateRenameIsAtomic() throws Exception {
         int task=central(6);
@@ -194,7 +197,242 @@ class CurriculumTest {
         assertTrue(output.toString().contains("budget_exceeded"));assertTrue(output.toString().contains("remainingHard"));
         assertEquals(de.igslandstuhl.database.server.webserver.Status.OK,request(user,"/curriculum-catalog","{}").getStatus());
     }
-    private de.igslandstuhl.database.server.webserver.responses.PostResponse request(User user,String path,String body) {
+    Curriculum.Scope secondScope() {return new Curriculum.Scope(id+1,id,id,id);}
+    void unassign() throws Exception {
+        db.writeTransaction(c->{exec(c,"DELETE FROM student_curriculum_contexts WHERE student=?",id);return null;});
+    }
+    String body() {return "{\"subjectId\":"+id+",\"semesterId\":"+id+"}";}
+    String assignmentBody() {return "{\"studentId\":"+id+",\"teacherId\":"+id+",\"subjectId\":"+id+",\"classId\":"+id+",\"semesterId\":"+id+"}";}
+    String responseBody(de.igslandstuhl.database.server.webserver.responses.PostResponse response) {
+        var output=new java.io.ByteArrayOutputStream();response.respond(new java.io.PrintStream(output));return output.toString();
+    }
+    @Test void twoTeachersSameClassSubjectCannotBothAwardToOneStudent() throws Exception {
+        int central=central(70);Student.get(id).changeTaskStatus(Task.get(central),Task.STATUS_COMPLETED);
+        var first=service.create(teacher,scope,"First",35);
+        var second=service.create(other,secondScope(),"Second",35);
+        service.complete(teacher,first.id(),id);service.complete(teacher,first.id(),id);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.complete(other,second.id(),id)).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.complete(admin,second.id(),id)).status);
+        assertEquals(105L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.assign(admin,id,secondScope())).status);
+        assertEquals(id,scalar("SELECT teacher FROM student_curriculum_contexts WHERE student=?",id));
+    }
+    @Test void distinctStudentsCanUseDifferentTeachersInSameClass() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Other','Student',?,'unused',?,1)",id+1,"student"+(id+1)+"@example.invalid",id);return null;});
+        service.assign(admin,id+1,secondScope());
+        central(70);var a=service.create(teacher,scope,"A",35);var b=service.create(other,secondScope(),"B",35);
+        service.complete(teacher,a.id(),id);service.complete(other,b.id(),id+1);
+        assertEquals(35L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        assertEquals(35L,service.studentProgress(Student.get(id+1),id,id).get("totalTokens"));
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.progress(teacher,id+1,scope)).status);
+    }
+    @Test void missingAssignmentIsNotInferredFromClassOrTeacher() throws Exception {
+        unassign();var task=service.create(teacher,scope,"Task",5);
+        assertEquals("context_unassigned",assertThrows(CurriculumException.class,()->service.complete(teacher,task.id(),id)).code);
+        assertEquals("context_unassigned",assertThrows(CurriculumException.class,()->service.studentProgress(Student.get(id),id,id)).code);
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE student=?",id));
+    }
+    @Test void adminCanReassignBeforeFlexibleCompletionAndRepeatAssignment() throws Exception {
+        int task=central(70);Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);
+        service.assign(admin,id,secondScope());service.assign(admin,id,secondScope());
+        assertEquals(1,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE student=?",id));
+        assertEquals(id+1,scalar("SELECT teacher FROM student_curriculum_contexts WHERE student=?",id));
+        assertEquals(70L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+    }
+    @Test void teacherCannotAssignAndAdminCannotAssignInvalidMemberships() throws Exception {
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.assign(teacher,id,scope)).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.assign(admin,id,new Curriculum.Scope(id,id,id+1,id))).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.assign(admin,id,new Curriculum.Scope(id,id+1,id,id))).status);
+        db.writeTransaction(c->{exec(c,"DELETE FROM teacher_classes WHERE teacher_id=? AND class_id=?",id,id);return null;});
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.assign(admin,id,scope)).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.progress(teacher,id,scope)).status);
+    }
+    @Test void studentApiUsesOnlySessionAndDoesNotAcceptScopeOverrides() throws Exception {
+        var task=service.create(teacher,scope,"Task",5);service.complete(teacher,task.id(),id);
+        assertEquals(Status.OK,request(Student.get(id),"/my-curriculum-progress",body()).getStatus());
+        assertTrue(responseBody(request(Student.get(id),"/my-curriculum-progress",body())).contains("\"totalTokens\":5"));
+        for(String field:new String[]{"studentId","teacherId","classId","grade"})
+            assertEquals(Status.BAD_REQUEST,request(Student.get(id),"/my-curriculum-progress",body().replace("}",",\""+field+"\":1}")).getStatus());
+        assertEquals(Status.UNAUTHORIZED,request(User.ANONYMOUS,"/my-curriculum-progress",body()).getStatus());
+        assertEquals(Status.FORBIDDEN,request(Teacher.get(id),"/my-curriculum-progress",body()).getStatus());
+        assertEquals(Status.CONFLICT,request(Student.get(id),"/my-curriculum-progress",body().replace("\"semesterId\":"+id,"\"semesterId\":"+(id+1))).getStatus());
+        assertEquals(Status.BAD_REQUEST,request(Student.get(id),"/my-curriculum-progress","{\"subjectId\":1.5,\"semesterId\":1}").getStatus());
+    }
+    @Test void assignmentApiAndRosterEnforceAdminInsideHandler() throws Exception {
+        for(User user:new User[]{Student.get(id),Teacher.get(id)}) {
+            assertEquals(Status.FORBIDDEN,request(user,"/assign-curriculum-context",assignmentBody()).getStatus());
+            assertEquals(Status.FORBIDDEN,request(user,"/curriculum-students",assignmentBody()).getStatus());
+        }
+        var roster=service.students(admin,scope);assertEquals(1,roster.size());
+        assertEquals(java.util.Set.of("id","first_name","last_name","teacherId","classId"),roster.get(0).keySet());
+    }
+    @Test void semesterAssignmentsAreIndependentAndHistoricalGradeIsStable() throws Exception {
+        var second=new Curriculum.Scope(id+1,id,id,id+1);service.assign(admin,id,second);
+        var a=service.create(teacher,scope,"A",105);var b=service.create(other,second,"B",105);
+        service.complete(teacher,a.id(),id);service.complete(other,b.id(),id);
+        db.writeTransaction(c->{exec(c,"UPDATE classes SET grade=6 WHERE id=?",id);return null;});
+        assertEquals(105L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        assertEquals(105L,service.studentProgress(Student.get(id),id,id+1).get("totalTokens"));
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.create(teacher,scope,"Wrong grade",0)).status);
+    }
+    @Test void assignmentPinsGradeEvenBeforeFirstFlexibleTask() throws Exception {
+        central(70);
+        db.writeTransaction(c->{exec(c,"UPDATE classes SET grade=6 WHERE id=?",id);return null;});
+        assertEquals(5,service.budget(teacher,scope).grade());
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.create(teacher,scope,"Wrong grade",1)).status);
+    }
+    @Test void legacyMixedCompletionsArePreservedAndRequireExplicitCorrection() throws Exception {
+        var a=service.create(teacher,scope,"A",35);var b=service.create(other,secondScope(),"B",35);
+        db.writeTransaction(c->{exec(c,"INSERT INTO completed_flexible_tasks(student,flexible_task) VALUES(?,?),(?,?)",id,a.id(),id,b.id());return null;});
+        db.createTables();db.createTables();
+        assertEquals("context_conflict",assertThrows(CurriculumException.class,()->service.studentProgress(Student.get(id),id,id)).code);
+        assertThrows(CurriculumException.class,()->service.assign(admin,id,scope));
+        assertThrows(CurriculumException.class,()->service.assign(admin,id,secondScope()));
+        assertEquals(2,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
+    }
+    @Test void overBudgetLegacyContextCannotBeAssignedCompletedOrReportedAsValid() throws Exception {
+        central(70);var a=service.create(teacher,scope,"A",35);
+        db.writeTransaction(c->{exec(c,"UPDATE flexible_tasks SET tokens=36 WHERE id=?",a.id());return null;});
+        assertEquals("budget_exceeded",assertThrows(CurriculumException.class,()->service.assign(admin,id,scope)).code);
+        assertEquals("budget_exceeded",assertThrows(CurriculumException.class,()->service.complete(teacher,a.id(),id)).code);
+        assertEquals("budget_exceeded",assertThrows(CurriculumException.class,()->service.studentProgress(Student.get(id),id,id)).code);
+        assertEquals(0,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
+    }
+    @Test void zeroTokenCompletionAlsoPreventsContextSwitch() throws Exception {
+        var a=service.create(teacher,scope,"Zero",0);service.complete(teacher,a.id(),id);
+        assertThrows(CurriculumException.class,()->service.assign(admin,id,secondScope()));
+    }
+    @Test void assignmentAndCompletionRaceCannotMixContexts() throws Exception {
+        central(70);var a=service.create(teacher,scope,"A",35);var b=service.create(other,secondScope(),"B",35);
+        ExecutorService pool=Executors.newFixedThreadPool(2);CountDownLatch gate=new CountDownLatch(1);
+        try {
+            Future<Boolean> complete=pool.submit(()->{gate.await();try{service.complete(teacher,a.id(),id);return true;}catch(CurriculumException e){assertEquals(403,e.status);return false;}});
+            Future<Boolean> assign=pool.submit(()->{gate.await();try{service.assign(admin,id,secondScope());return true;}catch(CurriculumException e){assertEquals(409,e.status);return false;}});
+            gate.countDown();assertNotEquals(complete.get(10,TimeUnit.SECONDS),assign.get(10,TimeUnit.SECONDS));
+            if(assign.get())service.complete(other,b.id(),id);
+            assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
+            assertEquals(35L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        }finally{pool.shutdownNow();}
+    }
+    @Test void explicitTransferPreservesHistoryAndCountsOnlyCurrentTargetDefinition() throws Exception {
+        int central=central(70);Student.get(id).changeTaskStatus(Task.get(central),Task.STATUS_COMPLETED);
+        var a=service.create(teacher,scope,"A",35);var b=service.create(other,secondScope(),"B",35);
+        service.complete(teacher,a.id(),id);
+        assertEquals(1,((List<?>)service.transferPreview(admin,id,secondScope()).get("completions")).size());
+        service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(a.id(),b.id(),35)));
+        assertEquals(2,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_completion_transfers WHERE student=?",id));
+        assertEquals(105L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.complete(teacher,a.id(),id)).status);
+        service.complete(other,b.id(),id);assertEquals(105L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        service.edit(teacher,a.id(),"Historical edit",30);assertEquals(105L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        service.edit(other,b.id(),"Current edit",30);assertEquals(100L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        assertThrows(CurriculumException.class,()->service.edit(other,b.id(),"Over budget",36));
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(a.id(),b.id(),35)))).status);
+    }
+    @Test void failedTransferRollsBackEarlierMappingsAndAssignment() throws Exception {
+        var a=service.create(teacher,scope,"A",5);var a2=service.create(teacher,scope,"A2",6);
+        var b=service.create(other,secondScope(),"B",5);var b2=service.create(other,secondScope(),"B2",7);
+        service.complete(teacher,a.id(),id);service.complete(teacher,a2.id(),id);
+        assertThrows(CurriculumException.class,()->service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(a.id(),b.id(),5),new Curriculum.Transfer(a2.id(),b2.id(),6))));
+        assertEquals(id,scalar("SELECT teacher FROM student_curriculum_contexts WHERE student=?",id));
+        assertEquals(2,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_completion_transfers WHERE student=?",id));
+        assertEquals(11L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+    }
+    @Test void transferRejectsMissingDuplicatedForeignAndStaleMappings() throws Exception {
+        var a=service.create(teacher,scope,"A",5);var a2=service.create(teacher,scope,"A2",5);
+        var b=service.create(other,secondScope(),"B",5);var b2=service.create(other,secondScope(),"B2",5);
+        service.complete(teacher,a.id(),id);service.complete(teacher,a2.id(),id);
+        for(var mappings:List.of(
+                List.<Curriculum.Transfer>of(),
+                List.of(new Curriculum.Transfer(a.id(),b.id(),5)),
+                List.of(new Curriculum.Transfer(a.id(),b.id(),5),new Curriculum.Transfer(a.id(),b2.id(),5)),
+                List.of(new Curriculum.Transfer(a.id(),b.id(),5),new Curriculum.Transfer(a2.id(),b.id(),5)),
+                List.of(new Curriculum.Transfer(b.id(),a.id(),5),new Curriculum.Transfer(a2.id(),b2.id(),5)),
+                List.of(new Curriculum.Transfer(a.id(),a2.id(),5),new Curriculum.Transfer(a2.id(),b2.id(),5)),
+                List.of(new Curriculum.Transfer(a.id(),b.id(),4),new Curriculum.Transfer(a2.id(),b2.id(),5)))) {
+            assertThrows(CurriculumException.class,()->service.transfer(admin,id,scope,secondScope(),mappings));
+            assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_completion_transfers WHERE student=?",id));
+        }
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.transfer(teacher,id,scope,secondScope(),List.of())).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.transferPreview(teacher,id,secondScope())).status);
+    }
+    @Test void transferChainCannotReactivatePreviouslyTransferredCompletions() throws Exception {
+        var a=service.create(teacher,scope,"A",5);var b=service.create(other,secondScope(),"B",5);
+        service.complete(teacher,a.id(),id);
+        service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(a.id(),b.id(),5)));
+        assertThrows(CurriculumException.class,()->service.transfer(admin,id,secondScope(),scope,List.of(new Curriculum.Transfer(b.id(),a.id(),5))));
+        var a2=service.create(teacher,scope,"New target",5);
+        service.transfer(admin,id,secondScope(),scope,List.of(new Curriculum.Transfer(b.id(),a2.id(),5)));
+        assertEquals(5L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        assertThrows(CurriculumException.class,()->service.complete(teacher,a.id(),id));
+        assertEquals(3,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
+    }
+    @Test void targetBudgetAndGradeMustRemainValidDuringTransfer() throws Exception {
+        central(70);var a=service.create(teacher,scope,"A",35);var b=service.create(other,secondScope(),"B",35);
+        service.complete(teacher,a.id(),id);
+        db.writeTransaction(c->{exec(c,"INSERT INTO flexible_tasks(owner_teacher,subject,class,semester,grade,name,tokens) VALUES(?,?,?,?,5,'Legacy extra',1)",id+1,id,id,id);return null;});
+        assertEquals("budget_exceeded",assertThrows(CurriculumException.class,()->service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(a.id(),b.id(),35)))).code);
+        assertEquals(id,scalar("SELECT teacher FROM student_curriculum_contexts WHERE student=?",id));
+    }
+    @Test void concurrentTransfersCannotDuplicateAwards() throws Exception {
+        var a=service.create(teacher,scope,"A",5);var b=service.create(other,secondScope(),"B",5);
+        service.complete(teacher,a.id(),id);
+        ExecutorService pool=Executors.newFixedThreadPool(2);CountDownLatch gate=new CountDownLatch(1);
+        try {
+            Callable<Boolean> work=()->{gate.await();try{service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(a.id(),b.id(),5)));return true;}catch(CurriculumException e){assertEquals(409,e.status);return false;}};
+            var first=pool.submit(work);var second=pool.submit(work);gate.countDown();
+            assertNotEquals(first.get(10,TimeUnit.SECONDS),second.get(10,TimeUnit.SECONDS));
+            assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_completion_transfers WHERE student=?",id));
+            assertEquals(5L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        }finally{pool.shutdownNow();}
+    }
+    @Test void nonAdminCannotTransferViaHandlerEvenWithExplicitMapping() throws Exception {
+        String payload=assignmentBody().replace("}",",\"sourceTeacherId\":"+(id+1)+",\"sourceClassId\":"+id+",\"transfers\":[]}");
+        assertEquals(Status.FORBIDDEN,request(Teacher.get(id),"/transfer-curriculum-context",payload).getStatus());
+        assertEquals(Status.FORBIDDEN,request(Student.get(id),"/transfer-curriculum-context",payload).getStatus());
+    }
+    @Test void adminHttpTransferValidatesMappingAndReturnsSafeProgress() throws Exception {
+        User adminUser=Admin.create("curriculum-admin-"+id,"synthetic-test-only");
+        assertEquals(Status.OK,request(adminUser,"/assign-curriculum-context",assignmentBody()).getStatus());
+        assertEquals(Status.OK,request(adminUser,"/curriculum-students",assignmentBody()).getStatus());
+        var a=service.create(teacher,scope,"A",5);var b=service.create(other,secondScope(),"B",5);service.complete(teacher,a.id(),id);
+        String target=assignmentBody().replace("\"teacherId\":"+id,"\"teacherId\":"+(id+1));
+        assertEquals(Status.OK,request(adminUser,"/curriculum-transfer-preview",target).getStatus());
+        String prefix=target.substring(0,target.length()-1)+",\"sourceTeacherId\":"+id+",\"sourceClassId\":"+id+",\"transfers\":";
+        assertEquals(Status.BAD_REQUEST,request(adminUser,"/transfer-curriculum-context",prefix+"[null]}").getStatus());
+        assertEquals(Status.BAD_REQUEST,request(adminUser,"/transfer-curriculum-context",prefix+"[{\"sourceTaskId\":1.5,\"targetTaskId\":1,\"tokens\":5}]}").getStatus());
+        String mappings="[{\"sourceTaskId\":"+a.id()+",\"targetTaskId\":"+b.id()+",\"tokens\":5}]";
+        assertEquals(Status.OK,request(adminUser,"/transfer-curriculum-context",prefix+mappings+"}").getStatus());
+        assertEquals(5L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+    }
+    @Test void explicitTransferCanResolveLegacyMixedCompletionsWithoutDeletingHistory() throws Exception {
+        var a=service.create(teacher,scope,"A",5);var legacy=service.create(other,secondScope(),"Legacy",5);
+        var b=service.create(other,secondScope(),"Replacement A",5);var b2=service.create(other,secondScope(),"Replacement legacy",5);
+        service.complete(teacher,a.id(),id);
+        db.writeTransaction(c->{exec(c,"INSERT INTO completed_flexible_tasks(student,flexible_task) VALUES(?,?)",id,legacy.id());return null;});
+        unassign();
+        assertEquals(new Curriculum.Scope(0,id,0,id),service.transferPreview(admin,id,secondScope()).get("source"));
+        service.transfer(admin,id,new Curriculum.Scope(0,id,0,id),secondScope(),List.of(new Curriculum.Transfer(a.id(),b.id(),5),new Curriculum.Transfer(legacy.id(),b2.id(),5)));
+        assertEquals(10L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        assertEquals(4,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
+        db.createTables();assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_completion_transfers WHERE student=?",id));
+    }
+    @Test void unassignedLegacyCompletionCanBeAssignedOnlyToItsActualContext() throws Exception {
+        var a=service.create(teacher,scope,"A",5);service.complete(teacher,a.id(),id);unassign();
+        assertThrows(CurriculumException.class,()->service.assign(admin,id,secondScope()));
+        service.assign(admin,id,scope);assertEquals(5L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+    }
+    @Test void transferDoesNotSilentlyChangeCentralGradeAfterPromotion() throws Exception {
+        db.writeTransaction(c->{exec(c,"UPDATE students SET class=? WHERE id=?",id+1,id);exec(c,"UPDATE classes SET grade=6 WHERE id=?",id+1);return null;});
+        var target=new Curriculum.Scope(id+1,id,id+1,id);
+        assertThrows(CurriculumException.class,()->service.assign(admin,id,target));
+        assertThrows(CurriculumException.class,()->service.transfer(admin,id,scope,target,List.of()));
+        assertEquals(id,scalar("SELECT class FROM student_curriculum_contexts WHERE student=?",id));
+    }
+    de.igslandstuhl.database.server.webserver.responses.PostResponse request(User user,String path,String body) {
         var rq=new de.igslandstuhl.database.server.webserver.requests.APIPostRequest(
                 new de.igslandstuhl.database.server.webserver.requests.HttpHeader("POST "+path+" HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: "+body.length()+"\r\n"),body,"127.0.0.1",true) {
             @Override public User getUser(){return user;}

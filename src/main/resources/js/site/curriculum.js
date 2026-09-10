@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { body = JSON.parse(await response.text()); } catch { /* Non-JSON errors never reach the UI. */ }
         if (!response.ok) {
             const messages = {
+                context_unassigned: 'Für dieses Fach und Halbjahr ist noch kein Unterrichtskontext zugewiesen.',
+                context_conflict: 'Die Zuordnung oder Leistungsübernahme passt nicht zum aktuellen Stand. Bitte Vorschau aktualisieren und alle Abschlüsse gleichwertig zuordnen.',
                 invalid_input: 'Bitte die Eingaben prüfen.',
                 not_found: 'Der angefragte Eintrag wurde nicht gefunden.',
                 conflict: 'Die Änderung steht im Konflikt mit vorhandenen Daten. Bitte Kontext, Namen und Halbjahr prüfen und aktualisieren.',
@@ -75,13 +77,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const grade = catalog.admin ? select('Jahrgang (zentral)', Array.from({length:13},(_,i)=>({id:i+1,name:String(i+1)})), 'grade') : null;
         if (grade) grade.value = String(catalog.classes[0]?.grade || 5);
         const load = el('button', 'Anzeigen / Aktualisieren'); load.type = 'button'; root.append(load);
-        const summary = el('p'), central = el('section'), flexible = el('section'); root.append(summary, central, flexible);
+        const summary = el('p'), central = el('section'), flexible = el('section'), assignments = el('section'); root.append(summary, central, flexible, assignments);
         let version = 0;
         async function refresh() {
             const current = ++version;
             message.textContent = '';
-            central.replaceChildren(); flexible.replaceChildren(); summary.textContent = '';
+            central.replaceChildren(); flexible.replaceChildren(); assignments.replaceChildren(); summary.textContent = '';
             if (!await allowed('curriculum_view')) throw Error(permissionDenied);
+            const manageAssignments = catalog.admin === true && await allowed('curriculum_assign_context');
             const manageFlexible = await allowed('curriculum_manage_flexible');
             const manageCentral = catalog.admin === true && await allowed('curriculum_manage_central');
             const scope = {subjectId:Number(subject.value),semesterId:Number(semester.value),classId:Number(schoolClass.value),teacherId:teacher?Number(teacher.value):catalog.teacherId};
@@ -94,9 +97,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             summary.textContent = `Zentrale Summe Jahrgang ${g}: ${structure.centralTokens} / 100 Münzen (absolute Grenze 105).`;
             summary.style.color = structure.centralTokens > 100 ? 'darkred' : '';
             async function save(path, data) {
+                const isAssignment = path === '/assign-curriculum-context' || path === '/transfer-curriculum-context';
                 const isFlexible = path === '/add-flexible-task' || path === '/edit-flexible-task';
                 if ((!isFlexible && catalog.admin !== true) || !await allowed('curriculum_view') ||
-                    !await allowed(isFlexible ? 'curriculum_manage_flexible' : 'curriculum_manage_central')) {
+                    !await allowed(isAssignment ? 'curriculum_assign_context' : isFlexible ? 'curriculum_manage_flexible' : 'curriculum_manage_central')) {
                     await refresh(); throw Error(permissionDenied);
                 }
                 await post(path, data); await refresh();
@@ -142,6 +146,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             for(const task of tasks) {
                 if(manageFlexible) editTask(flexible,task,true);
                 else flexible.append(el('p',task.name+': '+task.tokens+' Münzen'));
+            }
+            if (manageAssignments) {
+                const students = await post('/curriculum-students',scope); if(current!==version)return;
+                assignments.append(el('h3','Schüler einem Unterrichtskontext zuweisen'),el('p','Die Auswahl oben bestimmt Lehrkraft, Fach, Klasse und Halbjahr. Bestehende flexible Abschlüsse erfordern eine ausdrückliche Leistungsübernahme.'));
+                for (const student of students) {
+                    const row=el('div'); assignments.append(row);
+                    row.append(el('p',student.first_name+' '+student.last_name+' — '+(student.teacherId ? 'zugewiesene Lehrkraft: '+student.teacherId : 'noch nicht zugewiesen')));
+                    const form=el('form');button(form,'Unterrichtskontext zuweisen');row.append(form);
+                    form.addEventListener('submit',async e=>{e.preventDefault();try{await save('/assign-curriculum-context',{...scope,studentId:student.id});}catch(error){showError(error);}});
+                    if (student.teacherId===scope.teacherId && student.classId===scope.classId) continue;
+                    const preview=el('button','Wechsel mit Leistungsübernahme vorbereiten');preview.type='button';row.append(preview);
+                    const transferArea=el('div');row.append(transferArea);
+                    preview.addEventListener('click',async()=>{try{
+                        if(!await allowed('curriculum_assign_context'))throw Error(permissionDenied);
+                        const proposal=await post('/curriculum-transfer-preview',{...scope,studentId:student.id});if(current!==version)return;
+                        transferArea.replaceChildren();
+                        const transferForm=el('form'), mappings=[];
+                        transferForm.append(el('p','Jeden bisherigen Abschluss einer gleichwertigen Zieletappe zuordnen. Die Historie bleibt erhalten; künftig gilt der aktuelle Münzwert der Zieletappe.'));
+                        for(const task of proposal.completions) {
+                            const label=el('label',task.name+' ('+task.tokens+' Münzen) → '), target=el('select');target.required=true;
+                            const placeholder=el('option','Zieletappe auswählen');placeholder.value='';target.append(placeholder);
+                            for(const candidate of proposal.targets.filter(t=>t.tokens===task.tokens)) {const option=el('option',candidate.name+' ('+candidate.tokens+' Münzen)');option.value=candidate.id;target.append(option);}
+                            label.append(target);transferForm.append(label);mappings.push({task,target});
+                        }
+                        button(transferForm,'Wechsel und Leistungsübernahme bestätigen');transferArea.append(transferForm);
+                        transferForm.addEventListener('submit',async e=>{e.preventDefault();try{
+                            const transfers=mappings.map(({task,target})=>({sourceTaskId:task.id,targetTaskId:Number(target.value),tokens:task.tokens}));
+                            if(transfers.some(t=>!t.targetTaskId) || new Set(transfers.map(t=>t.targetTaskId)).size!==transfers.length)throw Error('Bitte für jeden Abschluss eine eigene gleichwertige Zieletappe auswählen.');
+                            await save('/transfer-curriculum-context',{...scope,studentId:student.id,sourceTeacherId:proposal.source.teacherId,sourceClassId:proposal.source.classId,transfers});
+                        }catch(error){showError(error);}});
+                    }catch(error){showError(error);}});
+                }
             }
             if (!manageFlexible) return;
             const form=el('form'), name=field(form,'Neue flexible Etappe',''), tokens=field(form,'Münzen',0,'number');button(form,'Flexible Etappe anlegen');flexible.append(form);

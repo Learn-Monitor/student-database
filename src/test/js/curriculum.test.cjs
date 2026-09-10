@@ -26,6 +26,9 @@ async function setup(admin, options={}){
   else if(url==='/curriculum-structure')body={centralTokens,topics:[{id:2,name:topicName,number:1}],tasks:[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1}]};
   else if(url==='/curriculum-budget'){const f=tasks.reduce((n,t)=>n+t.tokens,0);body={grade:5,centralTokens,flexibleTokens:f,totalTokens:centralTokens+f,remainingRegular:100-centralTokens-f,remainingHard:105-centralTokens-f};}
   else if(url==='/flexible-tasks')body=tasks;
+  else if(url==='/curriculum-students')body=[{id:50,first_name:'Sample',last_name:'Student',teacherId:8,classId:10}];
+  else if(url==='/assign-curriculum-context' || url==='/transfer-curriculum-context')body={ok:true};
+  else if(url==='/curriculum-transfer-preview')body={source:{teacherId:8,classId:10},completions:[{id:200,name:'Completed elsewhere',tokens:30}],targets:[{id:100,name:'Own task',tokens:30}]};
   else if(url==='/rename-topic'){topicName=data.name;body={ok:true};}
   else if(url==='/edit-task'){
    if(data.tokens>70){ok=false;body={error:'budget_exceeded',message:'Budget exceeded',affectedContexts:[{teacherId:7,classId:10,semesterId:20,centralTokens:data.tokens,flexibleTokens:35,totalTokens:data.tokens+35}]};}
@@ -76,7 +79,7 @@ for(const [label,admin,pm,flexible,central] of [
 ])test(label,async()=>{
  const {dom,root}=await setup(admin,{pm});
  try{
-  const sections=root.querySelectorAll('section');assert.equal(sections.length,2);
+  const sections=root.querySelectorAll('section');assert.equal(sections.length,3);
   assert.match(sections[0].textContent+[...sections[0].querySelectorAll('input')].map(n=>n.value).join(' '),/Central/);assert.match(sections[1].textContent+[...sections[1].querySelectorAll('input')].map(n=>n.value).join(' '),/Own task/);
   assert.equal(!!formWith(root,'Flexible Etappe anlegen'),flexible);
   assert.equal(sections[1].querySelectorAll('input').length>0,flexible);
@@ -149,4 +152,33 @@ test('permission check failure after render fails closed',async()=>{
 test('known 409 conflict retains actionable semester information',async()=>{
  const{dom,root}=await setup(false,{response:{url:'/edit-flexible-task',status:409,body:JSON.stringify({error:'conflict',message:'Class grade changed; existing semester context is historical.'})}});
  try{await submit(dom,formWith(root,'Speichern'));assert.match(root.textContent,/neues Halbjahr/);}finally{dom.window.close();}
+});
+
+for(const [label,admin,pm,visible] of [
+ ['core admin assignment',true,null,true],['core teacher no assignment',false,null,false],
+ ['PM central does not imply assignment',true,grants(true,true),false],
+ ['PM assignment grant',true,{...grants(),curriculum_assign_context:true},true],
+ ['PM assignment grant cannot elevate teacher',false,{...grants(),curriculum_assign_context:true},false]
+])test(label,async()=>{
+ const{dom,root,requests}=await setup(admin,{pm});
+ try{assert.equal(!!formWith(root,'Unterrichtskontext zuweisen'),visible);assert.equal(requests.some(r=>r.url==='/curriculum-students'),visible);}
+ finally{dom.window.close();}
+});
+test('admin explicitly previews and confirms one-to-one completion transfer',async()=>{
+ const{dom,root,requests}=await setup(true);
+ try{
+  [...root.querySelectorAll('button')].find(b=>b.textContent==='Wechsel mit Leistungsübernahme vorbereiten').click();await tick();
+  const form=formWith(root,'Wechsel und Leistungsübernahme bestätigen');assert.ok(form);
+  await submit(dom,form);assert.equal(requests.some(r=>r.url==='/transfer-curriculum-context'),false);
+  form.querySelector('select').value=100;await submit(dom,form);
+  const sent=requests.find(r=>r.url==='/transfer-curriculum-context');assert.deepEqual(sent.data.transfers,[{sourceTaskId:200,targetTaskId:100,tokens:30}]);assert.equal(sent.data.studentId,50);assert.equal(sent.data.sourceTeacherId,8);
+ }finally{dom.window.close();}
+});
+for(const transfer of [false,true])test(`revoked assignment permission blocks ${transfer?'transfer':'assignment'}`,async()=>{
+ const pm={...grants(),curriculum_assign_context:true},{dom,root,requests}=await setup(true,{pm});
+ try{
+  let form=formWith(root,'Unterrichtskontext zuweisen');
+  if(transfer){[...root.querySelectorAll('button')].find(b=>b.textContent==='Wechsel mit Leistungsübernahme vorbereiten').click();await tick();form=formWith(root,'Wechsel und Leistungsübernahme bestätigen');form.querySelector('select').value=100;}
+  pm.curriculum_assign_context=false;await submit(dom,form);assert.equal(requests.some(r=>r.url==='/assign-curriculum-context'||r.url==='/transfer-curriculum-context'),false);
+ }finally{dom.window.close();}
 });
