@@ -273,5 +273,14 @@
         "namespaces": ["plugin"],
         "context": "virtual",
         "access_level": "admin"
+    },
+    "/curriculum.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": [
+            "site"
+        ],
+        "context": "js",
+        "access_level": "teacher"
     }
 }

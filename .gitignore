@@ -11,3 +11,4 @@ build
 /plugins
 logs
 .aider*
+/src/test/js/node_modules/
