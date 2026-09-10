@@ -133,3 +133,20 @@ tasks.register<org.gradle.api.tasks.bundling.Zip>("releaseZip") {
         into("resources")
     }
 }
+
+// Existing API tests share singleton caches and assume fixture IDs start at 1.
+// Run curriculum fixtures in their own JVM/database, still as part of `test`.
+val curriculumTest by tasks.registering(Test::class) {
+    description = "Runs isolated curriculum budget, ownership and migration tests."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    include("**/curriculum/**")
+    useJUnitPlatform()
+    systemProperty("test.environment", "true")
+    systemProperty("curriculum.test.environment", "true")
+}
+tasks.test {
+    exclude("**/curriculum/**")
+    dependsOn(curriculumTest)
+}
