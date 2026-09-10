@@ -143,3 +143,43 @@ A later integration test should exercise the real optional PM and standard UI
 together. Scoped progress consumers still need explicit teacher/class/semester
 selection and cache invalidation after edits; independent budgets must not be
 aggregated or replaced by token snapshots. Those are separate repository sprints.
+
+## Sprint 3½: student contexts and explicit transfer
+
+Control remains at `3c7895d223e14636e0a94425ca09f13189060ff3`, checked against
+remote main before work. Only student-database was modified.
+
+| Track | Exact Sprint-3 base | Context feature commit |
+|---|---|---|
+| Upstream | `8dbe2b35f9d60c0309eb48b127a51c23b4109b39` | `205f8d853c7f4011f722c621f8c306243a3bf23b` |
+| Canonical v2 | `f4f22abcdeff32c839cb21d61bbae7cd1f55940b` | `2b9be5f29e6cce1196e3c1e32c68ae0ff5851951` |
+
+Local successor branches:
+- `feature/flexible-curriculum-student-context-upstream-20260910`
+- `feature/flexible-curriculum-student-context-canonical-v2-20260910`
+
+The feature cherry-picked without conflicts; all ten feature files are identical
+between tracks. This canonical-only integration record is additional. Prior
+Sprint-1 and Sprint-3 branch tips were not moved.
+
+Validation passed on both tracks:
+- `./gradlew test jar shadowJar`: upstream 86 existing + 48 curriculum tests;
+  canonical 87 existing + 48 curriculum tests. No failures/errors/skips.
+- `npm test --prefix src/test/js`: 44 passing DOM tests on each track.
+- `git diff --check`: passed. Existing Gradle deprecation warnings remain.
+
+The initial design prohibited ordinary reassignment after flexible completion.
+The requested final behavior additionally provides an explicit, atomic transfer
+with one-to-one equally valued target tasks and retained historical completions.
+See [student context contract](student-curriculum-contexts.md) for the final API,
+admin workflow, additive tables, migration boundaries and tests.
+
+No PM rules were changed. Assignment/transfer has a separate UI capability
+`curriculum_assign_context`, and all four new admin routes need a subsequent
+PM-only integration. Student own-progress also needs a separate PM route policy;
+students must not receive teacher curriculum access. With the existing PM rules,
+these new routes are intentionally not yet available. Core-only operation and
+role/session checks are covered by the synthetic tests.
+
+No services, live databases or other repositories were changed; no PR was opened.
+The feature branches are local at this stage. No release artifact was replaced.
