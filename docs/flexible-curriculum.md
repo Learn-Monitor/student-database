@@ -161,7 +161,59 @@ negative/fractional input, permission checks, independent scopes, boundaries
 spending. Build and fat JAR generation pass.
 
 UI interaction tests: Node.js 22+, `npm ci --prefix src/test/js`,
-`npm test --prefix src/test/js`. Two jsdom tests exercise the real editor script,
+`npm test --prefix src/test/js`. The original two jsdom interactions exercise the real editor script,
 admin rename, server conflict display, teacher edit/context selection and client
 budget blocking. These are DOM tests with synthetic API responses, not deployed
 browser acceptance tests. No production/demo service or database is needed.
+
+## Optional Permission Manager: standard UI capabilities (Sprint 3)
+
+The editor detects the public capability `typeof hasPermission === 'function'`;
+no plugin filename, branding or installation layout is assumed. With that API,
+it awaits `permissionsLoaded` once, or calls `loadCurrentPermissions()` once if
+only the loader is available. With only `hasPermission`, it awaits that API.
+The shipped PM already starts its initial load and returns false after a failed
+load. Rejected bootstrap/check promises also fail closed; the editor never
+switches to core fallback after detecting PM. No polling or bootstrap loop is used.
+
+| Capability | Standard UI with PM | Without PM |
+|---|---|---|
+| `curriculum_view` | Required before catalog and every subsequent request | Core catalog access authorizes teacher/admin |
+| `curriculum_manage_flexible` | Flexible edit/create forms; otherwise name/tokens as text and “Nur lesbar.” | Existing teacher/admin flexible editing |
+| `curriculum_manage_central` | Central forms only when this grant AND `catalog.admin === true` | `catalog.admin === true` |
+| `curriculum_complete_flexible` | Reserved for separate completion controls; never implies management | No completion controls in this editor |
+
+Central gating covers topic rename/create and central task name/token edit/create.
+An accidental central PM grant cannot elevate a teacher. Read-only users retain
+context selectors, structure and budgets. Every save checks view and its separate
+management permission again, so a stale form cannot send a mutation after a
+revocation is reflected in the PM client snapshot. The explicit display/refresh
+button also reevaluates capabilities. These checks call the cached PM API, not
+`/get-permissions` per DOM operation. Server-side revocations not yet present in
+the client snapshot remain enforced by PM/backend; refresh the PM snapshot or
+reload the page to update the UI. There is no new background permission refresh.
+
+Missing view prevents curriculum data/mutation requests even if the editor script
+was already loaded. PM can independently block `/curriculum.js` itself. The UI is
+only a usability layer: session, core role, ownership, fresh teacher class/subject
+assignment, semester and budget checks remain unchanged and authoritative.
+
+HTTP 401 and 403 show fixed German sign-in/permission messages for JSON, plain
+text, HTML and empty responses without parsing those bodies. Other responses are
+parsed defensively. Known error codes and known conflict messages map to safe
+local text; unknown messages, SQL details and server traces are never displayed.
+409 budget errors retain validated numeric affected-context IDs and totals;
+known name, concurrency, historical-grade and archived-semester conflicts retain
+actionable information. Network/malformed-success errors use generic messages.
+
+`/complete-flexible-task` currently has no standard frontend control. A future
+completion UI must check `curriculum_view` and `curriculum_complete_flexible`
+independently of `curriculum_manage_flexible`; this sprint adds no completion UI.
+
+Validation: `npm test --prefix src/test/js` runs 36 synthetic jsdom tests, including
+the two Sprint-1 interactions, core teacher/admin fallback, PM edit/read modes,
+central role intersection, separate completion grant, denied view, failed/awaited
+bootstrap, one-time loader, rejected checks, all eight 401/403 body combinations,
+structured 409 budget/conflict handling, unsafe server details, and stale forms
+for all six mutation endpoints after permission revocation. These do not replace
+a later authorized browser/PM integration test. No plugin dependency was added.

@@ -5,16 +5,22 @@ const path=require('node:path');
 const{JSDOM}=require('jsdom');
 const script=fs.readFileSync(path.join(__dirname,'../../main/resources/js/site/curriculum.js'),'utf8');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,20));
-async function setup(admin){
+async function setup(admin, options={}){
  const dom=new JSDOM('<section id="curriculum"></section>',{url:'https://school.example.invalid/',runScripts:'outside-only'});
+ await new Promise(resolve=>dom.window.document.addEventListener('DOMContentLoaded',resolve,{once:true}));
+ if(options.pm) {
+  dom.window.hasPermission=async name=>{if(options.checkFails)throw Error('internal failure');return options.pm[name]===true;};
+  if(options.bootstrap)options.bootstrap(dom.window);
+ }
  const requests=[];
  let centralTokens=70;
  let centralName='Central';
  let topicName='Topic';
  const byClass=new Map([[10,[{id:100,name:'Own task',tokens:30}]],[11,[]]]);
  const catalog={admin,teacherId:7,subjects:[{id:1,name:'Math'}],classes:[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5}],semesters:[{id:20,label:'H1'},{id:21,label:'H2'}],teachers:[{id:7,first_name:'Test',last_name:'Teacher'}]};
- dom.window.fetch=async(url,options)=>{
-  const data=JSON.parse(options.body);requests.push({url,data});let body;let ok=true;
+ dom.window.fetch=async(url,requestOptions)=>{
+  const data=JSON.parse(requestOptions.body);requests.push({url,data});let body;let ok=true;
+  if(options.response?.url===url)return {ok:false,status:options.response.status,text:async()=>options.response.body};
   const tasks=byClass.get(data.classId)||[];
   if(url==='/curriculum-catalog')body=catalog;
   else if(url==='/curriculum-structure')body={centralTokens,topics:[{id:2,name:topicName,number:1}],tasks:[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1}]};
@@ -22,13 +28,13 @@ async function setup(admin){
   else if(url==='/flexible-tasks')body=tasks;
   else if(url==='/rename-topic'){topicName=data.name;body={ok:true};}
   else if(url==='/edit-task'){
-   if(data.tokens>70){ok=false;body={message:'Budget exceeded',affectedContexts:[{teacherId:7,classId:10,semesterId:20,centralTokens:data.tokens,flexibleTokens:35,totalTokens:data.tokens+35}]};}
+   if(data.tokens>70){ok=false;body={error:'budget_exceeded',message:'Budget exceeded',affectedContexts:[{teacherId:7,classId:10,semesterId:20,centralTokens:data.tokens,flexibleTokens:35,totalTokens:data.tokens+35}]};}
    else{centralName=data.name;centralTokens=data.tokens;body={ok:true};}
   }
   else if(url==='/add-flexible-task'){tasks.push({id:101,name:data.name,tokens:data.tokens});byClass.set(data.classId,tasks);body=tasks.at(-1);}
   else if(url==='/edit-flexible-task'){const task=[...byClass.values()].flat().find(t=>t.id===data.taskId);Object.assign(task,{name:data.name,tokens:data.tokens});body=task;}
   else throw Error('Unexpected endpoint '+url);
-  return {ok,json:async()=>body};
+  return {ok,status:ok?200:409,text:async()=>JSON.stringify(body)};
  };
  dom.window.eval(script);dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));await tick();
  return {dom,requests,root:dom.window.document.querySelector('#curriculum')};
@@ -41,7 +47,7 @@ test('admin can rename topics and tasks safely and sees server budget conflicts'
   let form=formWith(root,'Thema umbenennen');form.querySelector('input').value='<img src=x onerror=alert(1)>';await submit(dom,form);
   assert.equal(requests.find(r=>r.url==='/rename-topic').data.topicId,2);assert.equal(root.querySelectorAll('img').length,0);
   form=root.querySelector('details form:nth-of-type(2)');const inputs=form.querySelectorAll('input');inputs[0].value='Revised';inputs[1].value=71;await submit(dom,form);
-  assert.match(root.textContent,/Budget exceeded/);assert.match(root.textContent,/106/);
+  assert.match(root.textContent,/105 Münzen/);assert.match(root.textContent,/106/);
  }finally{dom.window.close();}
 });
 test('teacher gets own context, can edit and create, and UI blocks totals above 105',async()=>{
@@ -56,4 +62,91 @@ test('teacher gets own context, can edit and create, and UI blocks totals above 
   form=formWith(root,'Flexible Etappe anlegen');form.querySelector('input[type=text]').value='Own 5b';form.querySelector('input[type=number]').value=30;await submit(dom,form);
   const create=requests.find(r=>r.url==='/add-flexible-task');assert.equal(create.data.teacherId,7);assert.equal(create.data.classId,11);assert.equal(create.data.semesterId,20);
  }finally{dom.window.close();}
+});
+
+const grants=(flexible=true,central=false)=>({curriculum_view:true,curriculum_manage_flexible:flexible,curriculum_manage_central:central});
+for(const [label,admin,pm,flexible,central] of [
+ ['core teacher',false,null,true,false],['core admin',true,null,true,true],
+ ['PM flexible editor',false,grants(),true,false],
+ ['PM flexible reader',false,grants(false),false,false],
+ ['PM central editor',true,grants(true,true),true,true],
+ ['PM central reader',true,grants(false,false),false,false],
+ ['teacher with accidental central grant',false,grants(false,true),false,false],
+ ['completion alone does not grant editing',false,{...grants(false),curriculum_complete_flexible:true},false,false]
+])test(label,async()=>{
+ const {dom,root}=await setup(admin,{pm});
+ try{
+  const sections=root.querySelectorAll('section');assert.equal(sections.length,2);
+  assert.match(sections[0].textContent+[...sections[0].querySelectorAll('input')].map(n=>n.value).join(' '),/Central/);assert.match(sections[1].textContent+[...sections[1].querySelectorAll('input')].map(n=>n.value).join(' '),/Own task/);
+  assert.equal(!!formWith(root,'Flexible Etappe anlegen'),flexible);
+  assert.equal(sections[1].querySelectorAll('input').length>0,flexible);
+  assert.equal(sections[0].querySelectorAll('input').length>0,central);
+  for(const label of ['Thema umbenennen','Etappe anlegen','Thema anlegen'])assert.equal(!!formWith(root,label),central);
+  if(!flexible){assert.match(sections[1].textContent,/Own task: 30 Münzen/);assert.match(sections[1].textContent,/Nur lesbar/);assert.equal(sections[1].querySelectorAll('form,button').length,0);}
+ }finally{dom.window.close();}
+});
+for(const [label,options] of [
+ ['view denied',{pm:{...grants(),curriculum_view:false}}],
+ ['permission check rejects',{pm:grants(),checkFails:true}],
+ ['bootstrap rejects',{pm:grants(),bootstrap:w=>{w.permissionsLoaded=Promise.reject(Error('private detail'));}}],
+ ['loader rejects without bootstrap promise',{pm:grants(),bootstrap:w=>{w.loadCurrentPermissions=async()=>{throw Error('private detail');};}}],
+ ['PM absorbs loading failure as empty permissions',{pm:{}}]
+])test(label+' blocks all curriculum requests',async()=>{
+ const{dom,root,requests}=await setup(false,options);
+ try{assert.equal(requests.length,0);assert.equal(root.querySelectorAll('form,input').length,0);assert.match(root.textContent,/nicht verfügbar/);}
+ finally{dom.window.close();}
+});
+test('waits for existing PM bootstrap without another load',async()=>{
+ let release,loads=0;
+ const pending=setup(false,{pm:grants(),bootstrap:w=>{
+  w.permissionsLoaded=new Promise(resolve=>{release=resolve;});
+  w.loadCurrentPermissions=async()=>{loads++;};
+ }});
+ const{dom,requests,root}=await pending;
+ try{assert.equal(requests.length,0);release();await tick();assert.ok(formWith(root,'Flexible Etappe anlegen'));assert.equal(loads,0);assert.equal(requests.filter(r=>r.url==='/curriculum-catalog').length,1);}
+ finally{dom.window.close();}
+});
+test('loads once when only the loader is available',async()=>{
+ let loads=0;
+ const{dom,root}=await setup(false,{pm:grants(),bootstrap:w=>{w.loadCurrentPermissions=async()=>{loads++;};}});
+ try{assert.ok(formWith(root,'Flexible Etappe anlegen'));assert.equal(loads,1);}finally{dom.window.close();}
+});
+for(const status of [401,403])for(const [kind,body] of [
+ ['JSON',JSON.stringify({message:'SQL private stacktrace',error:'forbidden'})],
+ ['text','SQL private stacktrace'],['HTML','<html>SQL private stacktrace</html>'],['empty','']
+])test(`${kind} ${status} is presented safely`,async()=>{
+ const{dom,root}=await setup(false,{response:{url:'/edit-flexible-task',status,body}});
+ try{await submit(dom,formWith(root,'Speichern'));assert.match(root.textContent,status===401?/Bitte erneut anmelden/:/Für diese Aktion fehlt die Berechtigung/);assert.doesNotMatch(root.textContent,/SQL|stacktrace|JSON|<html>/);}
+ finally{dom.window.close();}
+});
+for(const [path,admin,label,section] of [
+ ['/add-flexible-task',false,'Flexible Etappe anlegen',1],['/edit-flexible-task',false,'Speichern',1],
+ ['/rename-topic',true,'Thema umbenennen',0],['/edit-task',true,'Speichern',0],
+ ['/add-curriculum-task',true,'Etappe anlegen',0],['/add-curriculum-topic',true,'Thema anlegen',0]
+])test(`revoked permission blocks stale ${path} form`,async()=>{
+ const pm=grants(true,true),{dom,root,requests}=await setup(admin,{pm});
+ try{
+  const form=formWith(root.querySelectorAll('section')[section],label);
+  assert.ok(form);pm[section===1?'curriculum_manage_flexible':'curriculum_manage_central']=false;
+  await submit(dom,form);assert.equal(requests.filter(r=>r.url===path).length,0);
+  assert.equal(root.querySelectorAll('section')[section].querySelectorAll('form').length,0);
+ }finally{dom.window.close();}
+});
+test('view revoked after render blocks mutation and subsequent reads',async()=>{
+ const pm=grants(),{dom,root,requests}=await setup(false,{pm});
+ try{const count=requests.length;pm.curriculum_view=false;await submit(dom,formWith(root,'Speichern'));assert.equal(requests.length,count);assert.equal(root.querySelectorAll('form').length,0);}
+ finally{dom.window.close();}
+});
+for(const status of [409,500])test(`untrusted ${status} details are never displayed`,async()=>{
+ const{dom,root}=await setup(false,{response:{url:'/edit-flexible-task',status,body:JSON.stringify({error:'database_error',message:'SQL private stacktrace',affectedContexts:[null,{teacherId:'<html>'}]})}});
+ try{await submit(dom,formWith(root,'Speichern'));assert.match(root.textContent,/Anfrage fehlgeschlagen/);assert.doesNotMatch(root.textContent,/SQL|stacktrace|<html>/);}finally{dom.window.close();}
+});
+
+test('permission check failure after render fails closed',async()=>{
+ const{dom,root,requests}=await setup(false,{pm:grants()});
+ try{const count=requests.length;dom.window.hasPermission=async()=>{throw Error('SQL private');};await submit(dom,formWith(root,'Speichern'));assert.equal(requests.length,count);assert.doesNotMatch(root.textContent,/SQL/);}finally{dom.window.close();}
+});
+test('known 409 conflict retains actionable semester information',async()=>{
+ const{dom,root}=await setup(false,{response:{url:'/edit-flexible-task',status:409,body:JSON.stringify({error:'conflict',message:'Class grade changed; existing semester context is historical.'})}});
+ try{await submit(dom,formWith(root,'Speichern'));assert.match(root.textContent,/neues Halbjahr/);}finally{dom.window.close();}
 });
