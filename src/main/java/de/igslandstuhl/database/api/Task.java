@@ -31,7 +31,7 @@ public class Task implements APIObject {
      * A map to cache tasks by their unique identifier.
      * This helps avoid repeated database queries for the same task.
      */
-    private static final Map<Integer, Task> tasks = new HashMap<>();
+    private static final Map<Integer, Task> tasks = new java.util.concurrent.ConcurrentHashMap<>();
     /**
      * The unique identifier for the task.
      */
@@ -45,7 +45,7 @@ public class Task implements APIObject {
      * The name of the task.
      * This is a human-readable name for the task.
      */
-    private final String name;
+    private volatile String name;
     /**
      * The level of difficulty for the task.
      * This indicates how challenging the task is, such as LEVEL1, LEVEL2, or LEVEL3.
@@ -56,7 +56,7 @@ public class Task implements APIObject {
      * The number of tokens associated with the task.
      * This represents the value or reward for completing the task.
      */
-    private final int tokens;
+    private volatile int tokens;
 
     /**
      * Constructs a new Task.
@@ -182,7 +182,7 @@ public class Task implements APIObject {
         String name = fields[2];
         TaskLevel niveau = TaskLevel.get(Integer.parseInt(fields[3]));
         int tokens = Integer.parseInt(fields[4]);
-        return new Task(id, topic, name, niveau, tokens);
+        return tasks.computeIfAbsent(id, key -> new Task(id, topic, name, niveau, tokens));
     }
     /**
      * Retrieves a Task by its unique identifier.
@@ -196,7 +196,7 @@ public class Task implements APIObject {
         if (tasks.keySet().contains(id)) return tasks.get(id);
         try {
             Task task = Server.getInstance().processSingleRequest(Task::fromSQLFields, "get_task_by_id", SQL_FIELDS, String.valueOf(id));
-            tasks.put(id, task);
+            if (task != null) tasks.putIfAbsent(id, task);
             return task;
         } catch (SQLException e) {
             Application.LOGGER_API.error("Failed to get Task with id {} from database", id, e);
@@ -254,49 +254,22 @@ public class Task implements APIObject {
      * @return the newly created Task object, or null if the task could not be added
      */
     public static Task addTask(Topic topic, String name, TaskLevel niveau, int tokens) throws SQLException {
-        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("task", topic == null ? "-1" : String.valueOf(topic.getId()), name, String.valueOf(niveau), String.valueOf(tokens)));
-        return getByName(name).stream()
-                //.filter(t -> t.getTopic().equals(topic) && t.getNiveau() == niveau)
-                .sorted(Comparator.comparing(Task::getId, Comparator.reverseOrder()))
-                .findFirst()
-                .orElse(null);
+        return get(de.igslandstuhl.database.api.curriculum.Curriculum.current()
+                .createCentralTask(topic == null ? -1 : topic.getId(), name, niveau, tokens));
+    }
+
+    /** Update the canonical cached instance, including references in student completion sets. */
+    public static void refreshDefinition(int id, String name, int tokens) {
+        Task task = get(id);
+        if (task != null) { task.name = name; task.tokens = tokens; }
     }
 
     @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + id;
-        result = prime * result + ((topic == null) ? 0 : topic.hashCode());
-        result = prime * result + ((name == null) ? 0 : name.hashCode());
-        result = prime * result + ((niveau == null) ? 0 : niveau.hashCode());
-        return result;
-    }
+    public int hashCode() { return 31 * getClass().hashCode() + id; }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        Task other = (Task) obj;
-        if (id != other.id)
-            return false;
-        if (topic == null) {
-            if (other.topic != null)
-                return false;
-        } else if (!topic.equals(other.topic))
-            return false;
-        if (name == null) {
-            if (other.name != null)
-                return false;
-        } else if (!name.equals(other.name))
-            return false;
-        if (niveau != other.niveau)
-            return false;
-        return true;
+    public boolean equals(Object other) {
+        return this == other || (other != null && other.getClass() == getClass() && ((Task) other).id == id);
     }
     public static Task fromSerialized(Topic topic, String serialized) throws SQLException {
         String[] parts = serialized.split(Application.TASK_TITLE_DELIMITER);
@@ -308,7 +281,7 @@ public class Task implements APIObject {
 
     @Override
     public String toJSON() {
-        return "{\"id\": " + id + ", \"topic\": " + topic + ", \"name\": \"" + name + "\", \"niveau\": " + niveau + ", \"number\": \"" + getNumber() + "\", \"tokens\": " + getTokens() + "}";
+        return "{\"id\": " + id + ", \"topic\": " + topic + ", \"name\": " + new com.google.gson.Gson().toJson(name) + ", \"niveau\": " + niveau + ", \"number\": \"" + getNumber() + "\", \"tokens\": " + getTokens() + "}";
     }
     
 }

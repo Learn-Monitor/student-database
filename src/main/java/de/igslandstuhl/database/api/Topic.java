@@ -25,7 +25,7 @@ public class Topic implements APIObject {
      * A map to cache topics by their unique identifier.
      * This helps avoid repeated database queries for the same topic.
      */
-    private static final Map<Integer, Topic> topics = new HashMap<>();
+    private static final Map<Integer, Topic> topics = new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
      * Unique identifier for the topic.
@@ -34,7 +34,7 @@ public class Topic implements APIObject {
     /**
      * Name of the topic.
      */
-    private final String name;
+    private volatile String name;
     /**
      * Subject associated with the topic.
      */
@@ -105,7 +105,7 @@ public class Topic implements APIObject {
         Semester semester = fields[5] == null || fields[5].isBlank()
             ? null
             : Semester.get(Integer.parseInt(fields[5]));
-        return new Topic(id, name, subject, grade, number, semester);
+        return topics.computeIfAbsent(id, key -> new Topic(id, name, subject, grade, number, semester));
     }
     /**
      * Retrieves a Topic by its unique identifier.
@@ -119,7 +119,7 @@ public class Topic implements APIObject {
         if (topics.keySet().contains(id)) return topics.get(id);
         try {
             Topic topic = Server.getInstance().processSingleRequest(Topic::fromSQLFields, "get_topic_by_id", SQL_FIELDS, String.valueOf(id));
-            topics.put(id, topic);
+            if (topic != null) topics.putIfAbsent(id, topic);
             return topic;
         } catch (SQLException e) {
             Application.LOGGER_API.error("Failed to get Topic with id {} from database", id, e);
@@ -163,7 +163,7 @@ public class Topic implements APIObject {
      *
      * @return a list of tasks associated with the topic
      */
-    public List<Task> getTasks() {
+    public synchronized List<Task> getTasks() {
         if (tasks.isEmpty()) {
             loadTasks();
         }
@@ -188,7 +188,7 @@ public class Topic implements APIObject {
      *
      * @return a list of tasks at level 1 associated with the topic
      */
-    public List<Task> getTasksLevel1() {
+    public synchronized List<Task> getTasksLevel1() {
         if (tasks.isEmpty()) {
             loadTasks();
         }
@@ -200,7 +200,7 @@ public class Topic implements APIObject {
      *
      * @return a list of tasks at level 2 associated with the topic
      */
-    public List<Task> getTasksLevel2() {
+    public synchronized List<Task> getTasksLevel2() {
         if (tasks.isEmpty()) {
             loadTasks();
         }
@@ -212,7 +212,7 @@ public class Topic implements APIObject {
      *
      * @return a list of tasks at level 3 associated with the topic
      */
-    public List<Task> getTasksLevel3() {
+    public synchronized List<Task> getTasksLevel3() {
         if (tasks.isEmpty()) {
             loadTasks();
         }
@@ -225,7 +225,7 @@ public class Topic implements APIObject {
      * @param level the difficulty level of the tasks to retrieve
      * @return a list of tasks at the specified level associated with the topic
      */
-    public List<Task> getTasksByLevel(TaskLevel level) {
+    public synchronized List<Task> getTasksByLevel(TaskLevel level) {
         if (tasks.isEmpty()) {
             loadTasks();
         }
@@ -303,7 +303,7 @@ public class Topic implements APIObject {
     }
     @Override
     public String toJSON() {
-        return "{\"id\":" + id + ", \"name\": \"" + name + "\", \"subject\": " + subject + ", \"grade\": " + grade
+        return "{\"id\":" + id + ", \"name\": " + new com.google.gson.Gson().toJson(name) + ", \"subject\": " + subject + ", \"grade\": " + grade
                 + ", \"tasks\": " + getTaskIds() + ", \"number\": " + number + "}";
     }
     /**
@@ -318,7 +318,7 @@ public class Topic implements APIObject {
     public static Topic addTopic(String name, Subject subject, int grade, int number, Semester semester) throws SQLException {
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("topic", name, subject == null ? "-1" : String.valueOf(subject.getId()), String.valueOf(grade), String.valueOf(number), String.valueOf(semester.getId())));
         return getByName(name).stream()
-                .filter(t -> t.getSubject() == subject  && t.getGrade() == grade && t.getNumber() == number && t.getSemester() == semester)
+                .filter(t -> t.getSubject().getId() == subject.getId() && t.getGrade() == grade && t.getNumber() == number && t.getSemester().getId() == semester.getId())
                 .sorted((t1, t2) -> Integer.compare(t2.getId(), t1.getId())) // Sort by ID in descending order
                 .findFirst()
                 .orElse(null);
@@ -336,64 +336,29 @@ public class Topic implements APIObject {
         });
     }
 
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + id;
-        result = prime * result + ((name == null) ? 0 : name.hashCode());
-        result = prime * result + ((subject == null) ? 0 : subject.hashCode());
-        result = prime * result + grade;
-        result = prime * result + number;
-        return result;
+    public static void refreshName(int id, String name) {
+        Topic topic = get(id);
+        if (topic != null) topic.name = name;
+    }
+
+    public static void invalidateTaskLists(int id) {
+        Topic topic = topics.get(id);
+        if (topic != null) {
+            synchronized (topic) {
+                topic.tasks = new ArrayList<>();
+                topic.tasksLevel1 = new ArrayList<>();
+                topic.tasksLevel2 = new ArrayList<>();
+                topic.tasksLevel3 = new ArrayList<>();
+            }
+        }
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        Topic other = (Topic) obj;
-        if (id != other.id)
-            return false;
-        if (name == null) {
-            if (other.name != null)
-                return false;
-        } else if (!name.equals(other.name))
-            return false;
-        if (subject == null) {
-            if (other.subject != null)
-                return false;
-        } else if (!subject.equals(other.subject))
-            return false;
-        if (grade != other.grade)
-            return false;
-        if (number != other.number)
-            return false;
-        if (tasks == null) {
-            if (other.tasks != null)
-                return false;
-        } else if (!tasks.equals(other.tasks))
-            return false;
-        if (tasksLevel1 == null) {
-            if (other.tasksLevel1 != null)
-                return false;
-        } else if (!tasksLevel1.equals(other.tasksLevel1))
-            return false;
-        if (tasksLevel2 == null) {
-            if (other.tasksLevel2 != null)
-                return false;
-        } else if (!tasksLevel2.equals(other.tasksLevel2))
-            return false;
-        if (tasksLevel3 == null) {
-            if (other.tasksLevel3 != null)
-                return false;
-        } else if (!tasksLevel3.equals(other.tasksLevel3))
-            return false;
-        return true;
+    public int hashCode() { return 31 * getClass().hashCode() + id; }
+
+    @Override
+    public boolean equals(Object other) {
+        return this == other || (other != null && other.getClass() == getClass() && ((Topic) other).id == id);
     }
     public static Topic fromSerialized(String serialized, Subject subject, int grade, int number, Semester semester) throws SerializationException, SQLException {
         Application.LOGGER_API.debug("Reading topic from serialized...");;

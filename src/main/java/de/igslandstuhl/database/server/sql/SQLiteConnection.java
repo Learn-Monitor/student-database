@@ -228,6 +228,36 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
             }
         });
     }
+    @FunctionalInterface
+    public interface Transaction<T> { T run(Connection connection) throws SQLException; }
+
+    /** Serialize read-check-write with all core writers and SQLite writers in other processes. */
+    public <T> T writeTransaction(Transaction<T> work) throws SQLException {
+        return writeTransaction(work, result -> {});
+    }
+
+    public <T> T writeTransaction(Transaction<T> work, java.util.function.Consumer<T> committed) throws SQLException {
+        lock.writeLock().lock();
+        try {
+            Connection c = getSQLConnection();
+            T result;
+            try (Statement statement = c.createStatement()) {
+                statement.execute("BEGIN IMMEDIATE");
+                try {
+                    result = work.run(c);
+                    statement.execute("COMMIT");
+                } catch (SQLException | RuntimeException e) {
+                    try { statement.execute("ROLLBACK"); } catch (SQLException rollback) { e.addSuppressed(rollback); }
+                    throw e;
+                }
+            }
+            committed.accept(result);
+            return result;
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
     @Override
     public void close() throws SQLException {
         lock.interruptAll();
