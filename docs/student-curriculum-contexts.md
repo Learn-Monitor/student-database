@@ -92,13 +92,66 @@ Scope fields are `teacherId, subjectId, classId, semesterId`.
 | `/assign-curriculum-context` | admin | Scope + `studentId` → `{ok:true}` |
 | `/curriculum-transfer-preview` | admin | Target scope + `studentId` → `source`, `completions`, `targets`; read-only |
 | `/transfer-curriculum-context` | admin | Target scope + `studentId`, `sourceTeacherId`, `sourceClassId`, `transfers:[{sourceTaskId,targetTaskId,tokens}]` → `{ok:true}` |
-| `/my-curriculum-progress` | student | Only `subjectId, semesterId` → totals and completed-task details (below) |
+| `/my-curriculum-progress` | student | `subjectId`, optional `semesterId` → resolved semester, totals and completed-task details (below) |
 
 The student endpoint uses the session student ID and resolves teacher/class/grade
 from the persisted assignment. Supplied `studentId`, `teacherId`, `classId` or
 `grade` are rejected with 400. Anonymous access is 401; staff cannot use the
 student-only handler as a way to select an arbitrary student. Staff continue to
 use `/curriculum-progress` with its strengthened assignment checks.
+
+## Current-semester resolution (Sprint 4¾)
+
+Only the two existing progress routes accept an optional `semesterId`:
+
+- Student: `POST /my-curriculum-progress` requires `subjectId`; `semesterId` is
+  optional. Session identity and the stored assignment supply all other scope.
+  `studentId`, `teacherId`, `classId` and `grade` remain forbidden (400).
+- Staff: `POST /curriculum-progress` retains its existing student, subject, class,
+  teacher/administrator and ownership requirements. Only `semesterId` is optional.
+  Other curriculum operations still require their explicit semester selection.
+
+When the key is present, the existing integer validation and exactly that semester
+apply, including historical semesters. Explicit null/invalid values are 400, not
+requests for the current semester. An explicit semester never consults or depends
+on current-year configuration.
+
+When the key is absent, both handlers use one shared resolver. It calls
+`SchoolYear.getCurrentYear(false)` and reads that year's configured
+`getCurrentSemester()`. The boolean disables only the existing legacy
+`ORDER BY label DESC LIMIT 1` fallback. The school-year API retains its existing
+inclusive configured start/end-date selection; no separate curriculum calendar
+or semester inference from dates, labels, positions, topics or newest IDs exists.
+Existing no-argument school-year callers retain their legacy behavior.
+
+If no current year can be determined, or its current-semester reference is absent
+or cannot be resolved, the request returns HTTP 409:
+
+```json
+{"error":"current_semester_unavailable","message":"No current semester is configured."}
+```
+
+No other semester is chosen and no zero-progress success is manufactured.
+After resolution, the same existing progress/scope logic runs with the effective
+semester ID. Missing student assignment remains `409 context_unassigned` even
+when a valid assignment exists in another semester.
+
+Every successful progress response includes integer `semesterId`, whether it was
+explicit or resolved. All five Sprint-4½ totals/detail fields remain present.
+For example, with current semester 12, an omitted key resolves to 12 while an
+explicit `semesterId: 8` reads the saved semester-8 context and returns 8, including
+its pinned historical grade. No label fields are added.
+
+Resolution reads the current-year rows afresh on every request. Calling the
+existing `SchoolYear.setCurrentSemester(B)` after A makes the next omitted-key
+request use B. No Results/curriculum cache is introduced. SchoolYear retains the
+configured semester ID and resolves its object lazily to prevent recursive
+SchoolYear → Semester → SchoolYear loading when the existing caches are empty.
+The setter's replacement-object/cache behavior remains unchanged.
+
+Permissions remain `curriculum_student_progress` (student) and `curriculum_view`
+(staff). No route registration, path metadata, Permission Manager, JavaScript,
+progress calculation, budget, completion, assignment or transfer rule changes.
 
 ## Additive progress details (Sprint 4½)
 
@@ -108,6 +161,7 @@ their meanings. The two new arrays are always present, including when empty:
 
 ```json
 {
+  "semesterId": 12,
   "centralTokens": 4,
   "flexibleTokens": 6,
   "totalTokens": 10,

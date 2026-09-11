@@ -542,7 +542,7 @@ class CurriculumTest {
         var staff=jsonResponse(Teacher.get(id),"/curriculum-progress",assignmentBody());assertEquals(own,staff);
         var adminUser=Admin.create("details-admin-"+id,"synthetic-test-only");
         assertEquals(own,jsonResponse(adminUser,"/curriculum-progress",assignmentBody()));
-        assertEquals(Set.of("centralTokens","flexibleTokens","totalTokens","completedCentralTasks","completedFlexibleTasks"),own.keySet());
+        assertEquals(Set.of("semesterId","centralTokens","flexibleTokens","totalTokens","completedCentralTasks","completedFlexibleTasks"),own.keySet());
         var central=own.getAsJsonArray("completedCentralTasks").get(0).getAsJsonObject();
         assertEquals(Set.of("id","name","tokens","niveau","topicId","topicName"),central.keySet());
         var detail=own.getAsJsonArray("completedFlexibleTasks").get(0).getAsJsonObject();
@@ -575,6 +575,159 @@ class CurriculumTest {
             for(int n=0;n<20;n++)assertDetailSums(ownDetails());
             edits.get(10,TimeUnit.SECONDS);
         }finally{pool.shutdownNow();}
+    }
+    @AfterEach void clearCurrentYearDates() throws Exception {
+        // Only this case's synthetic school year; other tests share the isolated JVM.
+        db.writeTransaction(c->{exec(c,"UPDATE school_years SET start_date=NULL,end_date=NULL WHERE id=?",id);return null;});
+    }
+    SchoolYear currentYear() throws Exception {
+        var today=java.time.LocalDate.now();
+        db.writeTransaction(c->{exec(c,"UPDATE school_years SET start_date=?,end_date=? WHERE id=?",
+                today.minusDays(1).toString(),today.plusDays(1).toString(),id);return null;});
+        return SchoolYear.getCurrentYear(false);
+    }
+    String progressPath(boolean student) {return student?"/my-curriculum-progress":"/curriculum-progress";}
+    User progressUser(boolean student) {return student?Student.get(id):Teacher.get(id);}
+    String progressBody(boolean student,boolean explicit) {
+        String payload=student?body():assignmentBody();
+        return explicit?payload:payload.replace(",\"semesterId\":"+id,"");
+    }
+    void assertProgressError(boolean student,String payload,Status status,String code) {
+        var response=request(progressUser(student),progressPath(student),payload);
+        assertEquals(status,response.getStatus());assertTrue(responseBody(response).contains("\"error\":\""+code+"\""));
+        assertFalse(com.google.gson.JsonParser.parseString(responseBody(response).split("\r\n\r\n",2)[1]).getAsJsonObject().has("totalTokens"));
+    }
+    void assertJsonSums(com.google.gson.JsonObject result) {
+        long central=0,flexible=0;
+        for(var task:result.getAsJsonArray("completedCentralTasks"))central+=task.getAsJsonObject().get("tokens").getAsLong();
+        for(var task:result.getAsJsonArray("completedFlexibleTasks"))flexible+=task.getAsJsonObject().get("tokens").getAsLong();
+        assertEquals(central,result.get("centralTokens").getAsLong());
+        assertEquals(flexible,result.get("flexibleTokens").getAsLong());
+        assertEquals(central+flexible,result.get("totalTokens").getAsLong());
+    }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void currentSemesterSwitchKeepsExplicitHistoryAndIsolatesDetails(boolean student) throws Exception {
+        var year=currentYear();assertNotNull(year);year=year.setCurrentSemester(Semester.get(id));
+        int first=central(6);Student.get(id).changeTaskStatus(Task.get(first),Task.STATUS_COMPLETED);
+        var a=service.create(teacher,scope,"A",4);service.complete(teacher,a.id(),id);
+        var second=new Curriculum.Scope(id,id,id,id+1);service.assign(admin,id,second);
+        int secondTopic=service.createTopic(admin,id,5,id+1,2,"Second semester");
+        int secondTask=service.createCentralTask(secondTopic,"Second central",TaskLevel.LEVEL1,7);
+        Student.get(id).changeTaskStatus(Task.get(secondTask),Task.STATUS_COMPLETED);
+        var b=service.create(teacher,second,"B",8);service.complete(teacher,b.id(),id);
+        var explicit=jsonResponse(progressUser(student),progressPath(student),progressBody(student,true));
+        assertEquals(id,explicit.get("semesterId").getAsInt());assertEquals(10,explicit.get("totalTokens").getAsInt());
+        assertEquals(explicit,jsonResponse(progressUser(student),progressPath(student),progressBody(student,false)));
+        // Use the real API, including its replacement-object cache behavior.
+        year.setCurrentSemester(Semester.get(id+1));
+        assertEquals(id+1,SchoolYear.get(id).getCurrentSemester().getId());
+        var next=jsonResponse(progressUser(student),progressPath(student),progressBody(student,false));
+        assertEquals(id+1,next.get("semesterId").getAsInt());assertEquals(15,next.get("totalTokens").getAsInt());
+        assertEquals(secondTask,next.getAsJsonArray("completedCentralTasks").get(0).getAsJsonObject().get("id").getAsInt());
+        assertEquals(b.id(),next.getAsJsonArray("completedFlexibleTasks").get(0).getAsJsonObject().get("id").getAsInt());
+        assertEquals(1,next.getAsJsonArray("completedCentralTasks").size());assertEquals(1,next.getAsJsonArray("completedFlexibleTasks").size());
+        assertJsonSums(explicit);assertJsonSums(next);
+        db.writeTransaction(c->{exec(c,"UPDATE classes SET grade=6 WHERE id=?",id);return null;});
+        assertEquals(explicit,jsonResponse(progressUser(student),progressPath(student),progressBody(student,true)));
+        assertEquals(next,jsonResponse(progressUser(student),progressPath(student),progressBody(student,false)));
+    }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void missingConfiguredSemesterFailsButExplicitHistoryStillWorks(boolean student) throws Exception {
+        assertNull(currentYear().getCurrentSemester());
+        assertProgressError(student,progressBody(student,false),Status.CONFLICT,"current_semester_unavailable");
+        assertEquals(id,jsonResponse(progressUser(student),progressPath(student),progressBody(student,true)).get("semesterId").getAsInt());
+    }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void noDeterminedYearDoesNotUseLegacyLatestLabel(boolean student) throws Exception {
+        SchoolYear.get(id).setCurrentSemester(Semester.get(id));
+        assertNull(SchoolYear.getCurrentYear(false));
+        assertNotNull(SchoolYear.getCurrentYear()); // Legacy selection still exists for old callers only.
+        assertProgressError(student,progressBody(student,false),Status.CONFLICT,"current_semester_unavailable");
+        assertEquals(id,jsonResponse(progressUser(student),progressPath(student),progressBody(student,true)).get("semesterId").getAsInt());
+    }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void resolvedSemesterStillRequiresAssignment(boolean student) throws Exception {
+        currentYear().setCurrentSemester(Semester.get(id+1));
+        assertProgressError(student,progressBody(student,false),Status.CONFLICT,"context_unassigned");
+    }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void explicitInvalidSemesterIsNotTreatedAsMissing(boolean student) throws Exception {
+        currentYear().setCurrentSemester(Semester.get(id));
+        for(String value:List.of("null","-1","1.5","\"bad\""))
+            assertProgressError(student,progressBody(student,true).replace("\"semesterId\":"+id,"\"semesterId\":"+value),Status.BAD_REQUEST,"invalid_input");
+    }
+    @Test void fallbackKeepsStudentScopeAndSessionRestrictions() throws Exception {
+        for(String field:List.of("studentId","teacherId","classId","grade"))
+            assertProgressError(true,progressBody(true,false).replace("}",",\""+field+"\":1}"),Status.BAD_REQUEST,"invalid_input");
+        for(boolean student:List.of(true,false))
+            assertEquals(Status.UNAUTHORIZED,request(User.ANONYMOUS,progressPath(student),progressBody(student,false)).getStatus());
+        assertEquals(Status.FORBIDDEN,request(Teacher.get(id),progressPath(true),progressBody(true,false)).getStatus());
+        assertEquals(Status.FORBIDDEN,request(Student.get(id),progressPath(false),progressBody(false,false)).getStatus());
+    }
+    @Test void fallbackKeepsTeacherAndAdminScopeOwnership() throws Exception {
+        currentYear().setCurrentSemester(Semester.get(id));
+        var adminUser=Admin.create("semester-admin-"+id,"synthetic-test-only");
+        var expected=jsonResponse(Student.get(id),progressPath(true),progressBody(true,false));
+        assertEquals(expected,jsonResponse(adminUser,progressPath(false),progressBody(false,false)));
+        assertEquals(Status.FORBIDDEN,request(Teacher.get(id+1),progressPath(false),progressBody(false,false)).getStatus());
+        String otherTeacher=progressBody(false,false).replace("\"teacherId\":"+id,"\"teacherId\":"+(id+1));
+        assertEquals(Status.FORBIDDEN,request(adminUser,progressPath(false),otherTeacher).getStatus());
+        db.writeTransaction(c->{exec(c,"DELETE FROM teacher_subjects WHERE teacher_id=? AND subject_id=?",id,id);return null;});
+        assertEquals(expected,jsonResponse(adminUser,progressPath(false),progressBody(false,false))); // Existing admin read authorization.
+        assertProgressError(false,progressBody(false,false),Status.FORBIDDEN,"forbidden");
+    }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void fallbackStillRejectsOversubscribedContext(boolean student) throws Exception {
+        currentYear().setCurrentSemester(Semester.get(id));central(105);
+        db.writeTransaction(c->{exec(c,"INSERT INTO flexible_tasks(owner_teacher,subject,class,semester,grade,name,tokens) VALUES(?,?,?,?,5,'Legacy excess',1)",id,id,id,id);return null;});
+        assertProgressError(student,progressBody(student,false),Status.CONFLICT,"budget_exceeded");
+    }
+    @Test void coldSemesterResolutionDoesNotRecurseThroughSchoolYear() throws Exception {
+        currentYear();
+        // Neither this semester nor a year with this current-semester pointer was cached.
+        db.writeTransaction(c->{exec(c,"UPDATE school_years SET current_semester=? WHERE id=?",id+1,id);return null;});
+        service.assign(admin,id,new Curriculum.Scope(id,id,id,id+1));
+        var yearCache=SchoolYear.class.getDeclaredField("years");yearCache.setAccessible(true);
+        ((Map<?,?>)yearCache.get(null)).clear();
+        var semesterCache=Semester.class.getDeclaredField("CACHE");semesterCache.setAccessible(true);
+        ((Map<?,?>)semesterCache.get(null)).clear();
+        assertEquals(id+1,jsonResponse(Student.get(id),progressPath(true),progressBody(true,false)).get("semesterId").getAsInt());
+    }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void unresolvedConfiguredSemesterDoesNotSelectAnother(boolean student) throws Exception {
+        currentYear();
+        db.writeTransaction(c->{exec(c,"UPDATE school_years SET current_semester=999999 WHERE id=?",id);return null;});
+        assertProgressError(student,progressBody(student,false),Status.CONFLICT,"current_semester_unavailable");
+    }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void fallbackPreservesTransferChainAndCurrentTerminalValues(boolean student) throws Exception {
+        currentYear().setCurrentSemester(Semester.get(id));
+        var a=service.create(teacher,scope,"A",6);var b=service.create(other,secondScope(),"B",6);
+        service.complete(teacher,a.id(),id);
+        service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(a.id(),b.id(),6)));
+        String target=progressBody(student,false);
+        if(!student)target=target.replace("\"teacherId\":"+id,"\"teacherId\":"+(id+1));
+        var afterB=jsonResponse(student?Student.get(id):Teacher.get(id+1),progressPath(student),target);
+        assertEquals(b.id(),afterB.getAsJsonArray("completedFlexibleTasks").get(0).getAsJsonObject().get("id").getAsInt());
+        var terminal=service.create(teacher,scope,"Terminal",6);
+        service.transfer(admin,id,secondScope(),scope,List.of(new Curriculum.Transfer(b.id(),terminal.id(),6)));
+        service.edit(teacher,terminal.id(),"Current terminal",4);
+        var result=jsonResponse(progressUser(student),progressPath(student),progressBody(student,false));
+        assertEquals(id,result.get("semesterId").getAsInt());assertEquals(4,result.get("totalTokens").getAsInt());
+        assertEquals(1,result.getAsJsonArray("completedFlexibleTasks").size());
+        assertEquals(terminal.id(),result.getAsJsonArray("completedFlexibleTasks").get(0).getAsJsonObject().get("id").getAsInt());
+        assertEquals(3,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
+        assertJsonSums(afterB);assertJsonSums(result);
+    }
+    @Test void onlyProgressAllowsOmittedSemesterAndOtherFieldsStayRequired() throws Exception {
+        currentYear().setCurrentSemester(Semester.get(id));
+        for(String path:List.of("/curriculum-budget","/flexible-tasks"))
+            assertEquals(Status.BAD_REQUEST,request(Teacher.get(id),path,progressBody(false,false)).getStatus());
+        assertProgressError(true,"{}",Status.BAD_REQUEST,"invalid_input");
+        for(String field:List.of("studentId","subjectId","classId")) {
+            var payload=com.google.gson.JsonParser.parseString(progressBody(false,false)).getAsJsonObject();payload.remove(field);
+            assertProgressError(false,payload.toString(),Status.BAD_REQUEST,"invalid_input");
+        }
     }
     de.igslandstuhl.database.server.webserver.responses.PostResponse request(User user,String path,String body) {
         var rq=new de.igslandstuhl.database.server.webserver.requests.APIPostRequest(

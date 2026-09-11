@@ -343,7 +343,7 @@ public final class Curriculum {
         // Totals are derived from the exact returned identities in this transaction, never a second query/cache.
         long central=completedCentralTasks.stream().mapToLong(CompletedCentralTask::tokens).sum();
         long flexible=completedFlexibleTasks.stream().mapToLong(CompletedFlexibleTask::tokens).sum();
-        return Map.of("centralTokens",central,"flexibleTokens",flexible,"totalTokens",central+flexible,
+        return Map.of("semesterId",scope.semesterId(),"centralTokens",central,"flexibleTokens",flexible,"totalTokens",central+flexible,
                 "completedCentralTasks",completedCentralTasks,"completedFlexibleTasks",completedFlexibleTasks);
     }
     /** Assigned total for staff; both their scope access and the student's explicit assignment apply. */

@@ -1,6 +1,7 @@
 package de.igslandstuhl.database.server.webserver.handlers;
 
 import de.igslandstuhl.database.api.TaskLevel;
+import de.igslandstuhl.database.api.SchoolYear;
 import de.igslandstuhl.database.api.curriculum.*;
 import de.igslandstuhl.database.server.webserver.Status;
 import de.igslandstuhl.database.server.webserver.access.AccessLevel;
@@ -37,10 +38,21 @@ public final class CurriculumRequestHandler {
         return s;
     }
     private static Curriculum.Scope scope(APIPostRequest rq,Curriculum.Actor actor) {
+        return scope(rq,actor,false);
+    }
+    private static Curriculum.Scope scope(APIPostRequest rq,Curriculum.Actor actor,boolean progress) {
         int teacher=actor.admin()?integer(rq,"teacherId"):actor.teacherId();
         if(!actor.admin() && rq.containsKey("teacherId") && integer(rq,"teacherId")!=teacher)
             throw new CurriculumException(403,"forbidden","Cannot impersonate another teacher.");
-        return new Curriculum.Scope(teacher,integer(rq,"subjectId"),integer(rq,"classId"),integer(rq,"semesterId"));
+        return new Curriculum.Scope(teacher,integer(rq,"subjectId"),integer(rq,"classId"),progress?effectiveSemesterId(rq):integer(rq,"semesterId"));
+    }
+    private static int effectiveSemesterId(APIPostRequest rq) {
+        if (rq.containsKey("semesterId")) return integer(rq,"semesterId");
+        SchoolYear year=SchoolYear.getCurrentYear(false);
+        var semester=year==null?null:year.getCurrentSemester();
+        if (semester==null)
+            throw new CurriculumException(409,"current_semester_unavailable","No current semester is configured.");
+        return semester.getId();
     }
     public static PostResponse handle(APIPostRequest rq) {
         try {
@@ -49,7 +61,12 @@ public final class CurriculumRequestHandler {
             if(rq.getPath().equals("/my-curriculum-progress")) {
                 if(rq.containsKey("studentId") || rq.containsKey("teacherId") || rq.containsKey("classId") || rq.containsKey("grade"))
                     throw new CurriculumException(400,"invalid_input","Student context is derived from the session and assignment.");
-                return PostResponse.json(service.studentProgress(rq.getUser(),integer(rq,"subjectId"),integer(rq,"semesterId")),rq);
+                // Preserve session rejection before resolving optional server-side context.
+                if(rq.getUser()==null || rq.getUser()==de.igslandstuhl.database.api.User.ANONYMOUS)
+                    throw new CurriculumException(401,"unauthorized","Please sign in.");
+                if(!rq.getUser().isStudent())
+                    throw new CurriculumException(403,"forbidden","Student session required.");
+                return PostResponse.json(service.studentProgress(rq.getUser(),integer(rq,"subjectId"),effectiveSemesterId(rq)),rq);
             }
             Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
             Object result;
@@ -73,7 +90,7 @@ public final class CurriculumRequestHandler {
                 case "/curriculum-catalog" -> result=service.catalog(actor);
                 case "/curriculum-structure" -> result=service.centralStructure(actor,integer(rq,"subjectId"),integer(rq,"grade"),integer(rq,"semesterId"));
                 case "/curriculum-budget" -> result=service.budget(actor,scope(rq,actor));
-                case "/curriculum-progress" -> result=service.progress(actor,integer(rq,"studentId"),scope(rq,actor));
+                case "/curriculum-progress" -> result=service.progress(actor,integer(rq,"studentId"),scope(rq,actor,true));
                 case "/flexible-tasks" -> result=service.list(actor,scope(rq,actor));
                 case "/add-flexible-task" -> result=service.create(actor,scope(rq,actor),name(rq),integer(rq,"tokens"));
                 case "/edit-flexible-task" -> result=service.edit(actor,integer(rq,"taskId"),name(rq),integer(rq,"tokens"));

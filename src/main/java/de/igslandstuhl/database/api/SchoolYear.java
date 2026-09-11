@@ -56,7 +56,7 @@ public class SchoolYear implements APIObject {
      * The current semester of the school year.
      * This is used to track which semester is currently active within the school year.
      */
-    private final Semester currentSemester;
+    private final Integer currentSemesterId;
 
     /**
      * Constructs a new SchoolYear.
@@ -70,13 +70,18 @@ public class SchoolYear implements APIObject {
      * @param currentSemester the current semester of the school year
      */
     public SchoolYear(int id, String label, int weekCount, int currentWeek, LocalDate startDate, LocalDate endDate, Semester currentSemester) {
+        this(id, label, weekCount, currentWeek, startDate, endDate,
+                currentSemester == null ? null : Integer.valueOf(currentSemester.getId()));
+    }
+
+    private SchoolYear(int id, String label, int weekCount, int currentWeek, LocalDate startDate, LocalDate endDate, Integer currentSemesterId) {
         this.id = id;
         this.label = label;
         this.weekCount = weekCount;
         this.currentWeek = currentWeek;
         this.startDate = startDate;
         this.endDate = endDate;
-        this.currentSemester = currentSemester;
+        this.currentSemesterId = currentSemesterId;
     }
 
     /**
@@ -126,7 +131,7 @@ public class SchoolYear implements APIObject {
      * @return the current semester
      */
     public Semester getCurrentSemester() {
-        return currentSemester;
+        return currentSemesterId == null ? null : Semester.get(currentSemesterId);
     }
     /**
      * Returns the start date of the school year.
@@ -154,7 +159,8 @@ public class SchoolYear implements APIObject {
         int currentWeek = Integer.parseInt(fields[3]);
         LocalDate startDate = fields.length > 4 && fields[4] != null ? LocalDate.parse(fields[4]) : null;
         LocalDate endDate = fields.length > 5 && fields[5] != null ? LocalDate.parse(fields[5]) : null;
-        Semester currentSemester = fields.length > 6 && fields[6] != null ? Semester.get(Integer.parseInt(fields[6])) : null;
+        // Resolve the semester lazily: Semester loading refers back to SchoolYear.
+        Integer currentSemester = fields.length > 6 && fields[6] != null ? Integer.valueOf(fields[6]) : null;
         return new SchoolYear(id, label, weekCount, currentWeek, startDate, endDate, currentSemester);
     }
     /**
@@ -215,6 +221,15 @@ public class SchoolYear implements APIObject {
      * @return the current SchoolYear object, or null if not found
      */
     public static SchoolYear getCurrentYear() {
+        return getCurrentYear(true);
+    }
+
+    /**
+     * Uses the existing configured school-year date range. Strict callers disable
+     * the legacy label-based fallback when no current year can be determined.
+     * Reads fresh SQL rows, including changes made through setCurrentSemester.
+     */
+    public static SchoolYear getCurrentYear(boolean allowLegacyFallback) {
         List<SchoolYear> allYears = getAll();
         Optional<SchoolYear> currentYear = allYears.stream().filter((s) -> s.getStartDate() != null && s.getEndDate() != null)
             .filter((s) -> {
@@ -222,6 +237,7 @@ public class SchoolYear implements APIObject {
                 return !now.isBefore(s.getStartDate()) && !now.isAfter(s.getEndDate());
             }).findAny();
         if (currentYear.isPresent()) return currentYear.get();
+        if (!allowLegacyFallback) return null;
         try {
             SchoolYear year = Server.getInstance().processSingleRequest(
                 SchoolYear::fromSQL,
