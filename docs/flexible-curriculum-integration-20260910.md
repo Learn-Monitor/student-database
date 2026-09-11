@@ -227,3 +227,70 @@ See [the extended response contract](student-curriculum-contexts.md) for field t
 ordering and examples. Existing Sprint-4 PM permissions cover the same endpoints;
 Permission Manager, Results, Overlay, Attendance and Control were not changed.
 No deployment, PR, service action or live database operation was performed.
+
+## Sprint 4¾: configured current semester for progress
+
+Remote Control main was rechecked before implementation and had advanced to
+`e28135fedf582dc8c2b4d292b7820bcc40df3124`. Architecture, workflow, Arcanum working
+state, referenced Signage/SOL state and canonical release evidence were read.
+Only student-database is changed.
+
+| Track | Exact base | Feature commit |
+|---|---|---|
+| Upstream | `1dbb52717d146798cc00c133ce4d2d0c6d316cca` | `f72c693ff9152e1ce34398f9903eb8296ae7b846` |
+| Canonical v2 | `c7c806880e4630a59edea3541607416ed8a3bf0d` | `18f16293d277b51eecbe7045687473ec7439e35e` |
+
+Branches:
+- `feature/curriculum-current-semester-upstream-20260910`
+- `feature/curriculum-current-semester-canonical-v2-20260910`
+
+The feature cherry-pick was conflict-free. The same five feature files are
+identical across tracks; only this integration report is canonical-only.
+Existing branches remain at their original commits.
+
+Both existing progress handlers share an effective-semester resolver. Present
+`semesterId` uses exactly the requested integer, including historical contexts.
+Missing `semesterId` resolves the configured current semester of the current
+school year. Every successful response adds integer `semesterId`; all five
+Sprint-4½ fields and their calculation remain intact. Other required fields,
+student scope rejection, teacher/admin authorization, assignment, pinned grade,
+105 limit and ACTIVE_COMPLETION/transfer semantics are unchanged.
+
+The existing school-year API selects years using configured inclusive date
+ranges, but previously fell back to the last label if no range matched. Progress
+uses the additive strict `SchoolYear.getCurrentYear(false)` variant, which shares
+that existing selection and disables the label fallback. No new calendar logic
+or semester inference is introduced. Legacy no-argument callers keep their
+behavior. An absent year, absent pointer or unresolved semester returns
+`409 current_semester_unavailable` with `No current semester is configured.`
+An absent student assignment in the resolved semester remains
+`409 context_unassigned`; neither case manufactures zero progress.
+
+SchoolYear stores the configured semester ID and lazily resolves the object,
+preventing circular SchoolYear/Semester hydration with empty caches. Each request
+reads school-year rows fresh; the real `setCurrentSemester` update from A to B
+is reflected by the next request. Explicit A continues to return A, including
+after class promotion. No new progress/Results cache or schema change exists.
+
+Validation on both tracks:
+- `./gradlew test jar shadowJar`: passed; upstream 86 existing + 78 curriculum
+  cases, canonical 87 existing + 78 curriculum cases. No failures/errors/skips.
+- `npm test --prefix src/test/js`: 44/44 DOM tests per track. Used the existing
+  Node 22.21.1 installation under `build/ui-tools` via PATH; no JS changes.
+- `git diff --check`: passed.
+- Core metadata files and route registration are unchanged against each exact
+  base. No new GET/POST routes, no Permission Manager changes.
+- Twenty added curriculum cases cover both handlers' explicit/current/history
+  behavior, A→B changes with different completed details and all three sum
+  invariants, post-promotion grade pinning, absent year/current semester,
+  unresolved pointers, invalid explicit inputs, assignment errors, unchanged
+  session/scope/teacher/admin rules, legacy oversubscription, cold caches,
+  required fields and unchanged non-progress requests, and transferred terminal
+  completion values with preserved A→B→C history. All prior tests remain enabled.
+
+Changed feature files: `SchoolYear.java`, `Curriculum.java`,
+`CurriculumRequestHandler.java`, `CurriculumTest.java` and
+`docs/student-curriculum-contexts.md`. This canonical report is the only extra file.
+No deployment, DEMO/PROD access, service action, live database operation, other
+repository modification or PR was performed. Push is limited to the two named
+new branches in synchronierer/student-database, without force or merge.
