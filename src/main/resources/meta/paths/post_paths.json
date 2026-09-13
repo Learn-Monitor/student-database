@@ -452,5 +452,11 @@
         "handler_type": "PostRequestHandler",
         "namespaces": [],
         "access_level": "admin"
+    },
+    "/activate-curriculum-semester": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
     }
 }

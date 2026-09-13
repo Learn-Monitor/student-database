@@ -47,7 +47,7 @@
                 <td>${cls.label}</td>
                 <td>${cls.grade}</td>
                 <td><button class="edit" onclick='viewClass(${JSON.stringify(cls)})'>Bearbeiten</button>
-                    <button type="button" onclick='if(confirm("Klasse wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.")) post("/delete-class",{id:${cls.id}}).then(()=>loadClasses())'>Löschen</button></td>
+                    <button type="button" onclick='if(confirm("Klasse archivieren? Schüler bleiben erhalten und werden auf Nicht zugeordnet gesetzt.")) post("/delete-class",{id:${cls.id}}).then(()=>loadClasses())'>Archivieren</button></td>
             `;
         });
     }

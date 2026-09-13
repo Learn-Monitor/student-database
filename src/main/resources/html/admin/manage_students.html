@@ -8,7 +8,7 @@
             <h2>Schüler hinzufügen aus edu.sys</h2>
             <form id="add-students-form" method="post" action="/add-students">
                 <label for="csv-input">CSV-Datei:</label>
-                <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="ID,Vorname,Nachname,Klasse,Abschlussstufe,E-Mail"></textarea>
+                <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="ID,Vorname,Nachname,Klasse,Abschlussstufe,Loginname"></textarea>
                 <button type="submit">Schüler hinzufügen</button>
             </form>
         </section>
@@ -90,14 +90,15 @@
             });
             newRow.getElementsByClassName('student-graduation-level')[0].appendChild(graduationLevelSelect);
         };
-        if(selectedClassId===0){const students=await fetchJson('/students');const body=document.querySelector('#studentTable tbody');body.replaceChildren();students.forEach(s=>{const row=body.insertRow();render(row,s)});}else populateStudentTable(selectedClassId,"studentTable",render);
+        if(selectedClassId===-1){const students=await fetchJson('/students');const body=document.querySelector('#studentTable tbody');body.replaceChildren();students.forEach(s=>{const row=body.insertRow();render(row,s)});}else populateStudentTable(selectedClassId,"studentTable",render);
         document.getElementById('studentFilter').dispatchEvent(new Event('input'));
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
         const classSelect = document.getElementById('classSelect');
         const classes = await fetchClasses();
-        classes.unshift({id:0,label:'Alle Klassen'});
+        classes.unshift({id:0,label:'Nicht zugeordnet'});
+        classes.unshift({id:-1,label:'Alle Klassen'});
         populateClassSelect(classSelect, classes);
         classSelect.addEventListener('change', onClassChange);
         onClassChange({ target: classSelect }); // Trigger initial load

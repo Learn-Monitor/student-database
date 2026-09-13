@@ -11,8 +11,8 @@
                 <input type="text" id="teacher-first-name" name="firstName" required>
                 <label for="teacher-last-name">Nachname:</label>
                 <input type="text" id="teacher-last-name" name="lastName" required>
-                <label for="teacher-email">Email:</label>
-                <input type="email" id="teacher-email" name="email" required>
+                <label for="teacher-email">Loginname:</label>
+                <input type="text" id="teacher-email" name="email" required>
                 <button type="submit">Lehrer hinzufügen</button>
             </form>
         </section>
@@ -20,20 +20,20 @@
             <h2>Lehrer aus CSV hinzufügen</h2>
             <form id="add-teachers-csv-form" method="post" action="/add-teachers">
                 <label for="csv-input">CSV-Datei:</label>
-                <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="Vorname,Nachname,Email"></textarea>
+                <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="Vorname,Nachname,Loginname"></textarea>
                 <button type="submit">Lehrer hinzufügen</button>
             </form>
         </section>
         <section id="teacher-list">
             <h2>Lehrer-Liste</h2>
-            <input id="teacherFilter" placeholder="Name, Fach oder E-Mail filtern">
+            <input id="teacherFilter" placeholder="Name, Fach oder Loginname filtern">
             <a href="/teachers" download="lehrer.json"><button id="download-teachers">Lehrer herunterladen</button></a>
             <table id="teacherTable">
                 <thead>
                     <tr>
                         <th>Vorname</th>
                         <th>Nachname</th>
-                        <th>Email</th>
+                        <th>Loginname</th>
                         <th>Aktionen</th>
                     </tr>
                 </thead>

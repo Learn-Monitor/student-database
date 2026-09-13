@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const wpfPanel=el('details');wpfPanel.open=true;wpfPanel.append(el('summary','WPF-Zuteilung nach Klasse'));section.append(wpfPanel);
         const loadCatalog=()=>call('/curriculum-enrollment-catalog',{},'curriculum_manage_enrollment');
         const data=await loadCatalog();
-        const existing=el('div');existing.append(el('h4','Bereits angelegt'));const list=el('ul');for(const item of data.semesters)list.append(el('li',item.label));existing.append(list);panel.append(existing);
+        const existing=el('div');existing.append(el('h4','Bereits angelegt'));const list=el('ul');for(const item of data.semesters){const li=el('li',item.label+(item.active?' · aktiv':' '));if(!item.active){const activate=el('button','Als aktives Halbjahr setzen');activate.type='button';activate.addEventListener('click',()=>run(async()=>{if(!confirm('Dieses Halbjahr als aktives Halbjahr verwenden?'))return;await call('/activate-curriculum-semester',{semesterId:item.id},'curriculum_manage_enrollment');status.textContent='Aktives Halbjahr gesetzt.';window.location.reload();}));li.append(' ',activate);}list.append(li);}existing.append(list);panel.append(existing);
         const semester=choice(panel,'Schulhalbjahr',data.semesters),grade=choice(panel,'Jahrgang',Array.from(new Set(data.classes.map(c=>c.grade))).sort((a,b)=>a-b).map(id=>({id,name:String(id)})));
         const selectorGate=el('fieldset');selectorGate.hidden=true;selectorGate.append(el('legend','Halbjahr und Klassenstufe auswählen'));
         selectorGate.append(semester,grade);const confirmSelection=el('button','Auswahl bestätigen');confirmSelection.type='button';selectorGate.append(confirmSelection);managePanel.append(selectorGate);
@@ -119,10 +119,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         confirmSelection.addEventListener('click',()=>{mappingArea.hidden=false;wpfPanel.hidden=false;status.textContent='Auswahl bestätigt. Die Einrichtungsfunktionen sind eingeblendet.';if(typeof prepareTeachersButton?.click==='function')prepareTeachersButton.click();if(typeof loadRoster==='function')loadRoster();});
         revealSemesterSetup=()=>{selectorGate.hidden=false;section.querySelectorAll(':scope > details').forEach(node=>node.hidden=false);status.textContent='Halbjahr und Klassenstufe auswählen und bestätigen.';};
         const invalidate=()=>{mappingVersion++;proposal=null;mappingArea.replaceChildren();};
-        const regularSubjects=()=>data.subjects.filter(s=>!s.wpf);semester.addEventListener('change',invalidate);grade.addEventListener('change',invalidate);
+        const regularSubjects=()=>data.subjects.filter(s=>(s.mode||'REGULAR')!=='INDIVIDUAL'&&!s.wpf);semester.addEventListener('change',invalidate);grade.addEventListener('change',invalidate);
         const teacherChoice=(parent,classId,subjectId)=>{
-            const candidates=data.teaching.filter(t=>t.classId===classId&&t.subjectId===subjectId).map(t=>t.teacherId);
-            const teachers=data.teachers.filter(t=>candidates.includes(t.id)).map(t=>({id:t.id,name:t.first_name+' '+t.last_name}));
+            const teachers=data.teachers.map(t=>({id:t.id,name:t.first_name+' '+t.last_name}));
             const select=choice(parent,'Lehrkraft',[{id:'',name:'Lehrkraft auswählen'},...teachers]);if(teachers.length===1)select.value=teachers[0].id;return select;
         };
         const prepareTeachersButton=action(panel,'Lehrkräfte-Tabelle aufbauen',async()=>{
@@ -143,20 +142,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 invalidate();status.textContent=`Gespeichert: ${result.students} Kinder, ${result.assignments} Fachzuordnungen. Zentrale Inhalte erscheinen nach Freischaltung durch die Lehrkraft.`;
             });
         });
-        const wpfSemester=choice(wpfPanel,'WPF-Halbjahr',data.semesters),wpfClass=choice(wpfPanel,'WPF-Klasse',data.classes);
-        wpfPanel.append(el('p','Pro Kind und Halbjahr genau ein WPF: Kinder auf ein WPF-Feld ziehen oder WPF auswählen und speichern. Die Lehrkraft wird pro WPF ausgewählt.'));
+        const groups=()=>Array.from(new Set(data.subjects.filter(s=>(s.mode==='INDIVIDUAL'||s.wpf)&&s.assignmentGroup).map(s=>s.assignmentGroup))).sort();
+        const wpfSemester=choice(wpfPanel,'Halbjahr',data.semesters),wpfClass=choice(wpfPanel,'Klasse',data.classes),groupSelect=choice(wpfPanel,'Zuordnungsgruppe',groups().map(g=>({id:g,name:g==='RELIGION_ETHIK'?'Religion / Ethik':g})));
+        wpfPanel.append(el('p','Pro Kind und Halbjahr genau ein Fach je Zuordnungsgruppe. WPF und Religion/Ethik koennen parallel gespeichert werden.'));
         const board=el('div');board.className='curriculum-wpf-board';board.style.cssText='display:flex;flex-wrap:wrap;gap:1rem';wpfPanel.append(board);let rosterVersion=0;
-        const clearBoard=()=>{rosterVersion++;board.replaceChildren();};wpfClass.addEventListener('change',clearBoard);wpfSemester.addEventListener('change',clearBoard);
+        const clearBoard=()=>{rosterVersion++;board.replaceChildren();};wpfClass.addEventListener('change',clearBoard);wpfSemester.addEventListener('change',clearBoard);groupSelect.addEventListener('change',clearBoard);
         const loadRoster=async()=>{
             clearBoard();const version=rosterVersion,classId=Number(wpfClass.value),semesterId=Number(wpfSemester.value);
             const fresh=await loadCatalog();data.subjects=fresh.subjects;data.teaching=fresh.teaching;data.teachers=fresh.teachers;
-            const pupils=await call('/curriculum-wpf-roster',{classId,semesterId},'curriculum_manage_enrollment');if(version!==rosterVersion)return;
+            const selectedGroup=groupSelect.value||groups()[0]||'WPF';
+            const subjects=data.subjects.filter(s=>(s.mode==='INDIVIDUAL'||s.wpf)&&(s.assignmentGroup||'WPF')===selectedGroup);
+            const pupils=await call('/curriculum-wpf-roster',{classId,semesterId,assignmentGroup:selectedGroup},'curriculum_manage_enrollment');if(version!==rosterVersion)return;
             const controls=el('div');controls.className='curriculum-table-filters';const search=el('input');search.placeholder='Schüler filtern';const subjectFilter=el('select');[{id:'',name:'Alle Fächer'},...subjects].forEach(s=>{const o=el('option',s.name);o.value=s.id;subjectFilter.append(o)});controls.append(search,subjectFilter);board.append(controls);
             const table=document.createElement('table');table.className='curriculum-wpf-table';const head=table.insertRow();['Schüler','Individuelles Fach','Lehrkraft'].forEach((t,i)=>{const th=document.createElement('th');th.textContent=t;if(i<2){th.className='sortable';th.title='Zum Sortieren klicken';th.addEventListener('click',()=>{const key=i===0?'name':'subject';rows.sort((a,b)=>{const av=key==='name'?a.student.last_name+' '+a.student.first_name:(subjects.find(s=>s.id===Number(a.wpf.value))?.name||'');const bv=key==='name'?b.student.last_name+' '+b.student.first_name:(subjects.find(s=>s.id===Number(b.wpf.value))?.name||'');return av.localeCompare(bv,'de')});rows.forEach(r=>table.append(r.tr));});}head.append(th)});const rows=[];
-            for(const student of pupils){const tr=table.insertRow();tr.insertCell().textContent=student.first_name+' '+student.last_name;const wpf=choice(tr.insertCell(),'WPF',[{id:0,name:'Noch nicht zugeordnet'},...subjects]);wpf.value=String(student.subjectId||0);const teacherCell=tr.insertCell();const teacher=teacherChoice(teacherCell,classId,Number(wpf.value));rows.push({student,tr,wpf,teacherCell,teacher});wpf.addEventListener('change',()=>{teacherCell.replaceChildren();rows.find(r=>r.student.id===student.id).teacher=teacherChoice(teacherCell,classId,Number(wpf.value));});}
+            for(const student of pupils){const tr=table.insertRow();tr.insertCell().textContent=student.first_name+' '+student.last_name;const wpf=choice(tr.insertCell(),selectedGroup,[{id:0,name:'Noch nicht zugeordnet'},...subjects]);wpf.value=String(student.subjectId||0);const teacherCell=tr.insertCell();const teacher=teacherChoice(teacherCell,classId,Number(wpf.value));rows.push({student,tr,wpf,teacherCell,teacher});wpf.addEventListener('change',()=>{teacherCell.replaceChildren();rows.find(r=>r.student.id===student.id).teacher=teacherChoice(teacherCell,classId,Number(wpf.value));});}
             const filter=()=>rows.forEach(r=>{const text=(r.student.first_name+' '+r.student.last_name).toLowerCase();r.tr.hidden=!!(search.value&& !text.includes(search.value.toLowerCase()) || subjectFilter.value && r.wpf.value!==subjectFilter.value);});search.addEventListener('input',filter);subjectFilter.addEventListener('change',filter);
             board.append(table);if(!pupils.length)board.append(el('p','In dieser Klasse sind noch keine Kinder eingetragen.'));
-            action(board,'Alle WPF-Zuordnungen speichern',async()=>{for(const row of rows){const subjectId=Number(row.wpf.value);if(!subjectId)continue;const teacherId=Number(row.teacher.value);if(!teacherId)throw Error('Bitte für jedes gewählte WPF eine Lehrkraft auswählen.');await call('/assign-curriculum-wpf',{studentId:row.student.id,subjectId,classId,semesterId,teacherId,expectedSubjectId:row.student.subjectId??null},'curriculum_manage_enrollment');}status.textContent='WPF- und Lehrkräfte-Zuordnung gespeichert.';});
+            action(board,'Zuordnungen speichern',async()=>{for(const row of rows){const subjectId=Number(row.wpf.value);if(!subjectId)continue;const teacherId=Number(row.teacher.value);if(!teacherId)throw Error('Bitte für jedes gewählte Fach eine Lehrkraft auswählen.');await call('/assign-curriculum-wpf',{studentId:row.student.id,subjectId,classId,semesterId,teacherId,assignmentGroup:selectedGroup,expectedSubjectId:row.student.subjectId??null},'curriculum_manage_enrollment');}status.textContent='Individuelle Fach- und Lehrkräfte-Zuordnung gespeichert.';});
         };
         action(wpfPanel,'WPF-Liste laden',loadRoster);
     }
