@@ -1,6 +1,8 @@
 package de.igslandstuhl.database.api;
 
 import java.sql.SQLException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -17,6 +19,8 @@ import de.igslandstuhl.database.server.sql.SQLHelper;
  * Provides methods to fetch subjects and students from the database.
  */
 public class SchoolClass implements APIObject {
+    public static final int UNASSIGNED_CLASS_ID = 0;
+    public static final String UNASSIGNED_LABEL = "Nicht zugeordnet";
     /**
      * SQL fields for the SchoolClass table.
      * Used for database queries to retrieve class information.
@@ -82,10 +86,12 @@ public class SchoolClass implements APIObject {
     }
 
     public SchoolClass setLabel(String label) throws SQLException {
+        if (id == UNASSIGNED_CLASS_ID) throw new IllegalStateException("Systemklasse darf nicht umbenannt werden");
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("label_of_class", String.valueOf(id), label));
         return get(id);
     }
     public SchoolClass setGrade(int grade) throws SQLException {
+        if (id == UNASSIGNED_CLASS_ID) throw new IllegalStateException("Systemklasse darf nicht verschoben werden");
         if (grade < 1 || grade > 13) throw new IllegalArgumentException("Grade out of range");
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("grade_of_class", String.valueOf(id), String.valueOf(grade)));
         return get(id);
@@ -166,13 +172,19 @@ public class SchoolClass implements APIObject {
     }
 
     public void delete() throws SQLException {
-        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getDeleteObjectProcess("class", String.valueOf(id)));
-        getStudents().forEach((s) -> {
-            try {
-                s.delete();
-            } catch (SQLException e) {
-                throw new IllegalStateException(e);
+        if (id == UNASSIGNED_CLASS_ID) throw new IllegalStateException("Systemklasse darf nicht gelöscht werden");
+        Server.getInstance().getConnection().writeTransaction(c -> {
+            ensureSystemClass(c);
+            try (PreparedStatement moveStudents = c.prepareStatement("UPDATE students SET class=? WHERE class=?")) {
+                moveStudents.setInt(1, UNASSIGNED_CLASS_ID);
+                moveStudents.setInt(2, id);
+                moveStudents.executeUpdate();
             }
+            try (PreparedStatement archive = c.prepareStatement("UPDATE classes SET active=0 WHERE id=?")) {
+                archive.setInt(1, id);
+                archive.executeUpdate();
+            }
+            return null;
         });
     }
 
@@ -186,6 +198,8 @@ public class SchoolClass implements APIObject {
      * @throws SQLException when a database error occurs
      */
     public SchoolClass edit(String name, int grade) throws SQLException {
+        if (id == UNASSIGNED_CLASS_ID) throw new IllegalStateException("Systemklasse darf nicht bearbeitet werden");
+        if (grade < 1 || grade > 13) throw new IllegalArgumentException("Grade out of range");
         Server.getInstance().getConnection().executeVoidProcessSecure(
             SQLHelper.getAddObjectProcess("class_with_id", String.valueOf(id), name, String.valueOf(grade))
         );
@@ -291,8 +305,25 @@ public class SchoolClass implements APIObject {
      * @throws SQLException if there is an error accessing the database
      */
     public static SchoolClass addClass(String label, int grade) throws SQLException {
+        if (grade < 1 || grade > 13) throw new IllegalArgumentException("Grade out of range");
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("class", label, String.valueOf(grade)));
         return get(label);
+    }
+
+    public static void ensureSystemClass(Connection c) throws SQLException {
+        try (PreparedStatement statement = c.prepareStatement(
+                "INSERT OR IGNORE INTO classes(id,label,grade,active) VALUES(?,?,?,1)")) {
+            statement.setInt(1, UNASSIGNED_CLASS_ID);
+            statement.setString(2, UNASSIGNED_LABEL);
+            statement.setInt(3, 0);
+            statement.executeUpdate();
+        }
+        try (PreparedStatement statement = c.prepareStatement(
+                "UPDATE classes SET label=?, grade=0, active=1 WHERE id=?")) {
+            statement.setString(1, UNASSIGNED_LABEL);
+            statement.setInt(2, UNASSIGNED_CLASS_ID);
+            statement.executeUpdate();
+        }
     }
 
     @Override

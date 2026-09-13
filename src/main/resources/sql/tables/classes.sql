@@ -2,5 +2,6 @@ CREATE TABLE IF NOT EXISTS classes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     label TEXT NOT NULL,
     grade INTEGER NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
     UNIQUE(label, grade)
 )

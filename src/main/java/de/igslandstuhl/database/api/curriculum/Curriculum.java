@@ -95,11 +95,12 @@ public final class Curriculum {
         require(c,"SELECT id FROM teachers WHERE id=?",s.teacherId());
         require(c,"SELECT id FROM subjects WHERE id=?",s.subjectId());
         require(c,"SELECT id FROM semesters WHERE id=?",s.semesterId());
-        int grade=integer(require(c,"SELECT grade FROM classes WHERE id=?",s.classId()),"grade");
-        // The existing schema models teacher-class and teacher-subject independently.
-        if(!actor.admin() && (number(c,"SELECT COUNT(*) FROM teacher_classes WHERE teacher_id=? AND class_id=?",s.teacherId(),s.classId())==0
-                || number(c,"SELECT COUNT(*) FROM teacher_subjects WHERE teacher_id=? AND subject_id=?",s.teacherId(),s.subjectId())==0))
-            throw error(403,"forbidden","Teacher must be assigned to both this class and this subject.");
+        var classRow=require(c,"SELECT grade,COALESCE(active,1) AS active FROM classes WHERE id=?",s.classId());
+        int grade=integer(classRow,"grade");
+        if(creating && (s.classId()==SchoolClass.UNASSIGNED_CLASS_ID || grade==0 || integer(classRow,"active")==0))
+            throw error(409,"context_unassigned","This class is not available for a current curriculum context.");
+        if(!actor.admin() && !managedTeacher(c,s,grade) && !legacyTeacher(c,s))
+            throw error(403,"forbidden","Teacher must be assigned to this managed or legacy curriculum context.");
         var previous=rows(c,"SELECT grade FROM flexible_tasks WHERE owner_teacher=? AND subject=? AND class=? AND semester=? UNION SELECT grade FROM student_curriculum_contexts WHERE teacher=? AND subject=? AND class=? AND semester=? UNION SELECT grade FROM flexible_topics WHERE owner_teacher=? AND subject=? AND class=? AND semester=?",
                 s.teacherId(),s.subjectId(),s.classId(),s.semesterId(),s.teacherId(),s.subjectId(),s.classId(),s.semesterId(),s.teacherId(),s.subjectId(),s.classId(),s.semesterId());
         if(previous.size()>1) throw error(409,"context_conflict","Context contains inconsistent historical grades.");
@@ -109,6 +110,26 @@ public final class Curriculum {
             return stored;
         }
         return grade;
+    }
+    static boolean individualSubject(Connection c,int subject) throws SQLException {
+        return number(c,"SELECT COUNT(*) FROM curriculum_subject_types WHERE subject=? AND mode='INDIVIDUAL'",subject)>0;
+    }
+    static String assignmentGroup(Connection c,int subject) throws SQLException {
+        var rows=rows(c,"SELECT assignment_group FROM curriculum_subject_types WHERE subject=? AND mode='INDIVIDUAL'",subject);
+        if(rows.isEmpty() || rows.get(0).get("assignment_group")==null)
+            throw error(400,"invalid_input","Individual subject requires an assignment group.");
+        return String.valueOf(rows.get(0).get("assignment_group"));
+    }
+    static boolean managedTeacher(Connection c,Scope s,int grade) throws SQLException {
+        if(individualSubject(c,s.subjectId()))
+            return number(c,"SELECT COUNT(*) FROM curriculum_grade_teachers WHERE semester=? AND grade=? AND subject=? AND teacher=?",
+                    s.semesterId(),grade,s.subjectId(),s.teacherId())>0;
+        return number(c,"SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=? AND class=? AND subject=? AND teacher=?",
+                s.semesterId(),s.classId(),s.subjectId(),s.teacherId())>0;
+    }
+    private static boolean legacyTeacher(Connection c,Scope s) throws SQLException {
+        return number(c,"SELECT COUNT(*) FROM teacher_classes WHERE teacher_id=? AND class_id=?",s.teacherId(),s.classId())>0
+                && number(c,"SELECT COUNT(*) FROM teacher_subjects WHERE teacher_id=? AND subject_id=?",s.teacherId(),s.subjectId())>0;
     }
     static long central(Connection c,int subject,int grade,int semester) throws SQLException {
         return number(c,"SELECT COALESCE(SUM(t.tokens),0) FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=?",subject,grade,semester);
@@ -339,6 +360,10 @@ public final class Curriculum {
         CurriculumEnrollment.requireSelectedWpf(c,studentId,subject,semester);
         var found=rows(c,"SELECT teacher,class,grade FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",studentId,subject,semester);
         if(found.isEmpty()) throw error(409,"context_unassigned","No curriculum context is assigned for this subject and semester.");
+        int currentClass=integer(require(c,"SELECT class FROM students WHERE id=?",studentId),"class");
+        int assignedClass=integer(found.get(0),"class");
+        if(currentClass==SchoolClass.UNASSIGNED_CLASS_ID || currentClass!=assignedClass)
+            throw error(409,"context_unassigned","No current curriculum context is assigned for this subject and semester.");
         return found.get(0);
     }
     private static int requireAssignment(Connection c,int studentId,Scope scope) throws SQLException {
@@ -455,7 +480,7 @@ public final class Curriculum {
     public Map<String,Object> catalog(Actor actor) throws SQLException {
         return transaction(c->{Map<String,Object> out=new LinkedHashMap<>();out.put("admin",actor.admin());out.put("enrollmentEnabled",true);out.put("teacherId",actor.teacherId());
             out.put("subjects",rows(c,actor.admin()?"SELECT id,name FROM subjects ORDER BY name":"SELECT s.id,s.name FROM subjects s JOIN teacher_subjects t ON t.subject_id=s.id WHERE t.teacher_id=? ORDER BY s.name",actor.admin()?new Object[]{}:new Object[]{actor.teacherId()}));
-            out.put("classes",rows(c,actor.admin()?"SELECT id,label,grade FROM classes ORDER BY grade,label":"SELECT s.id,s.label,s.grade FROM classes s JOIN teacher_classes t ON t.class_id=s.id WHERE t.teacher_id=? ORDER BY s.grade,s.label",actor.admin()?new Object[]{}:new Object[]{actor.teacherId()}));
+            out.put("classes",rows(c,actor.admin()?"SELECT id,label,grade FROM classes WHERE active=1 AND id<>0 ORDER BY grade,label":"SELECT s.id,s.label,s.grade FROM classes s JOIN teacher_classes t ON t.class_id=s.id WHERE t.teacher_id=? AND s.active=1 AND s.id<>0 ORDER BY s.grade,s.label",actor.admin()?new Object[]{}:new Object[]{actor.teacherId()}));
             out.put("semesters",rows(c,"SELECT id,label,school_year FROM semesters ORDER BY school_year,position"));
             if(actor.admin()) out.put("teachers",rows(c,"SELECT id,first_name,last_name FROM teachers ORDER BY id"));
             return out;});

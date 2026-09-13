@@ -888,13 +888,25 @@ class CurriculumTest {
         assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_enrolled_students WHERE semester=?",id));
         assertEquals(id+1,scalar("SELECT teacher FROM student_curriculum_contexts WHERE student=? AND semester=?",id+1,id));
     }
-    @Test void gradeEnrollmentRejectsMissingOrUnauthorizedMappingAtomically() throws Exception {
+    @Test void gradeEnrollmentRejectsMissingMappingAndWorksWithoutLegacyTeacherLinks() throws Exception {
         var enrollment=enrollmentFixture();
         assertThrows(CurriculumException.class,()->enrollment.assignGrade(admin,13,id,List.of(id),List.of(teachingMappings().get(0))));
         db.writeTransaction(c->{exec(c,"DELETE FROM teacher_classes WHERE teacher_id=? AND class_id=?",id+1,id+1);return null;});
-        assertThrows(CurriculumException.class,()->enrollment.assignGrade(admin,13,id,List.of(id),teachingMappings()));
-        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE semester=?",id));
-        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_grade_subjects WHERE semester=?",id));
+        enrollment.assignGrade(admin,13,id,List.of(id),teachingMappings());
+        assertEquals(2,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE semester=?",id));
+        assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=?",id));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_grade_subjects WHERE semester=?",id));
+    }
+    @Test void archivedClassMovesStudentsToSystemClassAndStopsCurrentContext() throws Exception {
+        SchoolClass.get(id).delete();
+        assertEquals(1,scalar("SELECT COUNT(*) FROM students WHERE id=?",id));
+        assertEquals(SchoolClass.UNASSIGNED_CLASS_ID,scalar("SELECT class FROM students WHERE id=?",id));
+        assertNotNull(SchoolClass.get(id));
+        assertEquals(0,scalar("SELECT active FROM classes WHERE id=?",id));
+        assertFalse(SchoolClass.getAll().stream().anyMatch(c -> c.getId() == id));
+        var error=assertThrows(CurriculumException.class,()->service.studentProgress(Student.get(id),id,id));
+        assertEquals("context_unassigned",error.code);
+        assertThrows(IllegalStateException.class,()->SchoolClass.get(SchoolClass.UNASSIGNED_CLASS_ID).delete());
     }
     @Test void gradeEnrollmentExcludesWpfAndTeacherCannotAssign() throws Exception {
         var enrollment=enrollmentFixture();enrollment.subjectType(admin,id,true);
@@ -907,13 +919,13 @@ class CurriculumTest {
         var enrollment=enrollmentFixture();enrollment.subjectType(admin,id+1,true);
         var wpf=new Curriculum.Scope(id,id+1,id,id);
         enrollment.assignWpf(admin,id,wpf,null);
-        assertEquals(id+1,scalar("SELECT subject FROM curriculum_wpf_assignments WHERE student=? AND semester=?",id,id));
-        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_wpf_assignments WHERE student=?",id+1));
+        assertEquals(id+1,scalar("SELECT subject FROM curriculum_individual_assignments WHERE student=? AND semester=? AND assignment_group='WPF'",id,id));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_individual_assignments WHERE student=?",id+1));
         assertThrows(CurriculumException.class,()->enrollment.assignWpf(admin,id,wpf,null));
         assertThrows(CurriculumException.class,()->enrollment.assignWpf(admin,id+1,wpf,null));
         assertThrows(CurriculumException.class,()->enrollment.assignWpf(teacher,id,wpf,id+1));
         enrollment.assignWpf(admin,id,wpf,id+1);
-        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_wpf_assignments WHERE student=? AND semester=?",id,id));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_individual_assignments WHERE student=? AND semester=? AND assignment_group='WPF'",id,id));
         assertEquals(1,enrollment.wpfRoster(admin,id,id).size());
     }
     @Test void wpfSwapKeepsOneChoiceAndPreservesOldContextWithoutAwardLoss() throws Exception {
@@ -927,6 +939,42 @@ class CurriculumTest {
         assertThrows(CurriculumException.class,()->enrollment.assignWpf(admin,id,new Curriculum.Scope(id,id+1,id,id),id));
         assertEquals(List.of(id),enrollment.selectedWpf(id,id));
         assertEquals(5L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+    }
+    @Test void individualGroupsAllowWpfAndReligionEthikInParallel() throws Exception {
+        var enrollment=enrollmentFixture();
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",id+2,"Evangelische Religion "+id);
+            return null;
+        });
+        enrollment.subjectType(admin,id+1,"INDIVIDUAL","WPF");
+        enrollment.subjectType(admin,id+2,"INDIVIDUAL","RELIGION_ETHIK");
+        db.writeTransaction(c->{
+            exec(c,"DELETE FROM teacher_classes WHERE teacher_id=?",id);
+            exec(c,"DELETE FROM teacher_subjects WHERE teacher_id=?",id);
+            return null;
+        });
+        enrollment.assignIndividual(admin,id,new Curriculum.Scope(id,id+1,id,id),"WPF",null);
+        enrollment.assignIndividual(admin,id,new Curriculum.Scope(id,id+2,id,id),"RELIGION_ETHIK",null);
+        assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_individual_assignments WHERE student=? AND semester=?",id,id));
+        assertEquals(Set.of(id+1,id+2),Set.copyOf(enrollment.studentSubjects(id,id)));
+        assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_grade_teachers WHERE semester=? AND grade=13",id));
+    }
+    @Test void individualAssignmentAllowsOnlyOneSubjectPerGroup() throws Exception {
+        var enrollment=enrollmentFixture();
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",id+2,"WPF Kunst "+id);
+            exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",id+3,"Ethik "+id);
+            return null;
+        });
+        enrollment.subjectType(admin,id+1,"INDIVIDUAL","WPF");
+        enrollment.subjectType(admin,id+2,"INDIVIDUAL","WPF");
+        enrollment.subjectType(admin,id+3,"INDIVIDUAL","RELIGION_ETHIK");
+        enrollment.assignIndividual(admin,id,new Curriculum.Scope(id,id+1,id,id),"WPF",null);
+        assertEquals(409,assertThrows(CurriculumException.class,()->enrollment.assignIndividual(admin,id,new Curriculum.Scope(id,id+2,id,id),"WPF",null)).status);
+        enrollment.assignIndividual(admin,id,new Curriculum.Scope(id,id+2,id,id),"WPF",id+1);
+        assertEquals(id+2,scalar("SELECT subject FROM curriculum_individual_assignments WHERE student=? AND semester=? AND assignment_group='WPF'",id,id));
+        enrollment.assignIndividual(admin,id,new Curriculum.Scope(id,id+3,id,id),"RELIGION_ETHIK",null);
+        assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_individual_assignments WHERE student=? AND semester=?",id,id));
     }
     @Test void publicationDefaultsClosedAndSupportsWholeTopicAndTaskOverrides() throws Exception {
         var enrollment=new CurriculumEnrollment(service);int a=central(5),b=service.createCentralTask(topic,"Second",TaskLevel.LEVEL1,6);

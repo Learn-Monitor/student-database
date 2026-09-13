@@ -18,7 +18,7 @@ public final class CurriculumRequestHandler {
                 "/flexible-tasks","/add-flexible-task","/edit-flexible-task","/complete-flexible-task",
                 "/flexible-curriculum-structure","/add-flexible-topic","/rename-flexible-topic","/curriculum-releases","/set-curriculum-release"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
-        for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task","/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester"))
+        for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task","/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-progress",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-catalog",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
@@ -90,7 +90,14 @@ public final class CurriculumRequestHandler {
             switch(rq.getPath()) {
                 case "/curriculum-enrollment-catalog" -> result=enrollment.catalog(actor);
                 case "/create-curriculum-semester" -> result=enrollment.createNextSemester(actor);
-                case "/set-curriculum-subject-type" -> {enrollment.subjectType(actor,integer(rq,"subjectId"),bool(rq,"wpf"));result=Map.of("ok",true);}
+                case "/activate-curriculum-semester" -> {enrollment.activateSemester(actor,integer(rq,"semesterId"));result=Map.of("ok",true);}
+                case "/set-curriculum-subject-type" -> {
+                    if(rq.containsKey("mode")) {
+                        Object group=rq.getJson().get("assignmentGroup");
+                        enrollment.subjectType(actor,integer(rq,"subjectId"),String.valueOf(rq.getJson().get("mode")),group==null?null:String.valueOf(group));
+                    } else enrollment.subjectType(actor,integer(rq,"subjectId"),bool(rq,"wpf"));
+                    result=Map.of("ok",true);
+                }
                 case "/remove-grade-curriculum-subject" -> {enrollment.removeGradeSubject(actor,integer(rq,"grade"),integer(rq,"semesterId"),integer(rq,"subjectId"));result=Map.of("ok",true);}
                 case "/assign-grade-curriculum" -> {
                     List<Integer> subjects=new ArrayList<>();for(Object value:list(rq,"subjectIds"))subjects.add(integer(value,"subjectId"));
@@ -101,10 +108,15 @@ public final class CurriculumRequestHandler {
                     }
                     result=enrollment.assignGrade(actor,integer(rq,"grade"),integer(rq,"semesterId"),subjects,teaching);
                 }
-                case "/curriculum-wpf-roster" -> result=enrollment.wpfRoster(actor,integer(rq,"classId"),integer(rq,"semesterId"));
+                case "/curriculum-wpf-roster" -> result=rq.containsKey("assignmentGroup")
+                        ? enrollment.individualRoster(actor,integer(rq,"classId"),integer(rq,"semesterId"),String.valueOf(rq.getJson().get("assignmentGroup")))
+                        : enrollment.wpfRoster(actor,integer(rq,"classId"),integer(rq,"semesterId"));
                 case "/assign-curriculum-wpf" -> {
                     if(!rq.containsKey("expectedSubjectId"))throw new CurriculumException(400,"invalid_input","Expected WPF assignment required.");
-                    enrollment.assignWpf(actor,integer(rq,"studentId"),scope(rq,actor),rq.getJson().get("expectedSubjectId")==null?null:integer(rq,"expectedSubjectId"));result=Map.of("ok",true);
+                    if(rq.containsKey("assignmentGroup"))
+                        enrollment.assignIndividual(actor,integer(rq,"studentId"),scope(rq,actor),String.valueOf(rq.getJson().get("assignmentGroup")),rq.getJson().get("expectedSubjectId")==null?null:integer(rq,"expectedSubjectId"));
+                    else enrollment.assignWpf(actor,integer(rq,"studentId"),scope(rq,actor),rq.getJson().get("expectedSubjectId")==null?null:integer(rq,"expectedSubjectId"));
+                    result=Map.of("ok",true);
                 }
                 case "/curriculum-releases" -> result=enrollment.releases(actor,scope(rq,actor));
                 case "/set-curriculum-release" -> {enrollment.release(actor,scope(rq,actor),rq.containsKey("topicId")?integer(rq,"topicId"):null,rq.containsKey("taskId")?integer(rq,"taskId"):null,bool(rq,"active"));result=Map.of("ok",true);}
