@@ -35,7 +35,7 @@ public final class Curriculum {
                                int grade, String name, int tokens) {
         Scope scope() { return new Scope(ownerTeacher, subjectId, classId, semesterId); }
     }
-    private static CurriculumException error(int status, String code, String message) {
+    static CurriculumException error(int status, String code, String message) {
         return new CurriculumException(status, code, message);
     }
     public static String validName(String value) {
@@ -47,10 +47,10 @@ public final class Curriculum {
     private static void tokens(int value) {
         if (value < 0) throw error(400, "invalid_input", "Tokens cannot be negative.");
     }
-    private static void admin(Actor actor) {
+    static void admin(Actor actor) {
         if (!actor.admin()) throw error(403, "forbidden", "Only administrators may change central curriculum.");
     }
-    private static List<Map<String,Object>> rows(Connection c, String sql, Object... args) throws SQLException {
+    static List<Map<String,Object>> rows(Connection c, String sql, Object... args) throws SQLException {
         try (PreparedStatement s=c.prepareStatement(sql)) {
             for(int i=0;i<args.length;i++) s.setObject(i+1,args[i]);
             try(ResultSet r=s.executeQuery()) {
@@ -64,25 +64,25 @@ public final class Curriculum {
             }
         }
     }
-    private static long number(Connection c, String sql, Object... args) throws SQLException {
+    static long number(Connection c, String sql, Object... args) throws SQLException {
         return ((Number)rows(c,sql,args).get(0).values().iterator().next()).longValue();
     }
-    private static int integer(Map<String,Object> row,String key) { return ((Number)row.get(key)).intValue(); }
-    private static Map<String,Object> require(Connection c,String sql,Object...args) throws SQLException {
+    static int integer(Map<String,Object> row,String key) { return ((Number)row.get(key)).intValue(); }
+    static Map<String,Object> require(Connection c,String sql,Object...args) throws SQLException {
         var result=rows(c,sql,args);
         if(result.isEmpty()) throw error(404,"not_found","Requested curriculum object does not exist.");
         return result.get(0);
     }
-    private static int write(Connection c,String sql,Object...args) throws SQLException {
+    static int write(Connection c,String sql,Object...args) throws SQLException {
         try(PreparedStatement s=c.prepareStatement(sql)) {
             for(int i=0;i<args.length;i++) s.setObject(i+1,args[i]);
             return s.executeUpdate();
         }
     }
-    private <T> T transaction(SQLiteConnection.Transaction<T> work) throws SQLException {
+    <T> T transaction(SQLiteConnection.Transaction<T> work) throws SQLException {
         return transaction(work, result -> {});
     }
-    private <T> T transaction(SQLiteConnection.Transaction<T> work, java.util.function.Consumer<T> committed) throws SQLException {
+    <T> T transaction(SQLiteConnection.Transaction<T> work, java.util.function.Consumer<T> committed) throws SQLException {
         try { return database.writeTransaction(work, committed); }
         catch(SQLException e) {
             if(e.getErrorCode()==19) throw error(409,"conflict","The name already exists in this scope or a referenced object changed.");
@@ -90,7 +90,7 @@ public final class Curriculum {
             throw e;
         }
     }
-    private static int authorize(Connection c, Actor actor, Scope s, boolean creating) throws SQLException {
+    static int authorize(Connection c, Actor actor, Scope s, boolean creating) throws SQLException {
         if(!actor.admin() && actor.teacherId()!=s.teacherId()) throw error(403,"forbidden","This context belongs to another teacher.");
         require(c,"SELECT id FROM teachers WHERE id=?",s.teacherId());
         require(c,"SELECT id FROM subjects WHERE id=?",s.subjectId());
@@ -100,8 +100,8 @@ public final class Curriculum {
         if(!actor.admin() && (number(c,"SELECT COUNT(*) FROM teacher_classes WHERE teacher_id=? AND class_id=?",s.teacherId(),s.classId())==0
                 || number(c,"SELECT COUNT(*) FROM teacher_subjects WHERE teacher_id=? AND subject_id=?",s.teacherId(),s.subjectId())==0))
             throw error(403,"forbidden","Teacher must be assigned to both this class and this subject.");
-        var previous=rows(c,"SELECT grade FROM flexible_tasks WHERE owner_teacher=? AND subject=? AND class=? AND semester=? UNION SELECT grade FROM student_curriculum_contexts WHERE teacher=? AND subject=? AND class=? AND semester=?",
-                s.teacherId(),s.subjectId(),s.classId(),s.semesterId(),s.teacherId(),s.subjectId(),s.classId(),s.semesterId());
+        var previous=rows(c,"SELECT grade FROM flexible_tasks WHERE owner_teacher=? AND subject=? AND class=? AND semester=? UNION SELECT grade FROM student_curriculum_contexts WHERE teacher=? AND subject=? AND class=? AND semester=? UNION SELECT grade FROM flexible_topics WHERE owner_teacher=? AND subject=? AND class=? AND semester=?",
+                s.teacherId(),s.subjectId(),s.classId(),s.semesterId(),s.teacherId(),s.subjectId(),s.classId(),s.semesterId(),s.teacherId(),s.subjectId(),s.classId(),s.semesterId());
         if(previous.size()>1) throw error(409,"context_conflict","Context contains inconsistent historical grades.");
         if(!previous.isEmpty()) {
             int stored=integer(previous.get(0),"grade");
@@ -110,14 +110,14 @@ public final class Curriculum {
         }
         return grade;
     }
-    private static long central(Connection c,int subject,int grade,int semester) throws SQLException {
+    static long central(Connection c,int subject,int grade,int semester) throws SQLException {
         return number(c,"SELECT COALESCE(SUM(t.tokens),0) FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=?",subject,grade,semester);
     }
-    private static long flexible(Connection c,Scope s) throws SQLException {
+    static long flexible(Connection c,Scope s) throws SQLException {
         return number(c,"SELECT COALESCE(SUM(tokens),0) FROM flexible_tasks WHERE owner_teacher=? AND subject=? AND class=? AND semester=?",
                 s.teacherId(),s.subjectId(),s.classId(),s.semesterId());
     }
-    private static void limit(List<Budget> budgets) {
+    static void limit(List<Budget> budgets) {
         var exceeded=budgets.stream().filter(b->b.totalTokens()>HARD_LIMIT).toList();
         if(!exceeded.isEmpty()) throw new CurriculumException(409,"budget_exceeded","The 105-token limit would be exceeded in the listed contexts.",exceeded);
     }
@@ -172,25 +172,78 @@ public final class Curriculum {
                 scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId()).stream().map(Curriculum::task).toList();});
     }
     public FlexibleTask create(Actor actor,Scope scope,String name,int tokenValue) throws SQLException {
+        return create(actor,scope,name,tokenValue,null);
+    }
+    public FlexibleTask create(Actor actor,Scope scope,String name,int tokenValue,Integer topicId) throws SQLException {
         String value=validName(name);tokens(tokenValue);
         return transaction(c->{int grade=authorize(c,actor,scope,true);
             limit(List.of(Budget.of(scope,grade,central(c,scope.subjectId(),grade,scope.semesterId()),flexible(c,scope)+tokenValue)));
             write(c,"INSERT INTO flexible_tasks(owner_teacher,subject,class,semester,grade,name,tokens) VALUES(?,?,?,?,?,?,?)",
                     scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade,value,tokenValue);
-            return task(require(c,"SELECT * FROM flexible_tasks WHERE id=last_insert_rowid()"));});
+            var created=task(require(c,"SELECT * FROM flexible_tasks WHERE id=last_insert_rowid()"));
+            setFlexibleTopic(c,created,topicId);
+            return created;});
     }
     public FlexibleTask edit(Actor actor,int id,String name,int tokenValue) throws SQLException {
+        return edit(actor,id,name,tokenValue,false,null);
+    }
+    /** An omitted topic preserves the old association; explicit null removes it. */
+    public FlexibleTask edit(Actor actor,int id,String name,int tokenValue,boolean updateTopic,Integer topicId) throws SQLException {
         String value=validName(name);tokens(tokenValue);
         return transaction(c->{FlexibleTask old=task(require(c,"SELECT * FROM flexible_tasks WHERE id=?",id));
             authorize(c,actor,old.scope(),false);
             limit(List.of(Budget.of(old.scope(),old.grade(),central(c,old.subjectId(),old.grade(),old.semesterId()),flexible(c,old.scope())-old.tokens()+tokenValue)));
             write(c,"UPDATE flexible_tasks SET name=?,tokens=? WHERE id=?",value,tokenValue,id);
+            if(updateTopic) setFlexibleTopic(c,old,topicId);
             return task(require(c,"SELECT * FROM flexible_tasks WHERE id=?",id));});
+    }
+
+    private static void setFlexibleTopic(Connection c,FlexibleTask task,Integer topicId) throws SQLException {
+        if(topicId==null) {
+            write(c,"DELETE FROM flexible_task_topics WHERE flexible_task=?",task.id());
+            return;
+        }
+        var topic=require(c,"SELECT * FROM flexible_topics WHERE id=?",topicId);
+        if(integer(topic,"owner_teacher")!=task.ownerTeacher() || integer(topic,"subject")!=task.subjectId()
+                || integer(topic,"class")!=task.classId() || integer(topic,"semester")!=task.semesterId()
+                || integer(topic,"grade")!=task.grade())
+            throw error(403,"forbidden","Topic does not belong to this task's context.");
+        write(c,"INSERT INTO flexible_task_topics(flexible_task,flexible_topic) VALUES(?,?) ON CONFLICT(flexible_task) DO UPDATE SET flexible_topic=excluded.flexible_topic",task.id(),topicId);
+    }
+    private static List<Map<String,Object>> flexibleTopics(Connection c,Scope scope) throws SQLException {
+        return rows(c,"SELECT id,name FROM flexible_topics WHERE owner_teacher=? AND subject=? AND class=? AND semester=? ORDER BY id",
+                scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId());
+    }
+    private static List<Map<String,Object>> plannedFlexibleTasks(Connection c,Scope scope) throws SQLException {
+        return rows(c,"SELECT t.id,t.name,t.tokens,p.id AS topicId,p.name AS topicName FROM flexible_tasks t "
+                + "LEFT JOIN flexible_task_topics m ON m.flexible_task=t.id LEFT JOIN flexible_topics p ON p.id=m.flexible_topic "
+                + "AND p.owner_teacher=t.owner_teacher AND p.subject=t.subject AND p.class=t.class AND p.semester=t.semester AND p.grade=t.grade "
+                + "WHERE t.owner_teacher=? AND t.subject=? AND t.class=? AND t.semester=? ORDER BY t.id",
+                scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId());
+    }
+    public Map<String,Object> flexibleStructure(Actor actor,Scope scope) throws SQLException {
+        return transaction(c->{authorize(c,actor,scope,false);
+            return Map.of("topics",flexibleTopics(c,scope),"tasks",plannedFlexibleTasks(c,scope));});
+    }
+    public int createFlexibleTopic(Actor actor,Scope scope,String name) throws SQLException {
+        String value=validName(name);
+        return transaction(c->{int grade=authorize(c,actor,scope,true);
+            write(c,"INSERT INTO flexible_topics(owner_teacher,subject,class,semester,grade,name) VALUES(?,?,?,?,?,?)",
+                    scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade,value);
+            return (int)number(c,"SELECT last_insert_rowid()");});
+    }
+    public void renameFlexibleTopic(Actor actor,int topicId,String name) throws SQLException {
+        String value=validName(name);
+        transaction(c->{var topic=require(c,"SELECT * FROM flexible_topics WHERE id=?",topicId);
+            authorize(c,actor,new Scope(integer(topic,"owner_teacher"),integer(topic,"subject"),integer(topic,"class"),integer(topic,"semester")),false);
+            write(c,"UPDATE flexible_topics SET name=? WHERE id=?",value,topicId);return null;});
     }
     /** Assignment is administrative; teacher/class and teacher/subject memberships must exist even for admins. */
     public void assign(Actor actor, int studentId, Scope scope) throws SQLException {
         admin(actor);
-        transaction(c -> {
+        transaction(c -> { assign(c,studentId,scope); return null; });
+    }
+    static void assign(Connection c,int studentId,Scope scope) throws SQLException {
             int grade = authorize(c, new Actor(false, scope.teacherId()), scope, true);
             if (integer(require(c,"SELECT class FROM students WHERE id=?",studentId),"class") != scope.classId())
                 throw error(403,"forbidden","Student does not belong to this context's class.");
@@ -203,12 +256,10 @@ public final class Curriculum {
             write(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,?) "
                     + "ON CONFLICT(student,subject,semester) DO UPDATE SET teacher=excluded.teacher,class=excluded.class,grade=excluded.grade",
                     studentId,scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),grade);
-            return null;
-        });
     }
     private static final String ACTIVE_COMPLETION = " NOT EXISTS (SELECT 1 FROM curriculum_completion_transfers m WHERE m.student=x.student AND m.source_task=x.flexible_task) ";
     public record Transfer(int sourceTaskId,int targetTaskId,int tokens) {}
-    private static Scope assignmentScope(Map<String,Object> assignment,int subject,int semester) {
+    static Scope assignmentScope(Map<String,Object> assignment,int subject,int semester) {
         return new Scope(integer(assignment,"teacher"),subject,integer(assignment,"class"),semester);
     }
     private static List<FlexibleTask> activeTasks(Connection c,int student,int subject,int semester) throws SQLException {
@@ -278,13 +329,14 @@ public final class Curriculum {
             return null;
         });
     }
-    private static void compatibleCompletions(Connection c, int studentId, Scope scope, int grade) throws SQLException {
+    static void compatibleCompletions(Connection c, int studentId, Scope scope, int grade) throws SQLException {
         if (number(c,"SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task "
                 + "WHERE x.student=? AND t.subject=? AND t.semester=? AND " + ACTIVE_COMPLETION + " AND (t.owner_teacher<>? OR t.class<>? OR t.grade<>?)",
                 studentId,scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),grade)>0)
             throw error(409,"context_conflict","Completed flexible tasks belong to a different context; an explicit correction is required.");
     }
-    private static Map<String,Object> assigned(Connection c,int studentId,int subject,int semester) throws SQLException {
+    static Map<String,Object> assigned(Connection c,int studentId,int subject,int semester) throws SQLException {
+        CurriculumEnrollment.requireSelectedWpf(c,studentId,subject,semester);
         var found=rows(c,"SELECT teacher,class,grade FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",studentId,subject,semester);
         if(found.isEmpty()) throw error(409,"context_unassigned","No curriculum context is assigned for this subject and semester.");
         return found.get(0);
@@ -360,9 +412,48 @@ public final class Curriculum {
             return progress(c,studentId,new Scope(integer(assignment,"teacher"),subject,integer(assignment,"class"),semester));});
     }
 
+    /** Plans and earned values are one consistent read of the assigned historical context. */
+    public Map<String,Object> studentCatalog(User user,int subject,int semester) throws SQLException {
+        if(user==null || user==User.ANONYMOUS) throw error(401,"unauthorized","Please sign in.");
+        if(!user.isStudent()) throw error(403,"forbidden","Student session required.");
+        int studentId=user.asStudent().getId();
+        return transaction(c->{
+            require(c,"SELECT id FROM students WHERE id=?",studentId);
+            var assignment=assigned(c,studentId,subject,semester);
+            var scope=assignmentScope(assignment,subject,semester);
+            int grade=integer(assignment,"grade");
+            var earned=progress(c,studentId,scope);
+            Set<Integer> centralDone=new HashSet<>(),flexibleDone=new HashSet<>();
+            for(Object entry:(List<?>)earned.get("completedCentralTasks")) centralDone.add(((CompletedCentralTask)entry).id());
+            for(Object entry:(List<?>)earned.get("completedFlexibleTasks")) flexibleDone.add(((CompletedFlexibleTask)entry).id());
+            var centralTasks=rows(c,"SELECT t.id,t.name,t.tokens,t.niveau,p.id AS topicId,p.name AS topicName FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=? ORDER BY p.number,t.id",subject,grade,semester);
+            var visibleCentral=new ArrayList<Map<String,Object>>();
+            for(var task:centralTasks) {
+                boolean active=CurriculumEnrollment.released(c,scope,integer(task,"id"),integer(task,"topicId"));
+                task.put("active",active);
+                if(active || centralDone.contains(integer(task,"id")))visibleCentral.add(task);
+            }
+            centralTasks=visibleCentral;
+            var visibleTopics=new ArrayList<Map<String,Object>>();
+            for(var topic:rows(c,"SELECT id,name,number FROM topics WHERE subject=? AND grade=? AND semester=? ORDER BY number,id",subject,grade,semester)) {
+                int topicId=integer(topic,"id");
+                if(CurriculumEnrollment.topicReleased(c,scope,topicId) || centralTasks.stream().anyMatch(t->integer(t,"topicId")==topicId))visibleTopics.add(topic);
+            }
+            var flexibleTasks=plannedFlexibleTasks(c,scope);
+            centralTasks.forEach(t->t.put("completed",centralDone.contains(integer(t,"id"))));
+            flexibleTasks.forEach(t->t.put("completed",flexibleDone.contains(integer(t,"id"))));
+            long centralPlanned=central(c,subject,grade,semester),flexiblePlanned=flexible(c,scope);
+            return Map.of("semesterId",semester,
+                    "centralTopics",visibleTopics,
+                    "centralTasks",centralTasks,"flexibleTopics",flexibleTopics(c,scope),"flexibleTasks",flexibleTasks,
+                    "planned",Map.of("centralTokens",centralPlanned,"flexibleTokens",flexiblePlanned,"totalTokens",centralPlanned+flexiblePlanned,"regularLimit",REGULAR_LIMIT,"hardLimit",HARD_LIMIT,"unreleasedCentralTokens",centralPlanned-centralTasks.stream().mapToLong(t->integer(t,"tokens")).sum()),
+                    "progress",earned);
+        });
+    }
+
     /** Fresh catalog restricted to the actor's assignments; no credentials or student data. */
     public Map<String,Object> catalog(Actor actor) throws SQLException {
-        return transaction(c->{Map<String,Object> out=new LinkedHashMap<>();out.put("admin",actor.admin());out.put("teacherId",actor.teacherId());
+        return transaction(c->{Map<String,Object> out=new LinkedHashMap<>();out.put("admin",actor.admin());out.put("enrollmentEnabled",true);out.put("teacherId",actor.teacherId());
             out.put("subjects",rows(c,actor.admin()?"SELECT id,name FROM subjects ORDER BY name":"SELECT s.id,s.name FROM subjects s JOIN teacher_subjects t ON t.subject_id=s.id WHERE t.teacher_id=? ORDER BY s.name",actor.admin()?new Object[]{}:new Object[]{actor.teacherId()}));
             out.put("classes",rows(c,actor.admin()?"SELECT id,label,grade FROM classes ORDER BY grade,label":"SELECT s.id,s.label,s.grade FROM classes s JOIN teacher_classes t ON t.class_id=s.id WHERE t.teacher_id=? ORDER BY s.grade,s.label",actor.admin()?new Object[]{}:new Object[]{actor.teacherId()}));
             out.put("semesters",rows(c,"SELECT id,label,school_year FROM semesters ORDER BY school_year,position"));

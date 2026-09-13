@@ -15,11 +15,13 @@ public final class CurriculumRequestHandler {
     private CurriculumRequestHandler() {}
     public static void registerHandlers() {
         for(String path:List.of("/curriculum-catalog","/curriculum-structure","/curriculum-budget","/curriculum-progress",
-                "/flexible-tasks","/add-flexible-task","/edit-flexible-task","/complete-flexible-task"))
+                "/flexible-tasks","/add-flexible-task","/edit-flexible-task","/complete-flexible-task",
+                "/flexible-curriculum-structure","/add-flexible-topic","/rename-flexible-topic","/curriculum-releases","/set-curriculum-release"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
-        for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task","/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context"))
+        for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task","/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-progress",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
+        HttpHandler.registerPostRequestHandler("/my-curriculum-catalog",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
     }
     private static int integer(APIPostRequest rq,String key) {
         return integer(rq.getJson().get(key),key);
@@ -32,10 +34,21 @@ public final class CurriculumRequestHandler {
             return result; }
         catch(ArithmeticException e) { throw new CurriculumException(400,"invalid_input",key+" is out of range."); }
     }
+    private static boolean bool(APIPostRequest rq,String key) {
+        if(!(rq.getJson().get(key) instanceof Boolean b)) throw new CurriculumException(400,"invalid_input",key+" must be boolean.");
+        return b;
+    }
+    private static List<?> list(APIPostRequest rq,String key) {
+        if(!(rq.getJson().get(key) instanceof List<?> values))throw new CurriculumException(400,"invalid_input",key+" must be a list.");
+        return values;
+    }
     private static String name(APIPostRequest rq) {
         Object value=rq.getJson().get("name");
         if(!(value instanceof String s)) throw new CurriculumException(400,"invalid_input","name must be a string.");
         return s;
+    }
+    private static Integer optionalTopic(APIPostRequest rq) {
+        return !rq.containsKey("topicId") || rq.getJson().get("topicId")==null ? null : integer(rq,"topicId");
     }
     private static Curriculum.Scope scope(APIPostRequest rq,Curriculum.Actor actor) {
         return scope(rq,actor,false);
@@ -58,7 +71,7 @@ public final class CurriculumRequestHandler {
         try {
             if (rq.getJson() == null) throw new CurriculumException(400,"invalid_input","JSON object required.");
             Curriculum service=Curriculum.current();
-            if(rq.getPath().equals("/my-curriculum-progress")) {
+            if(rq.getPath().equals("/my-curriculum-progress") || rq.getPath().equals("/my-curriculum-catalog")) {
                 if(rq.containsKey("studentId") || rq.containsKey("teacherId") || rq.containsKey("classId") || rq.containsKey("grade"))
                     throw new CurriculumException(400,"invalid_input","Student context is derived from the session and assignment.");
                 // Preserve session rejection before resolving optional server-side context.
@@ -66,11 +79,36 @@ public final class CurriculumRequestHandler {
                     throw new CurriculumException(401,"unauthorized","Please sign in.");
                 if(!rq.getUser().isStudent())
                     throw new CurriculumException(403,"forbidden","Student session required.");
-                return PostResponse.json(service.studentProgress(rq.getUser(),integer(rq,"subjectId"),effectiveSemesterId(rq)),rq);
+                int subject=integer(rq,"subjectId"),semester=effectiveSemesterId(rq);
+                return PostResponse.json(rq.getPath().equals("/my-curriculum-catalog")
+                        ? service.studentCatalog(rq.getUser(),subject,semester)
+                        : service.studentProgress(rq.getUser(),subject,semester),rq);
             }
             Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
+            CurriculumEnrollment enrollment=new CurriculumEnrollment(service);
             Object result;
             switch(rq.getPath()) {
+                case "/curriculum-enrollment-catalog" -> result=enrollment.catalog(actor);
+                case "/create-curriculum-semester" -> result=enrollment.createNextSemester(actor);
+                case "/set-curriculum-subject-type" -> {enrollment.subjectType(actor,integer(rq,"subjectId"),bool(rq,"wpf"));result=Map.of("ok",true);}
+                case "/remove-grade-curriculum-subject" -> {enrollment.removeGradeSubject(actor,integer(rq,"grade"),integer(rq,"semesterId"),integer(rq,"subjectId"));result=Map.of("ok",true);}
+                case "/assign-grade-curriculum" -> {
+                    List<Integer> subjects=new ArrayList<>();for(Object value:list(rq,"subjectIds"))subjects.add(integer(value,"subjectId"));
+                    List<CurriculumEnrollment.Teaching> teaching=new ArrayList<>();
+                    for(Object value:list(rq,"teaching")) {
+                        if(!(value instanceof Map<?,?> m))throw new CurriculumException(400,"invalid_input","Invalid teaching assignment.");
+                        teaching.add(new CurriculumEnrollment.Teaching(integer(m.get("classId"),"classId"),integer(m.get("subjectId"),"subjectId"),integer(m.get("teacherId"),"teacherId")));
+                    }
+                    result=enrollment.assignGrade(actor,integer(rq,"grade"),integer(rq,"semesterId"),subjects,teaching);
+                }
+                case "/curriculum-wpf-roster" -> result=enrollment.wpfRoster(actor,integer(rq,"classId"),integer(rq,"semesterId"));
+                case "/assign-curriculum-wpf" -> {
+                    if(!rq.containsKey("expectedSubjectId"))throw new CurriculumException(400,"invalid_input","Expected WPF assignment required.");
+                    enrollment.assignWpf(actor,integer(rq,"studentId"),scope(rq,actor),rq.getJson().get("expectedSubjectId")==null?null:integer(rq,"expectedSubjectId"));result=Map.of("ok",true);
+                }
+                case "/curriculum-releases" -> result=enrollment.releases(actor,scope(rq,actor));
+                case "/set-curriculum-release" -> {enrollment.release(actor,scope(rq,actor),rq.containsKey("topicId")?integer(rq,"topicId"):null,rq.containsKey("taskId")?integer(rq,"taskId"):null,bool(rq,"active"));result=Map.of("ok",true);}
+
                 case "/curriculum-transfer-preview" -> result=service.transferPreview(actor,integer(rq,"studentId"),scope(rq,actor));
                 case "/transfer-curriculum-context" -> {
                     if(!actor.admin()) throw new CurriculumException(403,"forbidden","Administrator required.");
@@ -92,8 +130,11 @@ public final class CurriculumRequestHandler {
                 case "/curriculum-budget" -> result=service.budget(actor,scope(rq,actor));
                 case "/curriculum-progress" -> result=service.progress(actor,integer(rq,"studentId"),scope(rq,actor,true));
                 case "/flexible-tasks" -> result=service.list(actor,scope(rq,actor));
-                case "/add-flexible-task" -> result=service.create(actor,scope(rq,actor),name(rq),integer(rq,"tokens"));
-                case "/edit-flexible-task" -> result=service.edit(actor,integer(rq,"taskId"),name(rq),integer(rq,"tokens"));
+                case "/flexible-curriculum-structure" -> result=service.flexibleStructure(actor,scope(rq,actor));
+                case "/add-flexible-topic" -> result=Map.of("id",service.createFlexibleTopic(actor,scope(rq,actor),name(rq)));
+                case "/rename-flexible-topic" -> {service.renameFlexibleTopic(actor,integer(rq,"topicId"),name(rq));result=Map.of("ok",true);}
+                case "/add-flexible-task" -> result=service.create(actor,scope(rq,actor),name(rq),integer(rq,"tokens"),optionalTopic(rq));
+                case "/edit-flexible-task" -> result=service.edit(actor,integer(rq,"taskId"),name(rq),integer(rq,"tokens"),rq.containsKey("topicId"),optionalTopic(rq));
                 case "/complete-flexible-task" -> {service.complete(actor,integer(rq,"taskId"),integer(rq,"studentId"));result=Map.of("ok",true);}
                 case "/rename-topic" -> {service.renameTopic(actor,integer(rq,"topicId"),name(rq));result=Map.of("ok",true);}
                 case "/edit-task" -> {service.editTask(actor,integer(rq,"taskId"),name(rq),integer(rq,"tokens"));result=Map.of("ok",true);}

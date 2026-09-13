@@ -12,10 +12,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.error('No class data found in sessionStorage.');
     }
     document.getElementById('deleteClassButton').addEventListener('click', function() {
-        if (confirm('Are you sure you want to delete this class?')) {
+        if (confirm('Klasse wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
             deleteClass(cls.id).then(response => {
                 if (response.ok) {
-                    alert('Class deleted successfully.');
+                    alert('Klasse wurde gelöscht.');
                     window.location.href = '/manage_classes';
                 } else {
                     alert('Failed to delete class. Please try again.');

@@ -43,7 +43,7 @@ import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
 public class WebServer implements Runnable {
     public static final int SESSION_DURATION = 21600; // six hours
     public static final int MAXIMUM_INACTIVITY_DURATION = 3600; // An hour
-    public static final int RATELIMIT = 60;
+    public static final int RATELIMIT = 180; // Preserve the canonical Arcanum runtime limit.
     public static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
     private volatile boolean running;

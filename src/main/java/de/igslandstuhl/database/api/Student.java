@@ -420,6 +420,19 @@ public class Student extends User {
             schoolClass.getSubjects().forEach(subject -> effectiveSubjects.put(subject.getId(), subject));
         }
         getIndividualSubjects().forEach(subject -> effectiveSubjects.putIfAbsent(subject.getId(), subject));
+        SchoolYear year=SchoolYear.getCurrentYear(false);
+        Semester semester=year==null?null:year.getCurrentSemester();
+        if(semester!=null) {
+            try {
+                var enrollment=new de.igslandstuhl.database.api.curriculum.CurriculumEnrollment(de.igslandstuhl.database.api.curriculum.Curriculum.current());
+                var assigned=enrollment.studentSubjects(id,semester.getId());
+                if(assigned!=null)effectiveSubjects.clear();
+                else for(int subjectId:enrollment.unselectedWpf(id,semester.getId()))effectiveSubjects.remove(subjectId);
+                for(int subjectId:assigned!=null?assigned:enrollment.selectedWpf(id,semester.getId())) {
+                    Subject subject=Subject.get(subjectId);if(subject!=null)effectiveSubjects.put(subjectId,subject);
+                }
+            } catch(SQLException e) {throw new IllegalStateException("Could not resolve semester subjects",e);}
+        }
         return new ArrayList<>(effectiveSubjects.values());
     }
 
@@ -874,6 +887,11 @@ public class Student extends User {
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("password_hash_for_student", passHash(password), String.valueOf(getId())));
         students.remove(id);
         return get(id);
+    }
+
+    public Student updateProfile(String firstName,String lastName,String email,String password,SchoolClass schoolClass,GraduationLevel level) throws SQLException {
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("student_profile", firstName,lastName,email,password==null||password.isEmpty()?passwordHash:passHash(password),schoolClass==null?"-1":String.valueOf(schoolClass.getId()),String.valueOf(level.getLevel()),String.valueOf(id)));
+        students.remove(id); return get(id);
     }
 
     /**

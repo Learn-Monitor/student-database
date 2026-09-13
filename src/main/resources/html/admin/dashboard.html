@@ -4,11 +4,27 @@
         <h1>Admin Dashboard</h1>
     </header>
     <p>Willkommen im Admin-Dashboard!</p>
-    <section id="admin-options">
-        <h2>Admin Optionen</h2>
-        %[admin_dashboard_nav]
-    </section>
-    %[file_import;header=Datenimport aus Lehrerplanungstool;note=Hinweis: Stellen Sie sicher, dass das jeweilige Fach bereits existiert, und der jeweiligen Klassenstufe zugeordnet ist.;uploadUrl=/lpt-file]
+    %[admin_nav]
+    <section class="admin-function-page" id="schuldaten"><h2>Schuldaten</h2><div class="admin-menu-links">
+        <a href="/manage_classes">Klassen verwalten</a><a href="/manage_subjects">Fächer verwalten</a><a href="/manage_students">Schüler verwalten</a><a href="/manage_teachers">Lehrer verwalten</a>
+    </div></section>
+    <section class="admin-function-page" id="halbjahre"><h2>Halbjahre einrichten</h2><p>Alle Einrichtungsschritte sind unten vollständig geöffnet.</p></section>
+    <section class="admin-function-page" id="anwesenheit"><h2>Anwesenheit</h2><div class="admin-menu-links"><a href="/attendance">Attendance</a><a href="/attendance-admin">Attendance verwalten</a></div></section>
+    <section class="admin-function-page" id="rechte"><h2>Zugriffsrechte und Rollen</h2><div class="admin-menu-links"><a href="/manage_permissions">Berechtigungen und Rollen verwalten</a></div></section>
+    <section class="admin-function-page" id="module"><h2>Module verwalten</h2><div class="admin-menu-links"><a href="/plugins">Module verwalten</a></div></section>
 </section>
 <section id="curriculum"><h2>Themen, Etappen und Münzbudget</h2></section>
 <script src="/curriculum.js" defer></script>
+<script>
+(() => {
+  const sections = [...document.querySelectorAll('.admin-function-page')];
+  const curriculum = document.querySelector('#curriculum');
+  const show = id => {
+    sections.forEach(s => s.hidden = s.id !== id);
+    if (curriculum) curriculum.hidden = id !== 'halbjahre';
+    document.querySelectorAll('.admin-main-menu a').forEach(a => a.setAttribute('aria-current', a.getAttribute('href') === `#${id}` ? 'true' : 'false'));
+  };
+  const select = () => show(location.hash.slice(1) || 'schuldaten');
+  window.addEventListener('hashchange', select); select();
+})();
+</script>

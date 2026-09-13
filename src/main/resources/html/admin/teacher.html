@@ -6,18 +6,15 @@
     <main>
         <section id="edit-teacher">
             <h2>Lehrer bearbeiten</h2>
-            <form id="addSubjectToTeacherForm" method="POST" action="/add-subject-to-teacher">
-                <label for="editSubjectSelect">Fach auswählen:</label>
-                <input type="hidden" name="teacherId" class="teacherId">
-                <select id="editSubjectSelect" name="subjectId" required></select>
-                <button type="submit">Fach hinzufügen</button>
+            <form method="post" action="/edit-teacher-profile" onsubmit="return confirm('Änderungen an dieser Lehrkraft speichern?')">
+                <input type="hidden" name="id" class="teacherId">
+                <label>Vorname <input name="firstName" id="teacherFirstName" required></label>
+                <label>Nachname <input name="lastName" id="teacherLastName" required></label>
+                <label>Login/E-Mail <input type="email" name="email" id="teacherEmail" required></label>
+                <label>Neues Passwort <input type="password" name="password" id="teacherPassword"></label>
+                <button type="submit">Stammdaten speichern</button>
             </form>
-            <form id="addClassToTeacherForm" method="POST" action="/add-class-to-teacher">
-                <input type="hidden" name="teacherId" class="teacherId">
-                <label for="editClassSelect">Klasse auswählen:</label>
-                <select id="editClassSelect" name="classId" required></select>
-                <button type="submit">Klasse hinzufügen</button>
-            </form>
+            <p>Fächer- und Klassen-Zuordnungen werden im Bereich <a href="/dashboard#halbjahre">Halbjahre einrichten</a> verwaltet.</p>
         </section>
         %[teacher_infos]
     </main>

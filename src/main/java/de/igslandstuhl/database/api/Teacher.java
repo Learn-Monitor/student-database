@@ -405,4 +405,9 @@ public class Teacher extends User {
         teachers.remove(id);
         return get(id);
     }
+
+    public Teacher updateProfile(String firstName,String lastName,String email,String password) throws SQLException {
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("teacher_profile",firstName,lastName,email,password==null||password.isEmpty()?passwordHash:passHash(password),String.valueOf(id)));
+        teachers.remove(id); return get(id);
+    }
 }

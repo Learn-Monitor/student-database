@@ -25,6 +25,7 @@ import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.APIObject;
 import de.igslandstuhl.database.api.SchoolClass;
 import de.igslandstuhl.database.api.Student;
+import de.igslandstuhl.database.api.GraduationLevel;
 import de.igslandstuhl.database.api.Subject;
 import de.igslandstuhl.database.api.SubjectRequest;
 import de.igslandstuhl.database.api.Task;
@@ -125,11 +126,31 @@ public class PostRequestHandler {
         String email = teacher.getEmail(); // Email is the username for the teacher
         return PostResponse.getResource(WebResourceHandler.locationFromPath(path, User.getUser(email)), email, request, path);
     }
+    private static boolean visibleTask(Student student,Task task) {
+        try {return new de.igslandstuhl.database.api.curriculum.CurriculumEnrollment(de.igslandstuhl.database.api.curriculum.Curriculum.current()).canAccessTask(student.getId(),task.getId(),true);}
+        catch(de.igslandstuhl.database.api.curriculum.CurriculumException e) {return false;}
+        catch(SQLException e) {throw new IllegalStateException("Could not resolve task visibility",e);}
+    }
+    private static boolean visibleTopic(Student student,Topic topic) {
+        if(topic.getSemester()==null)return true;
+        try {
+            var catalog=de.igslandstuhl.database.api.curriculum.Curriculum.current().studentCatalog(student,topic.getSubject().getId(),topic.getSemester().getId());
+            return ((List<?>)catalog.get("centralTopics")).stream().anyMatch(value->((Number)((Map<?,?>)value).get("id")).intValue()==topic.getId());
+        } catch(de.igslandstuhl.database.api.curriculum.CurriculumException e) {return false;}
+        catch(SQLException e) {throw new IllegalStateException("Could not resolve topic visibility",e);}
+    }
+    private static boolean publishedForStudent(APIPostRequest request,Student student,Task task) throws SQLException {
+        if(!request.getUser().isStudent())return true;
+        try {
+            return new de.igslandstuhl.database.api.curriculum.CurriculumEnrollment(de.igslandstuhl.database.api.curriculum.Curriculum.current()).canAccessTask(student.getId(),task.getId(),false);
+        } catch(de.igslandstuhl.database.api.curriculum.CurriculumException e) {return false;}
+    }
     private static PostResponse handleTaskChange(APIPostRequest request, int newStatus) throws IOException, SQLException {
         Student student = request.getCurrentStudent();
         if (student == null) return PostResponse.unauthorized(request);
         Task task = request.getTask();
         if (task == null) return PostResponse.notFound("Task not found", request);;
+        if(!publishedForStudent(request,student,task))return PostResponse.forbidden("This task has not been released for your class.",request);
         student.changeTaskStatus(task, newStatus);
         return PostResponse.ok("Task status changed successfully", ContentType.TEXT_PLAIN, request);
     }
@@ -140,6 +161,7 @@ public class PostRequestHandler {
             if (student == null) return PostResponse.unauthorized("Not logged in or invalid session", rq);
             if (task == null) return PostResponse.notFound("Task not found", rq);
             try {
+                if(!publishedForStudent(rq,student,task))return PostResponse.forbidden("This task has not been released for your class.",rq);
                 student.changeTaskStatus(task, taskStatus);
                 return PostResponse.ok("Task status changed successfully", ContentType.TEXT_PLAIN, rq);
             } catch (SQLException e) {
@@ -260,6 +282,7 @@ public class PostRequestHandler {
             if (student == null) return PostResponse.unauthorized(rq);
             Topic topic = student.getCurrentTopic(subject);
             if (topic == null) return PostResponse.badRequest("No current topic for this subject.", rq);
+            if(rq.getUser().isStudent() && !visibleTopic(rq.getUser().asStudent(),topic))return PostResponse.badRequest("Current topic is not released.",rq);
             return PostResponse.ok(topic.toJSON(), ContentType.JSON, rq);
         });
         HttpHandler.registerPostRequestHandler("/change-current-topic", AccessLevel.TEACHER, (rq) -> {
@@ -272,7 +295,9 @@ public class PostRequestHandler {
             return PostResponse.ok("Current topic changed successfully", ContentType.TEXT_PLAIN, rq);
         });
         HttpHandler.registerPostRequestHandler("/tasks", AccessLevel.USER, (rq) -> {
-            return PostResponse.ok(JSONUtils.toJSON(rq.getTaskList()), ContentType.JSON, rq);
+            var tasks=rq.getTaskList();
+            if(rq.getUser().isStudent())tasks=tasks.stream().filter(t->visibleTask(rq.getUser().asStudent(),t)).toList();
+            return PostResponse.ok(JSONUtils.toJSON(tasks), ContentType.JSON, rq);
         });
         HttpHandler.registerPostRequestHandler("/begin-task", AccessLevel.USER, (rq) -> handleTaskChange(rq, Task.STATUS_IN_PROGRESS));
         HttpHandler.registerPostRequestHandler("/complete-task", AccessLevel.USER, (rq) -> handleTaskChange(rq, Task.STATUS_COMPLETED));
@@ -316,7 +341,9 @@ public class PostRequestHandler {
             return PostResponse.ok(JSONUtils.toJSON(rq.getSubject().getGrades()), ContentType.JSON, rq);
         });
         HttpHandler.registerPostRequestHandler("/topic-list", AccessLevel.STUDENT, (rq) -> {
-            return PostResponse.ok(JSONUtils.toJSON(rq.getSubject().getTopics(rq.getInt("grade"))), ContentType.JSON, rq);
+            var topics=rq.getSubject().getTopics(rq.getInt("grade"));
+            if(rq.getUser().isStudent())topics=topics.stream().filter(t->visibleTopic(rq.getUser().asStudent(),t)).toList();
+            return PostResponse.ok(JSONUtils.toJSON(topics), ContentType.JSON, rq);
         });
         HttpHandler.registerPostRequestHandler("/class-subjects", AccessLevel.ADMIN, (rq) -> {
             SchoolClass schoolClass = rq.getSchoolClass();
@@ -350,12 +377,15 @@ public class PostRequestHandler {
         HttpHandler.registerPostRequestHandler("/edit-subject", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<Subject>() {}, PostResponse.redirect("/manage_subjects", rq), (subject) -> subject.edit(prepare(rq.getString("name"))))
         );
-        HttpHandler.registerPostRequestHandler("/delete-classs", AccessLevel.ADMIN, (rq) -> 
+        HttpHandler.registerPostRequestHandler("/delete-class", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<SchoolClass>() {}, PostResponse.redirect("/manage_classes", rq), (schoolClass) -> schoolClass.delete())            
         );
+        HttpHandler.registerPostRequestHandler("/delete-student", AccessLevel.ADMIN, rq -> { Student s=Student.get(rq.getInt("id")); if(s==null)return PostResponse.badRequest("Schüler nicht gefunden",rq); s.delete(); return PostResponse.redirect("/manage_students",rq); });
         HttpHandler.registerPostRequestHandler("/edit-class", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<SchoolClass>() {}, PostResponse.redirect("/manage_classes", rq), (schoolClass) -> schoolClass.edit(prepare(rq.getString("name")), rq.getInt("grade")))
         );
+        HttpHandler.registerPostRequestHandler("/edit-student-profile", AccessLevel.ADMIN, rq -> { Student s=Student.get(rq.getInt("id")); if(s==null)return PostResponse.badRequest("Schüler nicht gefunden",rq); s.updateProfile(prepare(rq.getString("firstName")),prepare(rq.getString("lastName")),prepare(rq.getString("email")),rq.getString("password"),SchoolClass.get(rq.getInt("classId")),GraduationLevel.of(rq.getInt("graduationLevel"))); return PostResponse.redirect("/manage_students",rq); });
+        HttpHandler.registerPostRequestHandler("/edit-teacher-profile", AccessLevel.ADMIN, rq -> { Teacher t=Teacher.get(rq.getInt("id")); if(t==null)return PostResponse.badRequest("Lehrkraft nicht gefunden",rq); t.updateProfile(prepare(rq.getString("firstName")),prepare(rq.getString("lastName")),prepare(rq.getString("email")),rq.getString("password")); return PostResponse.redirect("/manage_teachers",rq); });
         HttpHandler.registerPostRequestHandler("/add-subject-to-class", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<SchoolClass>() {}, PostResponse.redirect("/class", rq), (schoolClass) -> schoolClass.addSubject(rq.getSubject()))
         );

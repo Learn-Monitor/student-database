@@ -28,6 +28,7 @@
             <section id="class-selection">
                 <label for="classSelect">Wählen Sie eine Klasse:</label>
                 <select id="classSelect"></select>
+                <input id="studentFilter" placeholder="Schüler filtern">
             </section>
             <table id="studentTable">
                 <thead>
@@ -65,12 +66,12 @@
 
     async function onClassChange(event) {
         const selectedClassId = Number(event.target.value);
-        populateStudentTable(selectedClassId, "studentTable", (newRow, student) => {
+        const render=(newRow, student) => {
             newRow.innerHTML = `
-                <td class="student-name">${student.name}</td>
-                <td class="student-room">${student.room}</td>
+                <td class="student-name">${student.name || ((student.firstName||'')+' '+(student.lastName||''))}</td>
+                <td class="student-room">${student.room || student.schoolClass?.label || ''}</td>
                 <td class="student-graduation-level"></td>
-                <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
+                <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button><button type="button" onclick="if(confirm('Schüler wirklich löschen?')) post('/delete-student',{id:${student.id}}).then(()=>onClassChange({target:document.getElementById('classSelect')}))">Löschen</button></td>
             `;
             const graduationLevelSelect = document.createElement('select');
             for (let i = 0;i<graduationLevels.length;i++) {
@@ -88,15 +89,20 @@
                 }
             });
             newRow.getElementsByClassName('student-graduation-level')[0].appendChild(graduationLevelSelect);
-        });
+        };
+        if(selectedClassId===0){const students=await fetchJson('/students');const body=document.querySelector('#studentTable tbody');body.replaceChildren();students.forEach(s=>{const row=body.insertRow();render(row,s)});}else populateStudentTable(selectedClassId,"studentTable",render);
+        document.getElementById('studentFilter').dispatchEvent(new Event('input'));
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
         const classSelect = document.getElementById('classSelect');
         const classes = await fetchClasses();
+        classes.unshift({id:0,label:'Alle Klassen'});
         populateClassSelect(classSelect, classes);
         classSelect.addEventListener('change', onClassChange);
         onClassChange({ target: classSelect }); // Trigger initial load
+        document.getElementById('studentFilter').addEventListener('input',e=>document.querySelectorAll('#studentTable tbody tr').forEach(r=>r.hidden=!r.textContent.toLowerCase().includes(e.target.value.toLowerCase())));
+        document.querySelectorAll('#studentTable th').forEach((th,i)=>{th.classList.add('sortable');th.addEventListener('click',()=>{const body=document.querySelector('#studentTable tbody');[...body.rows].sort((a,b)=>a.cells[i].textContent.localeCompare(b.cells[i].textContent,'de')).forEach(r=>body.append(r));});});
         populateSubjectSelect('subjectSelect', await fetchAllSubjects());
     });
 </script>

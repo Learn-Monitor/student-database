@@ -13,6 +13,8 @@
         </section>
         <section id="subject-list">
             <h2>Vorhandene Fächer</h2>
+            <p>Fachart vorab festlegen: verbindliche Fächer gelten für alle, Religion, Ethik und WPF werden individuell pro Schüler zugeordnet.</p>
+            <div id="subjectTypes"></div>
             <ul id="subjectList">
                 <!-- Dynamically populated list of subjects -->
             </ul>
@@ -36,5 +38,9 @@
                 });
             })
             .catch(error => console.error('Error fetching subjects:', error));
+        fetch('/curriculum-enrollment-catalog',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json()).then(data=>{
+            const box=document.getElementById('subjectTypes');box.innerHTML='<h3>Fachart</h3>';
+            data.subjects.forEach(s=>{const row=document.createElement('p');row.textContent=s.name+' ';const select=document.createElement('select');[['0','Verbindlich für alle'],['1','Individuell pro Schüler']].forEach(([v,l])=>{const o=document.createElement('option');o.value=v;o.textContent=l;select.append(o)});select.value=String(s.wpf);const b=document.createElement('button');b.type='button';b.textContent='Speichern';b.onclick=()=>fetch('/set-curriculum-subject-type',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subjectId:s.id,wpf:select.value==='1'})}).then(()=>b.textContent='Gespeichert');row.append(select,b);box.append(row)});
+        }).catch(()=>{});
     });
 </script>

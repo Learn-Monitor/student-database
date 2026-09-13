@@ -26,6 +26,7 @@
         </section>
         <section id="teacher-list">
             <h2>Lehrer-Liste</h2>
+            <input id="teacherFilter" placeholder="Name, Fach oder E-Mail filtern">
             <a href="/teachers" download="lehrer.json"><button id="download-teachers">Lehrer herunterladen</button></a>
             <table id="teacherTable">
                 <thead>
@@ -54,15 +55,18 @@
         postDataAndDownload('/add-teachers', csv, 'lehrer.csv');
     });
     document.addEventListener('DOMContentLoaded', async function() {
+        document.querySelectorAll('#teacherTable th').forEach((th,index)=>{th.classList.add('sortable');th.addEventListener('click',()=>{const body=document.querySelector('#teacherTable tbody');[...body.rows].sort((a,b)=>a.cells[index].textContent.localeCompare(b.cells[index].textContent,'de')).forEach(r=>body.append(r));});});
         populateTable('/teachers', 'teacherTable', (newRow, teacher) => {
+            newRow.dataset.search = JSON.stringify(teacher).toLowerCase();
             newRow.innerHTML = `
                 <td>${teacher.firstName}</td>
                 <td>${teacher.lastName}</td>
                 <td>${teacher.email}</td>
                 <td>
-                    <button class="view-teacher" onclick="viewTeacher(${JSON.stringify(teacher).replaceAll('"', "'")})">Ansehen</button>
+                    <button class="view-teacher" onclick="viewTeacher(${JSON.stringify(teacher).replaceAll('"', "'")})">Bearbeiten</button>
                 </td>
             `;
         });
+        document.getElementById('teacherFilter').addEventListener('input',e=>document.querySelectorAll('#teacherTable tbody tr').forEach(r=>r.hidden=!r.dataset.search.includes(e.target.value.toLowerCase())));
     });
 </script>

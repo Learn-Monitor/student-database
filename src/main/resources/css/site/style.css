@@ -13,6 +13,8 @@ body {
   border-radius: 10px;
   box-shadow: 0 0 8px rgba(0,0,0,0.1);
 }
+#dashboard { max-width: none; width: 100%; }
+body:has(.admin-main-menu) { padding-top: 76px; }
 
 header {
   border-bottom: 1px solid #ccc;
@@ -133,3 +135,24 @@ table tr:last-child td {
   border-radius: 4px;
   box-sizing: border-box;
 }
+/* Kompakte Admin-Navigation */
+.admin-main-menu { position:fixed; top:0; left:0; right:0; z-index:1000; display:flex; flex-wrap:wrap; gap:.25rem; margin:0; padding:.45rem max(1rem, calc((100% - 1200px) / 2)); background:#17324d; box-shadow:0 3px 10px #172b4d33; }
+.admin-main-menu + * { margin-top:4.5rem; }
+.admin-main-menu a { flex:1 1 auto; padding:.7rem .8rem; color:#fff; font-weight:700; text-align:center; text-decoration:none; border-radius:.35rem; }
+.admin-main-menu a:hover, .admin-main-menu a:focus, .admin-main-menu a[aria-current="true"] { background:#2c668e; }
+.admin-function-page { margin:1rem 0; padding:1rem 1.2rem; background:#fff; border:1px solid #d9e1ea; border-radius:.7rem; box-shadow:0 2px 8px #172b4d12; scroll-margin-top:5rem; }
+.semester-landing { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin:1rem 0; }
+.semester-create-panel, .semester-manage-panel { min-height:12rem; padding:1.2rem; background:#fff; border:1px solid #d9e1ea; border-radius:.7rem; box-shadow:0 2px 8px #172b4d12; }
+.semester-manage-panel { display:flex; flex-direction:column; gap:1rem; }
+.curriculum-wpf-table { width:100%; border-collapse:collapse; margin-top:1rem; background:#fff; }
+.curriculum-wpf-table th, .curriculum-wpf-table td { padding:.65rem .8rem; border-bottom:1px solid #d9e1ea; text-align:left; vertical-align:middle; }
+.curriculum-wpf-table th { background:#edf4f9; color:#17324d; font-weight:700; }
+.curriculum-wpf-table th.sortable { cursor:pointer; text-decoration:underline; }
+.curriculum-wpf-table th.sortable:hover { background:#dbeaf3; }
+.curriculum-wpf-table tr:nth-child(even) { background:#f8fbfd; }
+.curriculum-wpf-table select { min-width:12rem; }
+@media (max-width:700px) { .semester-landing { grid-template-columns:1fr; } }
+.admin-menu-links { display:grid; gap:.35rem; padding:0 .8rem .8rem; }
+.admin-menu-links a { display:block; padding:.45rem .55rem; border-radius:.4rem; color:#24527a; text-decoration:none; }
+.admin-menu-links a:hover, .admin-menu-links a:focus { background:#eaf3fb; text-decoration:underline; }
+@media (max-width:700px) { .admin-main-menu { display:grid; grid-template-columns:1fr 1fr; } }

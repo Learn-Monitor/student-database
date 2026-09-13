@@ -185,6 +185,9 @@
         "namespaces": [],
         "access_level": "admin"
     },
+    "/edit-student-profile": {"type":"POST","handler_type":"PostRequestHandler","namespaces":[],"access_level":"admin"},
+    "/delete-student": {"type":"POST","handler_type":"PostRequestHandler","namespaces":[],"access_level":"admin"},
+    "/edit-teacher-profile": {"type":"POST","handler_type":"PostRequestHandler","namespaces":[],"access_level":"admin"},
     "/add-subject-to-class": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
@@ -372,6 +375,79 @@
         "access_level": "admin"
     },
     "/transfer-curriculum-context": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
+    "/my-curriculum-catalog": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "student"
+    },
+    "/flexible-curriculum-structure": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
+    "/add-flexible-topic": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
+    "/rename-flexible-topic": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
+    "/curriculum-enrollment-catalog": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
+    "/set-curriculum-subject-type": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
+    "/remove-grade-curriculum-subject": {"type":"POST","handler_type":"PostRequestHandler","namespaces":[],"access_level":"admin"},
+    "/assign-grade-curriculum": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
+    "/curriculum-wpf-roster": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
+    "/assign-curriculum-wpf": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
+    "/curriculum-releases": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
+    "/set-curriculum-release": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
+    "/create-curriculum-semester": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],

@@ -17,15 +17,25 @@ async function setup(admin, options={}){
  let centralName='Central';
  let topicName='Topic';
  const byClass=new Map([[10,[{id:100,name:'Own task',tokens:30}]],[11,[]]]);
- const catalog={admin,teacherId:7,subjects:[{id:1,name:'Math'}],classes:[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5}],semesters:[{id:20,label:'H1'},{id:21,label:'H2'}],teachers:[{id:7,first_name:'Test',last_name:'Teacher'}]};
+ const topicsByClass=new Map([[10,[]],[11,[]]]);
+ const catalog={admin,enrollmentEnabled:options.enrollment===true,teacherId:7,subjects:[{id:1,name:'Math'}],classes:[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5}],semesters:[{id:20,label:'H1'},{id:21,label:'H2'}],teachers:[{id:7,first_name:'Test',last_name:'Teacher'}]};
  dom.window.fetch=async(url,requestOptions)=>{
   const data=JSON.parse(requestOptions.body);requests.push({url,data});let body;let ok=true;
   if(options.response?.url===url)return {ok:false,status:options.response.status,text:async()=>options.response.body};
   const tasks=byClass.get(data.classId)||[];
-  if(url==='/curriculum-catalog')body=catalog;
+  if(options.enrollment && url==='/curriculum-enrollment-catalog')body={...catalog,subjects:[{id:1,name:'Math',wpf:0},{id:4,name:'WPF Kunst',wpf:1},{id:5,name:'WPF Technik',wpf:1}],teaching:[{classId:10,subjectId:1,teacherId:7},{classId:11,subjectId:1,teacherId:7},{classId:10,subjectId:4,teacherId:7},{classId:10,subjectId:5,teacherId:7}]};
+  else if(options.enrollment && url==='/assign-grade-curriculum')body={students:2,assignments:2};
+  else if(options.enrollment && url==='/curriculum-wpf-roster')body=[{id:50,first_name:'Test',last_name:'Kind',subjectId:null,teacherId:null}];
+  else if(options.enrollment && url==='/assign-curriculum-wpf')body={ok:true};
+  else if(options.enrollment && url==='/curriculum-releases')body={topics:[{id:2,name:'Topic',active:false}],tasks:[{id:3,topicId:2,name:'Task',active:false}]};
+  else if(options.enrollment && url==='/set-curriculum-release')body={ok:true};
+  else if(url==='/curriculum-catalog')body=catalog;
   else if(url==='/curriculum-structure')body={centralTokens,topics:[{id:2,name:topicName,number:1}],tasks:[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1}]};
   else if(url==='/curriculum-budget'){const f=tasks.reduce((n,t)=>n+t.tokens,0);body={grade:5,centralTokens,flexibleTokens:f,totalTokens:centralTokens+f,remainingRegular:100-centralTokens-f,remainingHard:105-centralTokens-f};}
   else if(url==='/flexible-tasks')body=tasks;
+  else if(url==='/flexible-curriculum-structure')body={topics:topicsByClass.get(data.classId)||[],tasks};
+  else if(url==='/add-flexible-topic'){body={id:500,name:data.name};topicsByClass.get(data.classId).push(body);}
+  else if(url==='/rename-flexible-topic'){const topic=[...topicsByClass.values()].flat().find(t=>t.id===data.topicId);topic.name=data.name;body={ok:true};}
   else if(url==='/curriculum-students')body=[{id:50,first_name:'Sample',last_name:'Student',teacherId:8,classId:10}];
   else if(url==='/assign-curriculum-context' || url==='/transfer-curriculum-context')body={ok:true};
   else if(url==='/curriculum-transfer-preview')body={source:{teacherId:8,classId:10},completions:[{id:200,name:'Completed elsewhere',tokens:30}],targets:[{id:100,name:'Own task',tokens:30}]};
@@ -34,8 +44,8 @@ async function setup(admin, options={}){
    if(data.tokens>70){ok=false;body={error:'budget_exceeded',message:'Budget exceeded',affectedContexts:[{teacherId:7,classId:10,semesterId:20,centralTokens:data.tokens,flexibleTokens:35,totalTokens:data.tokens+35}]};}
    else{centralName=data.name;centralTokens=data.tokens;body={ok:true};}
   }
-  else if(url==='/add-flexible-task'){tasks.push({id:101,name:data.name,tokens:data.tokens});byClass.set(data.classId,tasks);body=tasks.at(-1);}
-  else if(url==='/edit-flexible-task'){const task=[...byClass.values()].flat().find(t=>t.id===data.taskId);Object.assign(task,{name:data.name,tokens:data.tokens});body=task;}
+  else if(url==='/add-flexible-task'){tasks.push({id:101,name:data.name,tokens:data.tokens,topicId:data.topicId});byClass.set(data.classId,tasks);body=tasks.at(-1);}
+  else if(url==='/edit-flexible-task'){const task=[...byClass.values()].flat().find(t=>t.id===data.taskId);Object.assign(task,{name:data.name,tokens:data.tokens,topicId:data.topicId});body=task;}
   else throw Error('Unexpected endpoint '+url);
   return {ok,status:ok?200:409,text:async()=>JSON.stringify(body)};
  };
@@ -180,5 +190,74 @@ for(const transfer of [false,true])test(`revoked assignment permission blocks ${
   let form=formWith(root,'Unterrichtskontext zuweisen');
   if(transfer){[...root.querySelectorAll('button')].find(b=>b.textContent==='Wechsel mit Leistungsübernahme vorbereiten').click();await tick();form=formWith(root,'Wechsel und Leistungsübernahme bestätigen');form.querySelector('select').value=100;}
   pm.curriculum_assign_context=false;await submit(dom,form);assert.equal(requests.some(r=>r.url==='/assign-curriculum-context'||r.url==='/transfer-curriculum-context'),false);
+ }finally{dom.window.close();}
+});
+
+test('teacher creates a flexible topic, assigns an open task and can detach it',async()=>{
+ const {dom,root,requests}=await setup(false);
+ try {
+  let form=formWith(root,'Flexibles Thema anlegen');form.querySelector('input').value='<b>Practice</b>';await submit(dom,form);
+  assert.equal(root.querySelectorAll('b').length,0);
+  form=formWith(root,'Flexible Etappe anlegen');form.querySelector('input[type=text]').value='Practice step';form.querySelector('input[type=number]').value=5;
+  form.querySelector('[name=topicId]').value='500';await submit(dom,form);
+  const created=requests.find(r=>r.url==='/add-flexible-task');assert.equal(created.data.topicId,500);assert.equal(created.data.tokens,5);
+  assert.match(root.textContent,/erst durch bestätigte Abschlüsse/);
+  assert.equal(requests.filter(r=>r.url==='/complete-flexible-task').length,0);
+  let group=[...root.querySelectorAll('details')].find(d=>d.querySelector('summary').textContent==='<b>Practice</b>');
+  form=formWith(group,'Speichern');assert.equal(form.querySelector('[name=topicId]').value,'500');
+  assert.match(form.textContent,/bereits abgeschlossene Etappen/);
+  form.querySelector('[name=topicId]').value='';await submit(dom,form);
+  assert.equal(requests.find(r=>r.url==='/edit-flexible-task').data.topicId,null);
+  group=[...root.querySelectorAll('details')].find(d=>d.querySelector('summary').textContent==='Noch keinem Thema zugeordnet');
+  assert.ok([...group.querySelectorAll('input')].some(i=>i.value==='Practice step'));
+ } finally {dom.window.close();}
+});
+test('revoked flexible permission blocks topic creation and rename',async()=>{
+ const pm=grants(),{dom,root,requests}=await setup(false,{pm});
+ try {
+  let form=formWith(root,'Flexibles Thema anlegen');form.querySelector('input').value='Practice';await submit(dom,form);
+  form=formWith(root,'Flexibles Thema umbenennen');pm.curriculum_manage_flexible=false;await submit(dom,form);
+  assert.equal(requests.filter(r=>r.url==='/rename-flexible-topic').length,0);
+  assert.equal(formWith(root,'Flexibles Thema anlegen'),undefined);
+ } finally {dom.window.close();}
+});
+test('context change invalidates an old topic form',async()=>{
+ const {dom,root,requests}=await setup(false);
+ try {
+  const stale=formWith(root,'Flexibles Thema anlegen');stale.querySelector('input').value='Old context';
+  const choice=root.querySelector('[name=classId]');choice.value='11';choice.dispatchEvent(new dom.window.Event('change'));await tick();
+  await submit(dom,stale);assert.equal(requests.filter(r=>r.url==='/add-flexible-topic').length,0);
+  assert.match(root.textContent,/Auswahl wurde geändert/);
+ } finally {dom.window.close();}
+});
+
+async function clickNamed(dom,root,name){const b=[...root.querySelectorAll('button')].find(b=>b.textContent===name);assert(b,name);b.click();await tick();}
+test('admin grade batch excludes WPF and submits every class with its teacher',async()=>{
+ const {dom,root,requests}=await setup(true,{enrollment:true});try{
+  const panel=root.querySelector('.curriculum-enrollment');const checks=panel.querySelectorAll('input[type=checkbox]');assert.equal(checks.length,1);checks[0].checked=true;
+  await clickNamed(dom,panel,'Zuordnung vorbereiten');await clickNamed(dom,panel,'Dem gesamten Jahrgang zuordnen');
+  const request=requests.find(r=>r.url==='/assign-grade-curriculum');assert.deepEqual(request.data.subjectIds,[1]);assert.equal(request.data.teaching.length,2);assert.equal(request.data.semesterId,20);
+  assert.match(panel.textContent,/2 Kinder, 2 Fachzuordnungen/);
+ }finally{dom.window.close();}
+});
+test('WPF keyboard selection and drag/drop use one guarded assignment endpoint',async()=>{
+ const {dom,root,requests}=await setup(true,{enrollment:true});try{
+  await clickNamed(dom,root,'WPF-Liste laden');let card=root.querySelector('[data-student-id="50"]');card.querySelector('select').value='4';await clickNamed(dom,card,'WPF speichern');
+  let request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.equal(request.data.studentId,50);assert.equal(request.data.subjectId,4);assert.equal(request.data.expectedSubjectId,null);
+  const column=[...root.querySelectorAll('.curriculum-wpf-board > section')].find(n=>n.querySelector('h4').textContent==='WPF Technik');const event=new dom.window.Event('drop',{bubbles:true,cancelable:true});event.dataTransfer={getData:()=> '50'};column.dispatchEvent(event);await tick();
+  request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.equal(request.data.subjectId,5);assert.equal(request.data.classId,10);
+ }finally{dom.window.close();}
+});
+test('teacher publishes a whole topic or individual task but has no enrollment UI',async()=>{
+ const {dom,root,requests}=await setup(false,{enrollment:true});try{
+  assert.doesNotMatch(root.querySelector('.curriculum-enrollment').textContent,/WPF-Zuteilung/);
+  await clickNamed(dom,root,'Freischaltungen laden');await clickNamed(dom,root,'Ganzes Thema freischalten');await clickNamed(dom,root,'Etappe freischalten');
+  const writes=requests.filter(r=>r.url==='/set-curriculum-release');assert.equal(writes[0].data.topicId,2);assert.equal(writes[1].data.taskId,3);assert.equal(writes[0].data.teacherId,7);
+ }finally{dom.window.close();}
+});
+test('old publication controls cannot write after scope change or permission revocation',async()=>{
+ const pm={...grants(),curriculum_publish:true};const {dom,root,requests}=await setup(false,{enrollment:true,pm});try{
+  await clickNamed(dom,root,'Freischaltungen laden');const button=[...root.querySelectorAll('button')].find(b=>b.textContent==='Etappe freischalten');root.querySelector('[name=classId]').value='11';button.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
+  root.querySelector('[name=classId]').value='10';pm.curriculum_publish=false;button.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
  }finally{dom.window.close();}
 });

@@ -729,11 +729,235 @@ class CurriculumTest {
             assertProgressError(false,payload.toString(),Status.BAD_REQUEST,"invalid_input");
         }
     }
+    @Test void flexibleTopicsAreOwnedAndDoNotChangeCentralTopics() throws Exception {
+        int own=service.createFlexibleTopic(teacher,scope,"Shared name");
+        int theirs=service.createFlexibleTopic(other,secondScope(),"Shared name");
+        assertNotEquals(own,theirs);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.renameFlexibleTopic(other,own,"No")).status);
+        service.renameFlexibleTopic(teacher,own,"Own revised");
+        assertEquals("Topic-"+id,Topic.get(topic).getName());
+        assertEquals("Own revised",((List<Map<String,Object>>)service.flexibleStructure(teacher,scope).get("topics")).get(0).get("name"));
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.createFlexibleTopic(teacher,scope,"Own revised")).status);
+        assertEquals(400,assertThrows(CurriculumException.class,()->service.createFlexibleTopic(teacher,scope," ")).status);
+        db.writeTransaction(c->{exec(c,"DELETE FROM teacher_subjects WHERE teacher_id=? AND subject_id=?",id,id);return null;});
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.renameFlexibleTopic(teacher,own,"Revoked")).status);
+    }
+    @Test void topicAssociationIsAtomicAndOldEditsPreserveIt() throws Exception {
+        int own=service.createFlexibleTopic(teacher,scope,"Own");
+        int foreign=service.createFlexibleTopic(other,secondScope(),"Other");
+        var task=service.create(teacher,scope,"Linked",5,own);
+        service.edit(teacher,task.id(),"Renamed",4);
+        assertEquals(own,scalar("SELECT flexible_topic FROM flexible_task_topics WHERE flexible_task=?",task.id()));
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.edit(teacher,task.id(),"Bad edit",8,true,foreign)).status);
+        assertEquals("Renamed",service.list(teacher,scope).get(0).name());
+        assertEquals(4,service.list(teacher,scope).get(0).tokens());
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.create(teacher,scope,"Bad create",6,foreign)).status);
+        assertEquals(1,service.list(teacher,scope).size());
+        service.edit(teacher,task.id(),"Detached",4,true,null);
+        assertEquals(0,scalar("SELECT COUNT(*) FROM flexible_task_topics WHERE flexible_task=?",task.id()));
+    }
+    @Test void topicAssociationRejectsOtherClassSubjectAndSemester() throws Exception {
+        var task=service.create(teacher,scope,"Own",5);
+        for(var foreignScope:List.of(new Curriculum.Scope(id,id,id+1,id),new Curriculum.Scope(id,id,id,id+1),new Curriculum.Scope(id,id+1,id,id))) {
+            int foreign=service.createFlexibleTopic(admin,foreignScope,"Foreign");
+            assertEquals(403,assertThrows(CurriculumException.class,()->service.edit(admin,task.id(),"No",5,true,foreign)).status);
+        }
+        assertEquals(0,scalar("SELECT COUNT(*) FROM flexible_task_topics WHERE flexible_task=?",task.id()));
+    }
+    @Test void legacyTasksAndCompletionsSurviveRepeatedSchemaCreation() throws Exception {
+        var task=service.create(teacher,scope,"Existing",5);service.complete(teacher,task.id(),id);
+        db.createTables();db.createTables();
+        var result=jsonResponse(Student.get(id),"/my-curriculum-catalog",body());
+        var entry=result.getAsJsonArray("flexibleTasks").get(0).getAsJsonObject();
+        assertEquals(task.id(),entry.get("id").getAsInt());assertTrue(entry.get("completed").getAsBoolean());
+        assertTrue(!entry.has("topicId") || entry.get("topicId").isJsonNull());
+        assertEquals(5,result.getAsJsonObject("progress").get("totalTokens").getAsInt());
+        int newTopic=service.createFlexibleTopic(teacher,scope,"New");
+        service.edit(teacher,task.id(),"Existing",5,true,newTopic);
+        db.createTables();assertEquals(newTopic,scalar("SELECT flexible_topic FROM flexible_task_topics WHERE flexible_task=?",task.id()));
+    }
+    @Test void catalogSeparatesPlansFromAwardsAndReadsRenamesFresh() throws Exception {
+        int centralId=central(70);new CurriculumEnrollment(service).release(teacher,scope,topic,null,true);int own=service.createFlexibleTopic(teacher,scope,"Practice");
+        var flexible=service.create(teacher,scope,"Exercise",35,own);
+        var zero=service.create(teacher,scope,"Zero",0,own);
+        var before=jsonResponse(Student.get(id),"/my-curriculum-catalog",body());
+        assertEquals(105,before.getAsJsonObject("planned").get("totalTokens").getAsInt());
+        assertEquals(100,before.getAsJsonObject("planned").get("regularLimit").getAsInt());
+        assertEquals(0,before.getAsJsonObject("progress").get("totalTokens").getAsInt());
+        assertFalse(before.getAsJsonArray("centralTasks").get(0).getAsJsonObject().get("completed").getAsBoolean());
+        service.complete(teacher,flexible.id(),id);service.complete(teacher,flexible.id(),id);service.complete(teacher,zero.id(),id);
+        Student.get(id).changeTaskStatus(Task.get(centralId),Task.STATUS_COMPLETED);
+        service.edit(teacher,flexible.id(),"Updated exercise",30);service.renameFlexibleTopic(teacher,own,"Updated topic");
+        var after=jsonResponse(Student.get(id),"/my-curriculum-catalog",body());
+        assertEquals(100,after.getAsJsonObject("progress").get("totalTokens").getAsInt());
+        var entry=after.getAsJsonArray("flexibleTasks").get(0).getAsJsonObject();
+        assertEquals("Updated topic",entry.get("topicName").getAsString());assertEquals("Updated exercise",entry.get("name").getAsString());
+        assertEquals(30,entry.get("tokens").getAsInt());assertTrue(entry.get("completed").getAsBoolean());
+        assertEquals(2,after.getAsJsonArray("flexibleTasks").size());
+        assertEquals(jsonResponse(Student.get(id),"/my-curriculum-progress",body()),after.getAsJsonObject("progress"));
+    }
+    @Test void catalogOnlyShowsAssignedContextAndActiveTransferredCompletion() throws Exception {
+        int firstTopic=service.createFlexibleTopic(teacher,scope,"Source topic");
+        int targetTopic=service.createFlexibleTopic(other,secondScope(),"Target topic");
+        var a=service.create(teacher,scope,"Same name",5,firstTopic);
+        var b=service.create(other,secondScope(),"Same name",5,targetTopic);
+        service.complete(teacher,a.id(),id);
+        service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(a.id(),b.id(),5)));
+        var result=jsonResponse(Student.get(id),"/my-curriculum-catalog",body());
+        assertEquals(1,result.getAsJsonArray("flexibleTopics").size());
+        assertEquals(targetTopic,result.getAsJsonArray("flexibleTopics").get(0).getAsJsonObject().get("id").getAsInt());
+        assertEquals(1,result.getAsJsonArray("flexibleTasks").size());
+        assertEquals(b.id(),result.getAsJsonArray("flexibleTasks").get(0).getAsJsonObject().get("id").getAsInt());
+        assertTrue(result.getAsJsonArray("flexibleTasks").get(0).getAsJsonObject().get("completed").getAsBoolean());
+        assertEquals(2,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
+    }
+    @Test void catalogEnforcesStudentSessionAndNeverReturnsMissingContextsAsZero() throws Exception {
+        for(String field:List.of("studentId","teacherId","classId","grade"))
+            assertEquals(Status.BAD_REQUEST,request(Student.get(id),"/my-curriculum-catalog",body().replace("}",",\""+field+"\":1}")).getStatus());
+        assertEquals(Status.UNAUTHORIZED,request(User.ANONYMOUS,"/my-curriculum-catalog",body()).getStatus());
+        assertEquals(Status.FORBIDDEN,request(Teacher.get(id),"/my-curriculum-catalog",body()).getStatus());
+        assertEquals(401,assertThrows(CurriculumException.class,()->service.studentCatalog(User.ANONYMOUS,id,id)).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.studentCatalog(Teacher.get(id),id,id)).status);
+        var response=request(Student.get(id),"/my-curriculum-catalog",body().replace("\"subjectId\":"+id,"\"subjectId\":"+(id+1)));
+        assertEquals(Status.CONFLICT,response.getStatus());assertTrue(responseBody(response).contains("context_unassigned"));
+        assertFalse(responseBody(response).contains("totalTokens"));
+    }
+    @Test void catalogUsesConfiguredSemesterAndPreservesHistoricalGrade() throws Exception {
+        var year=currentYear().setCurrentSemester(Semester.get(id));central(5);
+        int own=service.createFlexibleTopic(teacher,scope,"Historical");service.create(teacher,scope,"Historical task",4,own);
+        assertEquals(id,jsonResponse(Student.get(id),"/my-curriculum-catalog",progressBody(true,false)).get("semesterId").getAsInt());
+        db.writeTransaction(c->{exec(c,"UPDATE classes SET grade=6 WHERE id=?",id);return null;});
+        assertEquals(9,jsonResponse(Student.get(id),"/my-curriculum-catalog",body()).getAsJsonObject("planned").get("totalTokens").getAsInt());
+        service.assign(admin,id,new Curriculum.Scope(id,id,id,id+1));year.setCurrentSemester(Semester.get(id+1));
+        assertEquals(id+1,jsonResponse(Student.get(id),"/my-curriculum-catalog",progressBody(true,false)).get("semesterId").getAsInt());
+        assertEquals(9,jsonResponse(Student.get(id),"/my-curriculum-catalog",body()).getAsJsonObject("planned").get("totalTokens").getAsInt());
+        assertEquals(Status.BAD_REQUEST,request(Student.get(id),"/my-curriculum-catalog",body().replace("\"semesterId\":"+id,"\"semesterId\":null")).getStatus());
+    }
+    @Test void topicOnlyContextPinsGradeAndCatalogRejectsOversubscribedLegacyPlan() throws Exception {
+        var unassignedScope=new Curriculum.Scope(id,id,id+1,id);
+        service.createFlexibleTopic(teacher,unassignedScope,"Before promotion");
+        db.writeTransaction(c->{exec(c,"UPDATE classes SET grade=6 WHERE id=?",id+1);return null;});
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.create(teacher,unassignedScope,"After promotion",1)).status);
+        central(100);var task=service.create(teacher,scope,"Five",5);
+        db.writeTransaction(c->{exec(c,"UPDATE flexible_tasks SET tokens=6 WHERE id=?",task.id());return null;});
+        assertEquals("budget_exceeded",assertThrows(CurriculumException.class,()->service.studentCatalog(Student.get(id),id,id)).code);
+    }
+    @Test void topicHttpContractAndExplicitDetach() throws Exception {
+        String topicBody=assignmentBody().replace("}",",\"name\":\"Practice\"}");
+        int own=jsonResponse(Teacher.get(id),"/add-flexible-topic",topicBody).get("id").getAsInt();
+        String taskBody=assignmentBody().replace("}",",\"name\":\"Exercise\",\"tokens\":5,\"topicId\":"+own+"}");
+        int task=jsonResponse(Teacher.get(id),"/add-flexible-task",taskBody).get("id").getAsInt();
+        assertEquals(own,scalar("SELECT flexible_topic FROM flexible_task_topics WHERE flexible_task=?",task));
+        jsonResponse(Teacher.get(id),"/rename-flexible-topic","{\"topicId\":"+own+",\"name\":\"New name\"}");
+        assertEquals("New name",jsonResponse(Teacher.get(id),"/flexible-curriculum-structure",assignmentBody()).getAsJsonArray("topics").get(0).getAsJsonObject().get("name").getAsString());
+        assertEquals(Status.BAD_REQUEST,request(Teacher.get(id),"/add-flexible-task",taskBody.replace("\"topicId\":"+own,"\"topicId\":1.5")).getStatus());
+        assertEquals(Status.FORBIDDEN,request(Student.get(id),"/add-flexible-topic",topicBody).getStatus());
+        jsonResponse(Teacher.get(id),"/edit-flexible-task","{\"taskId\":"+task+",\"name\":\"Exercise\",\"tokens\":5,\"topicId\":null}");
+        assertEquals(0,scalar("SELECT COUNT(*) FROM flexible_task_topics WHERE flexible_task=?",task));
+    }
     de.igslandstuhl.database.server.webserver.responses.PostResponse request(User user,String path,String body) {
         var rq=new de.igslandstuhl.database.server.webserver.requests.APIPostRequest(
                 new de.igslandstuhl.database.server.webserver.requests.HttpHeader("POST "+path+" HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: "+body.length()+"\r\n"),body,"127.0.0.1",true) {
             @Override public User getUser(){return user;}
         };
         return de.igslandstuhl.database.server.webserver.handlers.CurriculumRequestHandler.handle(rq);
+    }
+
+    @AfterEach void restoreEnrollmentFixtureGrade() throws Exception {
+        db.writeTransaction(c->{exec(c,"UPDATE classes SET grade=5 WHERE id IN (?,?)",id,id+1);return null;});
+    }
+    CurriculumEnrollment enrollmentFixture() throws Exception {
+        db.writeTransaction(c->{
+            exec(c,"DELETE FROM student_curriculum_contexts WHERE student=?",id);
+            exec(c,"UPDATE classes SET grade=13 WHERE id IN (?,?)",id,id+1);
+            exec(c,"UPDATE topics SET grade=13 WHERE id=?",topic);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Synthetic','Second',?,'unused',?,1)",id+1,"second"+id+"@example.invalid",id+1);
+            for(int teacherId:new int[]{id,id+1})exec(c,"INSERT INTO teacher_subjects(teacher_id,subject_id) VALUES(?,?)",teacherId,id+1);
+            return null;
+        });
+        return new CurriculumEnrollment(service);
+    }
+    List<CurriculumEnrollment.Teaching> teachingMappings() {
+        return List.of(new CurriculumEnrollment.Teaching(id,id,id),new CurriculumEnrollment.Teaching(id+1,id,id+1));
+    }
+    @Test void gradeEnrollmentAssignsEveryClassAndPupilIdempotently() throws Exception {
+        var enrollment=enrollmentFixture();var result=enrollment.assignGrade(admin,13,id,List.of(id),teachingMappings());
+        assertEquals(2,result.get("students"));assertEquals(2,result.get("assignments"));
+        assertEquals(List.of(id),enrollment.studentSubjects(id,id));assertEquals(List.of(id),enrollment.studentSubjects(id+1,id));
+        enrollment.assignGrade(admin,13,id,List.of(id),teachingMappings());
+        assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_enrolled_students WHERE semester=?",id));
+        assertEquals(id+1,scalar("SELECT teacher FROM student_curriculum_contexts WHERE student=? AND semester=?",id+1,id));
+    }
+    @Test void gradeEnrollmentRejectsMissingOrUnauthorizedMappingAtomically() throws Exception {
+        var enrollment=enrollmentFixture();
+        assertThrows(CurriculumException.class,()->enrollment.assignGrade(admin,13,id,List.of(id),List.of(teachingMappings().get(0))));
+        db.writeTransaction(c->{exec(c,"DELETE FROM teacher_classes WHERE teacher_id=? AND class_id=?",id+1,id+1);return null;});
+        assertThrows(CurriculumException.class,()->enrollment.assignGrade(admin,13,id,List.of(id),teachingMappings()));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE semester=?",id));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_grade_subjects WHERE semester=?",id));
+    }
+    @Test void gradeEnrollmentExcludesWpfAndTeacherCannotAssign() throws Exception {
+        var enrollment=enrollmentFixture();enrollment.subjectType(admin,id,true);
+        assertThrows(CurriculumException.class,()->enrollment.assignGrade(admin,13,id,List.of(id),teachingMappings()));
+        assertThrows(CurriculumException.class,()->enrollment.subjectType(teacher,id,false));
+        assertThrows(CurriculumException.class,()->enrollment.assignGrade(teacher,13,id,List.of(id),teachingMappings()));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_enrolled_students WHERE semester=?",id));
+    }
+    @Test void wpfAssignmentIsIndividualAndRejectsStaleDragAndForeignClass() throws Exception {
+        var enrollment=enrollmentFixture();enrollment.subjectType(admin,id+1,true);
+        var wpf=new Curriculum.Scope(id,id+1,id,id);
+        enrollment.assignWpf(admin,id,wpf,null);
+        assertEquals(id+1,scalar("SELECT subject FROM curriculum_wpf_assignments WHERE student=? AND semester=?",id,id));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_wpf_assignments WHERE student=?",id+1));
+        assertThrows(CurriculumException.class,()->enrollment.assignWpf(admin,id,wpf,null));
+        assertThrows(CurriculumException.class,()->enrollment.assignWpf(admin,id+1,wpf,null));
+        assertThrows(CurriculumException.class,()->enrollment.assignWpf(teacher,id,wpf,id+1));
+        enrollment.assignWpf(admin,id,wpf,id+1);
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_wpf_assignments WHERE student=? AND semester=?",id,id));
+        assertEquals(1,enrollment.wpfRoster(admin,id,id).size());
+    }
+    @Test void wpfSwapKeepsOneChoiceAndPreservesOldContextWithoutAwardLoss() throws Exception {
+        var enrollment=enrollmentFixture();enrollment.subjectType(admin,id,true);enrollment.subjectType(admin,id+1,true);
+        enrollment.assignWpf(admin,id,scope,null);
+        enrollment.assignWpf(admin,id,new Curriculum.Scope(id,id+1,id,id),id);
+        assertEquals(List.of(id+1),enrollment.selectedWpf(id,id));
+        assertThrows(CurriculumException.class,()->service.studentCatalog(Student.get(id),id,id));
+        enrollment.assignWpf(admin,id,scope,id+1);
+        int task=central(5);Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);
+        assertThrows(CurriculumException.class,()->enrollment.assignWpf(admin,id,new Curriculum.Scope(id,id+1,id,id),id));
+        assertEquals(List.of(id),enrollment.selectedWpf(id,id));
+        assertEquals(5L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+    }
+    @Test void publicationDefaultsClosedAndSupportsWholeTopicAndTaskOverrides() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);int a=central(5),b=service.createCentralTask(topic,"Second",TaskLevel.LEVEL1,6);
+        assertEquals(0,((List<?>)service.studentCatalog(Student.get(id),id,id).get("centralTasks")).size());
+        assertFalse(enrollment.canAccessTask(id,a,false));
+        enrollment.release(teacher,scope,topic,null,true);
+        assertTrue(enrollment.canAccessTask(id,a,false));assertTrue(enrollment.canAccessTask(id,b,false));
+        enrollment.release(teacher,scope,null,a,false);
+        assertFalse(enrollment.canAccessTask(id,a,false));assertTrue(enrollment.canAccessTask(id,b,false));
+        assertEquals(1,((List<?>)service.studentCatalog(Student.get(id),id,id).get("centralTasks")).size());
+        int later=service.createCentralTask(topic,"Later",TaskLevel.LEVEL1,3);assertTrue(enrollment.canAccessTask(id,later,false));
+        enrollment.release(teacher,scope,topic,null,false);
+        assertFalse(enrollment.canAccessTask(id,b,false));
+        enrollment.release(teacher,scope,null,a,true);
+        assertEquals(1,((List<?>)service.studentCatalog(Student.get(id),id,id).get("centralTopics")).size());
+    }
+    @Test void publicationCannotBeChangedByOtherTeacherAndCompletedCoinsRemain() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);int task=central(7);
+        assertThrows(CurriculumException.class,()->enrollment.release(other,scope,topic,null,true));
+        enrollment.release(teacher,scope,topic,null,true);Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);
+        enrollment.release(teacher,scope,topic,null,false);
+        assertFalse(enrollment.canAccessTask(id,task,false));assertTrue(enrollment.canAccessTask(id,task,true));
+        assertEquals(7L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        assertEquals(1,((List<?>)service.studentCatalog(Student.get(id),id,id).get("centralTasks")).size());
+    }
+    @Test void enrollmentAndPublicationRoutesRepeatRoleAndInputChecks() throws Exception {
+        for(String path:List.of("/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf")) {
+            assertNotEquals(Status.OK,request(Teacher.get(id),path,body()).getStatus());
+            assertEquals(Status.FORBIDDEN,request(Student.get(id),path,body()).getStatus());
+        }
+        assertEquals(Status.FORBIDDEN,request(Student.get(id),"/set-curriculum-release",body()).getStatus());
+        assertEquals(Status.BAD_REQUEST,request(Teacher.get(id),"/set-curriculum-release",body()).getStatus());
     }
 }
