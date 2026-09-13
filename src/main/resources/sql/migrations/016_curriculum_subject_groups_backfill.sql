@@ -1,0 +1,1 @@
+UPDATE curriculum_subject_types SET mode=CASE WHEN wpf=1 THEN 'INDIVIDUAL' ELSE COALESCE(mode,'REGULAR') END, assignment_group=CASE WHEN wpf=1 THEN 'WPF' ELSE assignment_group END WHERE assignment_group IS NULL OR mode IS NULL;
