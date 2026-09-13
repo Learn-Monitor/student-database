@@ -120,6 +120,8 @@ class StudentSubjectAssignmentsTest {
         assertEquals(0, assignmentCount(studentC.getId(), ecology.getId()));
 
         studentB.addSubject(ecology);
+        assertThrows(SQLException.class, ecology::delete);
+        studentB.removeSubject(ecology);
         ecology.delete();
         assertEquals(0, assignmentCount(studentB.getId(), ecology.getId()));
     }

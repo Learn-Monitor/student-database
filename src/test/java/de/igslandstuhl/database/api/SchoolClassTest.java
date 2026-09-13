@@ -14,8 +14,9 @@ public class SchoolClassTest {
     }
     @Test
     public void addClass() throws SQLException {
-        SchoolClass added = SchoolClass.addClass("5a", 5);
-        SchoolClass schoolClass = SchoolClass.get(1);
+        String label = "5a-" + System.nanoTime();
+        SchoolClass added = SchoolClass.addClass(label, 5);
+        SchoolClass schoolClass = SchoolClass.get(label);
         assertNotNull(schoolClass);
         assertEquals(added, schoolClass);
     }

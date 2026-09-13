@@ -15,18 +15,20 @@ public class SubjectTest {
     }
     @Test
     public void addSubject() throws SQLException {
-        Subject added = Subject.addSubject("Mathematik");
-        Subject subject = Subject.get(1);
+        String name = "Mathematik " + System.nanoTime();
+        Subject added = Subject.addSubject(name);
+        Subject subject = Subject.get(name);
         assertNotNull(subject);
         assertEquals(added, subject);
     }
     @Test
     public void addSubjectToGrade() throws SQLException {
-        PreConditions.addSampleSubject();
-        Subject.get(1).addToGrade(5);
-        SchoolClass schoolClass = SchoolClass.get(1);
+        String classLabel = "5subject-" + System.nanoTime();
+        SchoolClass schoolClass = SchoolClass.addClass(classLabel, 5);
+        Subject subject = Subject.addSubject("Mathematik " + classLabel);
+        subject.addToGrade(5);
         assertTrue(
-            schoolClass.getSubjects().stream().anyMatch(subject -> subject.getId() == 1),
+            schoolClass.getSubjects().stream().anyMatch(candidate -> candidate.getId() == subject.getId()),
             "Subject not found in SchoolClass"
         );
     }
