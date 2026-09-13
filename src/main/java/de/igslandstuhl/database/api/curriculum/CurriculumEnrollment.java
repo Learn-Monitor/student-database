@@ -136,7 +136,20 @@ public final class CurriculumEnrollment {
             return null;
         });
     }
-    public void removeGradeSubject(Actor actor,int grade,int semester,int subject) throws SQLException { admin(actor); curriculum.transaction(c->{write(c,"DELETE FROM curriculum_grade_subjects WHERE grade=? AND semester=? AND subject=?",grade,semester,subject);return null;}); }
+    public void removeGradeSubject(Actor actor,int grade,int semester,int subject) throws SQLException {
+        admin(actor);
+        curriculum.transaction(c->{
+            long completed=number(c,"SELECT COUNT(*) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE x.status<>0 AND p.subject=? AND p.grade=? AND p.semester=?",subject,grade,semester)
+                    +number(c,"SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task WHERE t.subject=? AND t.grade=? AND t.semester=?",subject,grade,semester);
+            if(completed>0) throw error(409,"context_conflict","Subject has existing work in this semester and cannot be removed silently.");
+            write(c,"DELETE FROM curriculum_grade_subjects WHERE grade=? AND semester=? AND subject=?",grade,semester,subject);
+            write(c,"DELETE FROM curriculum_class_teachers WHERE semester=? AND subject=? AND class IN(SELECT id FROM classes WHERE grade=?)",semester,subject,grade);
+            write(c,"DELETE FROM curriculum_grade_teachers WHERE semester=? AND grade=? AND subject=?",semester,grade,subject);
+            write(c,"DELETE FROM student_curriculum_contexts WHERE semester=? AND subject=? AND grade=?",semester,subject,grade);
+            write(c,"DELETE FROM curriculum_individual_assignments WHERE semester=? AND subject=?",semester,subject);
+            return null;
+        });
+    }
     /** All classes and pupils are resolved afresh; a single invalid mapping rolls back the batch. */
     public Map<String,Object> assignGrade(Actor actor,int grade,int semester,List<Integer> subjects,List<Teaching> teaching) throws SQLException {
         admin(actor);

@@ -976,6 +976,32 @@ class CurriculumTest {
         enrollment.assignIndividual(admin,id,new Curriculum.Scope(id,id+3,id,id),"RELIGION_ETHIK",null);
         assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_individual_assignments WHERE student=? AND semester=?",id,id));
     }
+    @Test void removingManagedGradeSubjectWithoutWorkRemovesCurrentContexts() throws Exception {
+        var enrollment=enrollmentFixture();
+        enrollment.assignGrade(admin,13,id,List.of(id),teachingMappings());
+        assertEquals(2,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE semester=? AND subject=?",id,id));
+        enrollment.removeGradeSubject(admin,13,id,id);
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_grade_subjects WHERE semester=? AND subject=?",id,id));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=? AND subject=?",id,id));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE semester=? AND subject=?",id,id));
+        assertEquals(List.of(),enrollment.studentSubjects(id,id));
+    }
+    @Test void removingManagedGradeSubjectWithWorkIsBlocked() throws Exception {
+        var enrollment=enrollmentFixture();
+        enrollment.assignGrade(admin,13,id,List.of(id),teachingMappings());
+        int task=central(5);
+        Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);
+        var error=assertThrows(CurriculumException.class,()->enrollment.removeGradeSubject(admin,13,id,id));
+        assertEquals(409,error.status);
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_grade_subjects WHERE semester=? AND subject=?",id,id));
+        assertEquals(2,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE semester=? AND subject=?",id,id));
+    }
+    @Test void globalSubjectDeletionBlocksHistoricalReferences() throws Exception {
+        assertThrows(SQLException.class,()->Subject.get(id).delete());
+        db.writeTransaction(c->{exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",id+4,"Disposable "+id);return null;});
+        assertDoesNotThrow(()->Subject.get(id+4).delete());
+        assertNull(Subject.get(id+4));
+    }
     @Test void publicationDefaultsClosedAndSupportsWholeTopicAndTaskOverrides() throws Exception {
         var enrollment=new CurriculumEnrollment(service);int a=central(5),b=service.createCentralTask(topic,"Second",TaskLevel.LEVEL1,6);
         assertEquals(0,((List<?>)service.studentCatalog(Student.get(id),id,id).get("centralTasks")).size());
