@@ -156,6 +156,18 @@ table tr:last-child td {
 .admin-menu-links { display:grid; gap:.35rem; padding:0 .8rem .8rem; }
 .admin-menu-links a { display:block; padding:.45rem .55rem; border-radius:.4rem; color:#24527a; text-decoration:none; }
 .admin-menu-links a:hover, .admin-menu-links a:focus { background:#eaf3fb; text-decoration:underline; }
+.admin-status-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(10.5rem, 1fr)); gap:.75rem; margin:1rem 0; }
+.admin-status-card { padding:.9rem 1rem; background:#f8fbfd; border:1px solid #d9e1ea; border-radius:.55rem; box-shadow:0 1px 4px #172b4d0f; }
+.admin-status-card h3 { margin:0 0 .35rem; font-size:.95rem; color:#17324d; }
+.admin-status-value { font-size:1.45rem; font-weight:700; color:#102a43; }
+.admin-status-detail { margin-top:.3rem; color:#526b82; font-size:.92rem; }
+.admin-setup-status { display:grid; gap:.35rem; margin:1rem 0; padding:0; }
+.admin-setup-status li { background:#f8fbfd; border:1px solid #d9e1ea; }
+.admin-status-ok { color:#1f6f43; font-weight:700; }
+.admin-status-warning { color:#9a5b00; font-weight:700; }
+.admin-quick-links { display:flex; flex-wrap:wrap; gap:.55rem; margin-top:1rem; }
+.admin-quick-links a { padding:.5rem .65rem; border-radius:.4rem; background:#eaf3fb; color:#24527a; font-weight:700; text-decoration:none; }
+.admin-quick-links a:hover, .admin-quick-links a:focus { text-decoration:underline; }
 @media (max-width:700px) {
   .admin-main-menu { align-items:stretch; flex-direction:column; }
   .admin-main-menu-sections { display:grid; grid-template-columns:1fr 1fr; width:100%; }
