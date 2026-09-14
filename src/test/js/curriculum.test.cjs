@@ -6,7 +6,10 @@ const{JSDOM}=require('jsdom');
 const script=fs.readFileSync(path.join(__dirname,'../../main/resources/js/site/curriculum.js'),'utf8');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,20));
 async function setup(admin, options={}){
- const dom=new JSDOM('<section id="curriculum"></section>',{url:'https://school.example.invalid/',runScripts:'outside-only'});
+ const markup=options.adminDashboard
+  ? '<section id="schuljahr"><div id="admin-enrollment"></div></section><section id="curriculum-admin"><div id="admin-central-curriculum"></div></section>'
+  : '<section id="curriculum"></section>';
+ const dom=new JSDOM(markup,{url:'https://school.example.invalid/',runScripts:'outside-only'});
  await new Promise(resolve=>dom.window.document.addEventListener('DOMContentLoaded',resolve,{once:true}));
  if(options.pm) {
   dom.window.hasPermission=async name=>{if(options.checkFails)throw Error('internal failure');return options.pm[name]===true;};
@@ -57,7 +60,7 @@ async function setup(admin, options={}){
   return {ok,status:ok?200:409,text:async()=>JSON.stringify(body)};
  };
  dom.window.eval(script);dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));await tick();
- return {dom,requests,root:dom.window.document.querySelector('#curriculum')};
+ return {dom,requests,root:dom.window.document.querySelector(options.adminDashboard?'#admin-central-curriculum':'#curriculum')};
 }
 function formWith(root,button){return [...root.querySelectorAll('form')].find(f=>f.querySelector('button')?.textContent===button);}
 async function submit(dom,form){form.dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));await tick();}
@@ -253,10 +256,10 @@ test('individual subject groups save independently through the guarded assignmen
  const {dom,root,requests}=await setup(true,{enrollment:true});try{
   const panel=root.querySelector('.curriculum-enrollment');await clickNamed(dom,panel,'Jetzt verwalten');await clickNamed(dom,panel,'Auswahl bestätigen');
   const group=[...panel.querySelectorAll('select')].find(select=>[...select.options].some(option=>option.value==='RELIGION_ETHIK'));assert.ok(group);assert.equal(group.value,'RELIGION_ETHIK');
-  await clickNamed(dom,panel,'WPF-Liste laden');
+  await clickNamed(dom,panel,'Zuordnungen laden');
   let row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');let selects=row.querySelectorAll('select');selects[0].value='6';selects[1].value='7';await clickNamed(dom,panel,'Zuordnungen speichern');
   let request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.equal(request.data.studentId,50);assert.equal(request.data.subjectId,6);assert.equal(request.data.assignmentGroup,'RELIGION_ETHIK');assert.equal(request.data.expectedSubjectId,null);
-  group.value='WPF';group.dispatchEvent(new dom.window.Event('change'));await clickNamed(dom,panel,'WPF-Liste laden');
+  group.value='WPF';group.dispatchEvent(new dom.window.Event('change'));await clickNamed(dom,panel,'Zuordnungen laden');
   row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');selects=row.querySelectorAll('select');selects[0].value='5';selects[1].value='7';await clickNamed(dom,panel,'Zuordnungen speichern');
   request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.equal(request.data.subjectId,5);assert.equal(request.data.classId,10);assert.equal(request.data.assignmentGroup,'WPF');
  }finally{dom.window.close();}
@@ -272,6 +275,28 @@ test('old publication controls cannot write after scope change or permission rev
  const pm={...grants(),curriculum_publish:true};const {dom,root,requests}=await setup(false,{enrollment:true,pm});try{
   await clickNamed(dom,root,'Freischaltungen laden');const button=[...root.querySelectorAll('button')].find(b=>b.textContent==='Etappe freischalten');root.querySelector('[name=classId]').value='11';button.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
   root.querySelector('[name=classId]').value='10';pm.curriculum_publish=false;button.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
+ }finally{dom.window.close();}
+});
+
+test('admin dashboard separates enrollment from central curriculum mounts',async()=>{
+ const {dom,root,requests}=await setup(true,{enrollment:true,adminDashboard:true});try{
+  const enrollment=dom.window.document.querySelector('#admin-enrollment');
+  const central=dom.window.document.querySelector('#admin-central-curriculum');
+  assert.ok(enrollment);assert.ok(central);assert.notEqual(enrollment,central);assert.equal(dom.window.document.querySelectorAll('#curriculum').length,0);
+  assert.ok(enrollment.querySelector('.curriculum-enrollment'));
+  assert.ok(central.querySelector('.central-curriculum-import'));
+  assert.match(enrollment.textContent,/Neues Schulhalbjahr anlegen/);
+  assert.match(enrollment.textContent,/Als aktives Halbjahr setzen/);
+  await clickNamed(dom,enrollment,'Jetzt verwalten');await clickNamed(dom,enrollment,'Auswahl bestätigen');
+  assert.match(enrollment.textContent,/Lehrkräfte-Tabelle/);
+  assert.match(enrollment.textContent,/Individuelle Fächer/);
+  assert.doesNotMatch(enrollment.textContent,/CSV|Vorschau prüfen|Thema anlegen|Etappe anlegen/);
+  assert.match(central.textContent,/Zentrale Themen und Etappen/);
+  assert.match(central.textContent,/Thema umbenennen/);
+  assert.match(central.textContent,/Etappe anlegen/);
+  assert.match(central.textContent,/Vorschau prüfen/);
+  assert.doesNotMatch(central.textContent,/Individuelle Fächer|Unterrichtskontext|Flexible Lehrer-Etappen|Flexible Etappe/);
+  assert.equal(requests.some(r=>r.url==='/flexible-curriculum-structure'),false);
  }finally{dom.window.close();}
 });
 

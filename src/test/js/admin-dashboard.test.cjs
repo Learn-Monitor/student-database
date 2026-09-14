@@ -67,20 +67,48 @@ function currentText(document) {
   return current ? current.textContent.trim() : '';
 }
 
-for (const [hash,section,label,curriculumVisible] of [
-  ['', 'uebersicht', 'Übersicht', false],
-  ['#schuldaten', 'schuldaten', 'Schuldaten', false],
-  ['#schuljahr', 'schuljahr', 'Schuljahr & Zuordnungen', true],
-  ['#curriculum', 'curriculum-admin', 'Zentrales Curriculum', true],
-  ['#anwesenheit', 'anwesenheit', 'Anwesenheit', false],
-  ['#rechte', 'rechte', 'Rechte', false],
-  ['#system', 'system', 'System', false]
+for (const [hash,section,label] of [
+  ['', 'uebersicht', 'Übersicht'],
+  ['#schuldaten', 'schuldaten', 'Schuldaten'],
+  ['#schuljahr', 'schuljahr', 'Schuljahr & Zuordnungen'],
+  ['#curriculum', 'curriculum-admin', 'Zentrales Curriculum'],
+  ['#anwesenheit', 'anwesenheit', 'Anwesenheit'],
+  ['#rechte', 'rechte', 'Rechte'],
+  ['#system', 'system', 'System']
 ]) test(`admin dashboard hash ${hash || 'default'} opens ${section}`,()=>{
   const dom=setup(hash);
   try {
     assert.deepEqual(visibleIds(dom.window.document),[section]);
     assert.equal(currentText(dom.window.document),label);
-    assert.equal(dom.window.document.querySelector('#curriculum').hidden,!curriculumVisible);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('admin dashboard uses distinct enrollment and central curriculum mountpoints',()=>{
+  const dom=setup('#curriculum');
+  try {
+    assert.ok(dom.window.document.querySelector('#admin-enrollment'));
+    assert.ok(dom.window.document.querySelector('#admin-central-curriculum'));
+    assert.notEqual(dom.window.document.querySelector('#admin-enrollment'),dom.window.document.querySelector('#admin-central-curriculum'));
+    assert.equal(dom.window.document.querySelectorAll('#curriculum').length,0);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('admin dashboard switches schuljahr and curriculum hashes without reload',()=>{
+  const dom=setup('#schuljahr');
+  try {
+    assert.deepEqual(visibleIds(dom.window.document),['schuljahr']);
+    dom.window.location.hash='#curriculum';
+    dom.window.dispatchEvent(new dom.window.Event('hashchange'));
+    assert.deepEqual(visibleIds(dom.window.document),['curriculum-admin']);
+    assert.equal(currentText(dom.window.document),'Zentrales Curriculum');
+    dom.window.location.hash='#schuljahr';
+    dom.window.dispatchEvent(new dom.window.Event('hashchange'));
+    assert.deepEqual(visibleIds(dom.window.document),['schuljahr']);
+    assert.equal(currentText(dom.window.document),'Schuljahr & Zuordnungen');
   } finally {
     dom.window.close();
   }

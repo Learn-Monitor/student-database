@@ -9,19 +9,17 @@
     <section class="admin-function-page" id="schuldaten"><h2>Schuldaten</h2><div class="admin-menu-links">
         <a href="/manage_classes">Klassen verwalten</a><a href="/manage_subjects">Fächer verwalten</a><a href="/manage_students">Schüler verwalten</a><a href="/manage_teachers">Lehrer verwalten</a>
     </div></section>
-    <section class="admin-function-page" id="schuljahr"><h2>Schuljahr &amp; Zuordnungen</h2><p>Alle Einrichtungsschritte sind unten vollständig geöffnet.</p></section>
-    <section class="admin-function-page" id="curriculum-admin"><h2>Zentrales Curriculum</h2><p>Die zentrale Curriculumverwaltung bleibt unten vollständig geöffnet.</p></section>
+    <section class="admin-function-page" id="schuljahr"><h2>Schuljahr &amp; Zuordnungen</h2><p>Halbjahre, Jahrgangszuordnungen, zuständige Lehrkräfte und individuelle Fächer werden hier eingerichtet.</p><div id="admin-enrollment"></div></section>
+    <section class="admin-function-page" id="curriculum-admin"><h2>Zentrales Curriculum</h2><p>Zentrale Themen, Etappen, Münzwerte und CSV-Import werden hier verwaltet.</p><div id="admin-central-curriculum"></div></section>
     <section class="admin-function-page" id="anwesenheit"><h2>Anwesenheit</h2><div class="admin-menu-links"><a href="/attendance">Attendance</a><a href="/attendance-admin">Attendance verwalten</a></div></section>
     <section class="admin-function-page" id="rechte"><h2>Rechte</h2><div class="admin-menu-links"><a href="/manage_permissions">Berechtigungen und Rollen verwalten</a></div></section>
     <section class="admin-function-page" id="system"><h2>System</h2><div class="admin-menu-links"><a href="/plugins">Module verwalten</a></div></section>
 </section>
-<section id="curriculum"><h2>Themen, Etappen und Münzbudget</h2></section>
 <script src="/admin-dashboard.js" defer></script>
 <script src="/curriculum.js" defer></script>
 <script>
 (() => {
   const sections = [...document.querySelectorAll('.admin-function-page')];
-  const curriculum = document.querySelector('#curriculum');
   const aliases = new Map([['halbjahre', 'schuljahr'], ['module', 'system']]);
   const visibleSection = id => id === 'curriculum' ? 'curriculum-admin' : id;
   const normalize = id => aliases.get(id) || id || 'uebersicht';
@@ -29,7 +27,6 @@
     const active = normalize(id);
     const target = sections.some(s => s.id === visibleSection(active)) ? active : 'uebersicht';
     sections.forEach(s => s.hidden = s.id !== visibleSection(target));
-    if (curriculum) curriculum.hidden = !(target === 'schuljahr' || target === 'curriculum');
     document.querySelectorAll('.admin-main-menu a').forEach(a => {
       if (a.classList.contains('admin-main-menu-logout')) { a.removeAttribute('aria-current'); return; }
       const linkHash = new URL(a.getAttribute('href'), location.href).hash.slice(1);

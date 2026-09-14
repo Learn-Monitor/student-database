@@ -1,8 +1,11 @@
 /* Standard curriculum editor: all mutations are validated again by the server. */
 'use strict';
 document.addEventListener('DOMContentLoaded', async () => {
-    const root = document.querySelector('#curriculum');
-    if (!root) return;
+    const adminEnrollmentRoot = document.querySelector('#admin-enrollment');
+    const adminCentralRoot = document.querySelector('#admin-central-curriculum');
+    const separatedAdmin = Boolean(adminEnrollmentRoot && adminCentralRoot);
+    const root = adminCentralRoot || document.querySelector('#curriculum');
+    if (!root && !adminEnrollmentRoot) return;
     let revealSemesterSetup=()=>{};
     const el = (tag, text) => { const node = document.createElement(tag); if (text != null) node.textContent = text; return node; };
     const message = el('p'); message.setAttribute('role', 'status'); root.append(message);
@@ -61,9 +64,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         wrapper.append(input); form.append(wrapper); return input;
     }
     function button(form, text) { const b = el('button', text); b.type = 'submit'; form.append(b); return b; }
-    async function mountEnrollment(catalog, currentScope) {
-        const section=el('section');section.className='curriculum-enrollment';root.append(section);
-        if(catalog.admin) Array.from(root.children).filter(node=>node!==section).forEach(node=>node.hidden=true);
+    async function mountEnrollment(catalog, currentScope, mount=root) {
+        const section=el('section');section.className='curriculum-enrollment';mount.append(section);
         const status=el('p');status.setAttribute('role','status');section.append(status);
         const run=async(action)=>{try{status.textContent='';await action();}catch(e){status.textContent=e.message;}};
         const choice=(parent,label,items)=>{
@@ -106,7 +108,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         button(semesterForm,'Nächstes Halbjahr anlegen'); panel.append(semesterForm);
         semesterForm.addEventListener('submit',async event=>{event.preventDefault();await run(async()=>{const result=await call('/create-curriculum-semester',{},'curriculum_manage_enrollment');status.textContent=`${result.label} angelegt. Auswahlfelder werden aktualisiert.`;window.location.reload();});});
         const managePanel=el('div');managePanel.className='semester-manage-panel';managePanel.append(el('h3','Halbjahr und Klassenstufe verwalten'));const manageButton=el('button','Jetzt verwalten');manageButton.type='button';managePanel.append(manageButton);landing.append(managePanel);manageButton.addEventListener('click',()=>{revealSemesterSetup();});
-        const wpfPanel=el('details');wpfPanel.open=true;wpfPanel.append(el('summary','WPF-Zuteilung nach Klasse'));section.append(wpfPanel);
+        const wpfPanel=el('details');wpfPanel.open=true;wpfPanel.append(el('summary','Individuelle Fächer'));section.append(wpfPanel);
         const loadCatalog=()=>call('/curriculum-enrollment-catalog',{},'curriculum_manage_enrollment');
         const data=await loadCatalog();
         const existing=el('div');existing.append(el('h4','Bereits angelegt'));const list=el('ul');for(const item of data.semesters){const li=el('li',item.label+(item.active?' · aktiv':' '));if(!item.active){const activate=el('button','Als aktives Halbjahr setzen');activate.type='button';activate.addEventListener('click',()=>run(async()=>{if(!confirm('Dieses Halbjahr als aktives Halbjahr verwenden?'))return;await call('/activate-curriculum-semester',{semesterId:item.id},'curriculum_manage_enrollment');status.textContent='Aktives Halbjahr gesetzt.';window.location.reload();}));li.append(' ',activate);}list.append(li);}existing.append(list);panel.append(existing);
@@ -160,7 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             board.append(table);if(!pupils.length)board.append(el('p','In dieser Klasse sind noch keine Kinder eingetragen.'));
             action(board,'Zuordnungen speichern',async()=>{for(const row of rows){const subjectId=Number(row.wpf.value);if(!subjectId)continue;const teacherId=Number(row.teacher.value);if(!teacherId)throw Error('Bitte für jedes gewählte Fach eine Lehrkraft auswählen.');await call('/assign-curriculum-wpf',{studentId:row.student.id,subjectId,classId,semesterId,teacherId,assignmentGroup:selectedGroup,expectedSubjectId:row.student.subjectId??null},'curriculum_manage_enrollment');}status.textContent='Individuelle Fach- und Lehrkräfte-Zuordnung gespeichert.';});
         };
-        action(wpfPanel,'WPF-Liste laden',loadRoster);
+        action(wpfPanel,'Zuordnungen laden',loadRoster);
     }
     try {
         if (hasPM) {
@@ -177,11 +179,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const schoolClass = select('Klasse/Lerngruppe', catalog.classes, 'classId');
         const teacher = catalog.admin ? select('Lehrkraft (flexible Etappen)', catalog.teachers.map(t => ({id:t.id,name:t.first_name+' '+t.last_name})), 'teacherId') : null;
         const grade = catalog.admin ? select('Jahrgang (zentral)', Array.from({length:13},(_,i)=>({id:i+1,name:String(i+1)})), 'grade') : null;
+        if (catalog.admin && separatedAdmin) [schoolClass, teacher].filter(Boolean).forEach(node => node.closest('label').remove());
         if (grade) grade.value = String(catalog.classes[0]?.grade || 5);
         const load = el('button', 'Anzeigen / Aktualisieren'); load.type = 'button'; root.append(load);
         const summary = el('p'), central = el('section'), flexible = el('section'), assignments = el('section'); root.append(summary, central, flexible, assignments);
         const genericControls=[subject,semester,schoolClass,teacher,grade,load,summary,central,flexible,assignments].filter(Boolean);
-        if(catalog.admin) genericControls.forEach(node=>node.hidden=true);
+        if(catalog.admin && !separatedAdmin) genericControls.forEach(node=>node.hidden=true);
         const previousReveal=revealSemesterSetup; revealSemesterSetup=()=>{previousReveal();genericControls.forEach(node=>node.hidden=false);};
         let version = 0;
         async function refresh() {
@@ -253,6 +256,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const form=el('form'), name=field(form,'Neues Thema',''), number=field(form,'Nummer',Math.max(0,...structure.topics.map(t=>t.number))+1,'number');number.min=1;number.removeAttribute('max');button(form,'Thema anlegen');central.append(form);
                 form.addEventListener('submit',async e=>{e.preventDefault();try{await save('/add-curriculum-topic',{...scope,grade:g,number:Number(number.value),name:name.value});}catch(error){showError(error);}});
             }
+            if (catalog.admin && separatedAdmin) return;
             flexible.replaceChildren(el('h3','Flexible Lehrer-Etappen'));
             if(!scope.classId || !scope.teacherId){flexible.append(el('p','Für flexible Etappen Klasse und Lehrkraft auswählen.'));return;}
             budget=await post('/curriculum-budget',scope);
@@ -348,6 +352,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         for(const node of [subject,semester,schoolClass,teacher,grade].filter(Boolean))node.addEventListener('change',()=>refresh().catch(showError));
         load.addEventListener('click',()=>refresh().catch(showError));await refresh().catch(showError);
         await mountCentralImport();
-        if(catalog.enrollmentEnabled)await mountEnrollment(catalog,()=>({subjectId:Number(subject.value),semesterId:Number(semester.value),classId:Number(schoolClass.value),teacherId:teacher?Number(teacher.value):catalog.teacherId}));
+        if(catalog.enrollmentEnabled)await mountEnrollment(catalog,()=>({subjectId:Number(subject.value),semesterId:Number(semester.value),classId:Number(schoolClass.value),teacherId:teacher?Number(teacher.value):catalog.teacherId}),adminEnrollmentRoot||root);
     } catch(error) { showError(error); }
 });
