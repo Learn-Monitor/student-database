@@ -10,48 +10,16 @@
             <input type="hidden" class="subjectId" name="id">
             <label for="subjectNameField">Name des Fachs:</label>
             <input type="text" id="subjectNameField" name="name">
-            <button type="submit">Daten ändern</button>
+            <button type="submit">Speichern</button>
         </form>
+        <p>Zentrale Themen, Etappen und Münzwerte werden semesterbezogen im zentralen Curriculum verwaltet.</p>
+        <p><a href="/dashboard#curriculum">Zentrales Curriculum verwalten</a></p>
     </section>
     <section id="deleteSubject">
         <h2>Fach löschen</h2>
         <button id="deleteSubjectButton">Fach löschen</button>
     </section>
-    <section id="grade-list">
-        <h2>Klassenstufen</h2>
-        <ul id="gradeList">
-            <!-- items will be dynamically inserted here -->
-        </ul>
-        <section id="add-grade">
-            <h2>Klassenstufe hinzufügen</h2>
-            <form id="addGradeToSubjectForm" method="post" action="/add-grade-to-subject">
-                <input type="hidden" class="subjectId" name="subjectId">
-                <label for="gradeInput">Klassenstufe:</label>
-                <input type="number" id="gradeInput" name="grade">
-                <button type="submit">hinzufügen</button>
-            </form>
-        </section>
-    </section>
-    <section id="topic-list">
-        <h2>Themen in diesem Fach</h2>
-        <label for="gradeSelect">Klassenstufe:</label>
-        <select id="gradeSelect"></select>
-        <table id="topicTable">
-            <thead>
-                <th>Name</th>
-                <th>Anteil</th>
-                <th>Nummer</th>
-                <th>Etappen gesamt</th>
-            </thead>
-            <tbody>
-                <!-- Items will be automatically inserted here -->
-            </tbody>
-        </table>
-        <button id="deleteAllTopics">Alle löschen</button>
-    </section>
     <nav>
         %[admin_subject_nav]
     </nav>
 </section>
-<section id="curriculum"><h2>Themen, Etappen und Münzbudget</h2></section>
-<script src="/curriculum.js" defer></script>

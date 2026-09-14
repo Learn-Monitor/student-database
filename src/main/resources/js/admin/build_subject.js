@@ -1,46 +1,31 @@
-subject = JSON.parse(sessionStorage.getItem("currentSubject"))
+'use strict';
 
-document.addEventListener('DOMContentLoaded', async (e) => {
+const subject = JSON.parse(sessionStorage.getItem('currentSubject'));
+
+document.addEventListener('DOMContentLoaded', () => {
     if (subject) {
         document.getElementById('subjectNameField').value = subject.name;
-        Array.from(document.getElementsByClassName('subjectId')).forEach(function(element) {
+        Array.from(document.getElementsByClassName('subjectId')).forEach(element => {
             element.value = subject.id;
         });
     } else {
-        console.error('No class data found in sessionStorage.');
+        console.error('No subject data found in sessionStorage.');
     }
 
-    document.getElementById('deleteSubjectButton').addEventListener('click', function() {
-        if (confirm('Are you sure you want to delete this subject?')) {
+    document.getElementById('deleteSubjectButton').addEventListener('click', () => {
+        if (!subject) return;
+        if (confirm('Fach wirklich löschen? Dies ist nur möglich, wenn keine Zuordnungen, Curriculuminhalte oder Leistungsdaten vorhanden sind.')) {
             deleteSubject(subject.id).then(response => {
                 if (response.ok) {
-                    alert('Subject deleted successfully.');
+                    alert('Fach wurde gelöscht.');
                     window.location.href = '/manage_subjects';
                 } else {
-                    alert('Failed to delete subject. Please try again.');
+                    alert('Das Fach konnte nicht gelöscht werden. Möglicherweise wird es noch verwendet.');
                 }
-            })
-            .catch(error => {
+            }).catch(error => {
                 console.error('Error deleting subject:', error);
-                alert('An error occurred while trying to delete the subject.');
+                alert('Das Fach konnte nicht gelöscht werden. Möglicherweise wird es noch verwendet.');
             });
         }
     });
-
-    await populateGradeList('gradeList', subject.id);
-    await populateGradeSelect('gradeSelect', subject.id);
-
-    async function updateTopicTable(e) {
-        await populateTopicTable('topicTable', subject.id, Number(e.target.value));
-    }
-
-    gradeSelect.addEventListener('change', updateTopicTable);
-    updateTopicTable({target: {value: gradeSelect.value}});
-
-    document.getElementById("deleteAllTopics").addEventListener('click', e => 
-        openUrlWithPostParams("/delete-topics", {
-            subjectId: subject.id,
-            grade: Number(gradeSelect.value)
-        })
-    );
-})
+});
