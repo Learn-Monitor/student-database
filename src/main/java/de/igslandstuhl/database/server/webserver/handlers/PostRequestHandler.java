@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +35,8 @@ import de.igslandstuhl.database.api.Teacher;
 import de.igslandstuhl.database.api.Topic;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.api.results.GenerationResult;
+import de.igslandstuhl.database.api.curriculum.Curriculum;
+import de.igslandstuhl.database.api.curriculum.CurriculumException;
 import de.igslandstuhl.database.plugins.config.BoolSetting;
 import de.igslandstuhl.database.plugins.config.IntSetting;
 import de.igslandstuhl.database.plugins.config.PluginConfig;
@@ -40,6 +44,7 @@ import de.igslandstuhl.database.plugins.config.PluginSetting;
 import de.igslandstuhl.database.plugins.config.ShortAnswerSetting;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.ContentType;
+import de.igslandstuhl.database.server.webserver.Status;
 import de.igslandstuhl.database.server.webserver.access.AccessLevel;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
@@ -145,14 +150,82 @@ public class PostRequestHandler {
             return new de.igslandstuhl.database.api.curriculum.CurriculumEnrollment(de.igslandstuhl.database.api.curriculum.Curriculum.current()).canAccessTask(student.getId(),task.getId(),false);
         } catch(de.igslandstuhl.database.api.curriculum.CurriculumException e) {return false;}
     }
-    private static PostResponse handleTaskChange(APIPostRequest request, int newStatus) throws IOException, SQLException {
+    static PostResponse handleTaskChange(APIPostRequest request, int newStatus) throws IOException, SQLException {
         Student student = request.getCurrentStudent();
         if (student == null) return PostResponse.unauthorized(request);
         Task task = request.getTask();
         if (task == null) return PostResponse.notFound("Task not found", request);;
+        int currentStatus = student.getTaskStatus(task);
+        User user = request.getUser();
+        if (user != null && user.isStudent() && newStatus == Task.STATUS_COMPLETED)
+            return PostResponse.forbidden("Leistungen werden durch die zuständige Lehrkraft bestätigt.", request);
         if(!publishedForStudent(request,student,task))return PostResponse.forbidden("This task has not been released for your class.",request);
+        if (user != null && (user.isTeacher() || user.isAdmin())) {
+            try {
+                Curriculum.Actor actor = new Curriculum.Actor(user.isAdmin(), user.isTeacher() ? user.asTeacher().getId() : 0);
+                new Curriculum(Server.getInstance().getConnection()).authorizeCentralTaskChange(actor, student.getId(), task.getId(), newStatus == Task.STATUS_COMPLETED);
+            } catch (CurriculumException e) {
+                return curriculumError(e, request);
+            }
+        }
+        if (newStatus == Task.STATUS_LOCKED && currentStatus == Task.STATUS_COMPLETED)
+            return PostResponse.json(Status.CONFLICT, Map.of("error", "confirmed_completion", "message", "Abgeschlossene Leistungen können nicht durch Sperren zurückgesetzt werden."), request);
         student.changeTaskStatus(task, newStatus);
         return PostResponse.ok("Task status changed successfully", ContentType.TEXT_PLAIN, request);
+    }
+    private static PostResponse curriculumError(CurriculumException e, APIPostRequest request) {
+        Status status = switch(e.status) {
+            case 400 -> Status.BAD_REQUEST;
+            case 401 -> Status.UNAUTHORIZED;
+            case 403 -> Status.FORBIDDEN;
+            case 404 -> Status.NOT_FOUND;
+            default -> Status.CONFLICT;
+        };
+        return PostResponse.json(status, Map.of("error", e.code, "message", e.getMessage()), request);
+    }
+    static PostResponse handleEditStudentProfile(APIPostRequest rq) {
+        try {
+            int studentId = requiredInt(rq, "id");
+            Student student = Student.get(studentId);
+            if (student == null) return PostResponse.badRequest("Schüler nicht gefunden", rq);
+            String firstName = requiredPrepared(rq, "firstName", true);
+            String lastName = requiredPrepared(rq, "lastName", true);
+            String loginName = requiredPrepared(rq, "email", false);
+            if (firstName.isBlank() || lastName.isBlank() || loginName.isBlank())
+                return PostResponse.badRequest("Pflichtfelder dürfen nicht leer sein.", rq);
+            int classId = requiredInt(rq, "classId");
+            SchoolClass schoolClass = SchoolClass.get(classId);
+            if (schoolClass == null || !activeClass(classId))
+                return PostResponse.badRequest("Ungültige Zielklasse.", rq);
+            GraduationLevel graduationLevel = GraduationLevel.of(requiredInt(rq, "graduationLevel"));
+            String password = rq.containsKey("password") ? rq.getString("password") : "";
+            student.updateProfile(firstName, lastName, loginName, password, schoolClass, graduationLevel);
+            return PostResponse.redirect("/manage_students", rq);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return PostResponse.badRequest("Ungültige Schülerprofildaten.", rq);
+        } catch (SQLException e) {
+            LOGGER.warn("Could not update student profile", e);
+            return PostResponse.badRequest("Schülerprofil konnte nicht gespeichert werden.", rq);
+        }
+    }
+    private static String requiredPrepared(APIPostRequest rq, String key, boolean sanitize) {
+        if (!rq.containsKey(key)) throw new IllegalArgumentException("Missing field: " + key);
+        String value = rq.getString(key);
+        if (value == null) throw new IllegalArgumentException("Missing field: " + key);
+        return prepare(value, sanitize);
+    }
+    private static int requiredInt(APIPostRequest rq, String key) {
+        if (!rq.containsKey(key)) throw new IllegalArgumentException("Missing field: " + key);
+        return rq.getInt(key);
+    }
+    private static boolean activeClass(int classId) throws SQLException {
+        try (PreparedStatement statement = Server.getInstance().getConnection().getSQLConnection().prepareStatement(
+                "SELECT COUNT(*) FROM classes WHERE id=? AND COALESCE(active,1)=1")) {
+            statement.setInt(1, classId);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() && result.getInt(1) > 0;
+            }
+        }
     }
     public static void registerTaskChangeHandler(String path, AccessLevel accessLevel, int taskStatus) {
         HttpHandler.registerPostRequestHandler(path, accessLevel, (rq) -> {
@@ -384,7 +457,7 @@ public class PostRequestHandler {
         HttpHandler.registerPostRequestHandler("/edit-class", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<SchoolClass>() {}, PostResponse.redirect("/manage_classes", rq), (schoolClass) -> schoolClass.edit(prepare(rq.getString("name")), rq.getInt("grade")))
         );
-        HttpHandler.registerPostRequestHandler("/edit-student-profile", AccessLevel.ADMIN, rq -> { Student s=Student.get(rq.getInt("id")); if(s==null)return PostResponse.badRequest("Schüler nicht gefunden",rq); s.updateProfile(prepare(rq.getString("firstName")),prepare(rq.getString("lastName")),prepare(rq.getString("email")),rq.getString("password"),SchoolClass.get(rq.getInt("classId")),GraduationLevel.of(rq.getInt("graduationLevel"))); return PostResponse.redirect("/manage_students",rq); });
+        HttpHandler.registerPostRequestHandler("/edit-student-profile", AccessLevel.ADMIN, PostRequestHandler::handleEditStudentProfile);
         HttpHandler.registerPostRequestHandler("/edit-teacher-profile", AccessLevel.ADMIN, rq -> { Teacher t=Teacher.get(rq.getInt("id")); if(t==null)return PostResponse.badRequest("Lehrkraft nicht gefunden",rq); t.updateProfile(prepare(rq.getString("firstName")),prepare(rq.getString("lastName")),prepare(rq.getString("email")),rq.getString("password")); return PostResponse.redirect("/manage_teachers",rq); });
         HttpHandler.registerPostRequestHandler("/add-subject-to-class", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<SchoolClass>() {}, PostResponse.redirect("/class", rq), (schoolClass) -> schoolClass.addSubject(rq.getSubject()))

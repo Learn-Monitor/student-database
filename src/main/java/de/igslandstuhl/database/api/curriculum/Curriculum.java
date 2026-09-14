@@ -427,6 +427,22 @@ public final class Curriculum {
     public Map<String,Object> progress(Actor actor, int studentId, Scope scope) throws SQLException {
         return transaction(c -> {authorize(c,actor,scope,false);return progress(c,studentId,scope);});
     }
+    /** Central task status changes must follow the student's managed curriculum assignment. */
+    public void authorizeCentralTaskChange(Actor actor, int studentId, int taskId, boolean requireRelease) throws SQLException {
+        transaction(c -> {
+            var task=require(c,"SELECT t.id,p.subject,p.grade,p.semester,p.id AS topic FROM tasks t JOIN topics p ON p.id=t.topic WHERE t.id=?",taskId);
+            Object semester=task.get("semester");
+            if(semester==null) return null;
+            int subject=integer(task,"subject"), semesterId=integer(task,"semester"), grade=integer(task,"grade");
+            var assignment=assigned(c,studentId,subject,semesterId);
+            if(integer(assignment,"grade")!=grade) throw error(403,"forbidden","Task does not belong to the student's assigned curriculum grade.");
+            var scope=assignmentScope(assignment,subject,semesterId);
+            authorize(c,actor,scope,false);
+            if(requireRelease && !CurriculumEnrollment.released(c,scope,taskId,integer(task,"topic")))
+                throw error(403,"forbidden","This task has not been released for the student's class.");
+            return null;
+        });
+    }
     /** Student identity comes exclusively from the session; the client cannot choose a teacher or class. */
     public Map<String,Object> studentProgress(User user,int subject,int semester) throws SQLException {
         if(user==null || user==User.ANONYMOUS) throw error(401,"unauthorized","Please sign in.");

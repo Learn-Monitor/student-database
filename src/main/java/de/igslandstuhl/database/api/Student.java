@@ -363,6 +363,13 @@ public class Student extends User {
      */
     public Set<Task> getLockedTasks() { return new HashSet<>(lockedTasks); }
 
+    public int getTaskStatus(Task task) {
+        if (completedTasks.contains(task)) return Task.STATUS_COMPLETED;
+        if (selectedTasks.contains(task)) return Task.STATUS_IN_PROGRESS;
+        if (lockedTasks.contains(task)) return Task.STATUS_LOCKED;
+        return Task.STATUS_NOT_STARTED;
+    }
+
     /**
      * Returns the current requests.
      * @return current requests
@@ -890,7 +897,9 @@ public class Student extends User {
     }
 
     public Student updateProfile(String firstName,String lastName,String email,String password,SchoolClass schoolClass,GraduationLevel level) throws SQLException {
-        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("student_profile", firstName,lastName,email,password==null||password.isEmpty()?passwordHash:passHash(password),schoolClass==null?"-1":String.valueOf(schoolClass.getId()),String.valueOf(level.getLevel()),String.valueOf(id)));
+        if (schoolClass == null) throw new IllegalArgumentException("School class is required");
+        if (level == null) throw new IllegalArgumentException("Graduation level is required");
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("student_profile", firstName,lastName,email,password==null||password.isEmpty()?passwordHash:passHash(password),String.valueOf(schoolClass.getId()),String.valueOf(level.getLevel()),String.valueOf(id)));
         students.remove(id); return get(id);
     }
 
