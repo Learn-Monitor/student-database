@@ -14,7 +14,6 @@ body {
   box-shadow: 0 0 8px rgba(0,0,0,0.1);
 }
 #dashboard { max-width: none; width: 100%; }
-body:has(.admin-main-menu) { padding-top: 76px; }
 
 header {
   border-bottom: 1px solid #ccc;
@@ -136,10 +135,12 @@ table tr:last-child td {
   box-sizing: border-box;
 }
 /* Kompakte Admin-Navigation */
-.admin-main-menu { position:fixed; top:0; left:0; right:0; z-index:1000; display:flex; flex-wrap:wrap; gap:.25rem; margin:0; padding:.45rem max(1rem, calc((100% - 1200px) / 2)); background:#17324d; box-shadow:0 3px 10px #172b4d33; }
-.admin-main-menu + * { margin-top:4.5rem; }
-.admin-main-menu a { flex:1 1 auto; padding:.7rem .8rem; color:#fff; font-weight:700; text-align:center; text-decoration:none; border-radius:.35rem; }
+.admin-main-menu { position:sticky; top:0; z-index:1000; display:flex; align-items:center; gap:.75rem; margin:1rem 0; padding:.55rem .75rem; background:#17324d; border-radius:.55rem; box-shadow:0 3px 10px #172b4d33; }
+.admin-main-menu-sections { flex:1 1 auto; display:flex; flex-wrap:wrap; gap:.3rem; }
+.admin-main-menu a { flex:0 1 auto; padding:.62rem .72rem; color:#fff; font-weight:700; text-align:center; text-decoration:none; border-radius:.35rem; }
 .admin-main-menu a:hover, .admin-main-menu a:focus, .admin-main-menu a[aria-current="true"] { background:#2c668e; }
+.admin-main-menu a:focus-visible { outline:3px solid #ffbf47; outline-offset:2px; }
+.admin-main-menu-logout { margin-left:auto; background:#0f2338; white-space:nowrap; }
 .admin-function-page { margin:1rem 0; padding:1rem 1.2rem; background:#fff; border:1px solid #d9e1ea; border-radius:.7rem; box-shadow:0 2px 8px #172b4d12; scroll-margin-top:5rem; }
 .semester-landing { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin:1rem 0; }
 .semester-create-panel, .semester-manage-panel { min-height:12rem; padding:1.2rem; background:#fff; border:1px solid #d9e1ea; border-radius:.7rem; box-shadow:0 2px 8px #172b4d12; }
@@ -155,4 +156,8 @@ table tr:last-child td {
 .admin-menu-links { display:grid; gap:.35rem; padding:0 .8rem .8rem; }
 .admin-menu-links a { display:block; padding:.45rem .55rem; border-radius:.4rem; color:#24527a; text-decoration:none; }
 .admin-menu-links a:hover, .admin-menu-links a:focus { background:#eaf3fb; text-decoration:underline; }
-@media (max-width:700px) { .admin-main-menu { display:grid; grid-template-columns:1fr 1fr; } }
+@media (max-width:700px) {
+  .admin-main-menu { align-items:stretch; flex-direction:column; }
+  .admin-main-menu-sections { display:grid; grid-template-columns:1fr 1fr; width:100%; }
+  .admin-main-menu-logout { align-self:stretch; margin-left:0; }
+}
