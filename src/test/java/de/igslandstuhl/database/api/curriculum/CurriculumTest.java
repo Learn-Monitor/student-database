@@ -55,25 +55,29 @@ class CurriculumTest {
         assertSame(before,Topic.get(topic));assertEquals(topic,before.getId());assertEquals("Renamed",before.getName());
         assertEquals("Renamed",subject.getTopics(5).stream().filter(t->t.getId()==topic).findFirst().orElseThrow().getName());
     }
-    @Test void centralEditPreservesCompletionAndRetroactiveValue()throws Exception {
+    @Test void centralEditProtectsCompletedTokenValue()throws Exception {
         int taskId=central(6);Task task=Task.get(taskId);Topic.get(topic).getTasks();
         Student student=Student.get(id);student.changeTaskStatus(task,Task.STATUS_COMPLETED);
         long rowid=scalar("SELECT rowid FROM taskstats WHERE student=? AND task=?",id,taskId);
         assertEquals(6,student.getCurrentProgress(Subject.get(id)));
-        service.editTask(admin,taskId,"Changed",4);
-        assertSame(task,Task.get(taskId));assertEquals("Changed",task.getName());assertEquals(4,task.getTokens());
-        assertEquals(4,student.getCurrentProgress(Subject.get(id)));
+        var error=assertThrows(CurriculumException.class,()->service.editTask(admin,taskId,"Changed",4));
+        assertEquals(409,error.status);assertEquals("completion_history_conflict",error.code);
+        service.editTask(admin,taskId,"Changed",6);
+        assertSame(task,Task.get(taskId));assertEquals("Changed",task.getName());assertEquals(6,task.getTokens());
+        assertEquals(6,student.getCurrentProgress(Subject.get(id)));
         assertEquals(rowid,scalar("SELECT rowid FROM taskstats WHERE student=? AND task=?",id,taskId));
         assertEquals(Task.STATUS_COMPLETED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,taskId));
         assertTrue(student.getCompletedTasks().contains(task)); // HashSet membership must survive rename.
         student.changeTaskStatus(task,Task.STATUS_IN_PROGRESS);assertFalse(student.getCompletedTasks().contains(task));
     }
-    @Test void flexibleCompletionUsesCurrentDefinitionWithoutSnapshot()throws Exception {
+    @Test void flexibleCompletionProtectsCompletedTokenValue()throws Exception {
         var task=service.create(teacher,scope,"Flexible",6);service.complete(teacher,task.id(),id);
         long rowid=scalar("SELECT rowid FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,task.id());
         assertEquals(6,service.completedTokens(id,scope));
-        var updated=service.edit(teacher,task.id(),"Renamed",4);
-        assertEquals(task.id(),updated.id());assertEquals(4,service.completedTokens(id,scope));
+        var error=assertThrows(CurriculumException.class,()->service.edit(teacher,task.id(),"Renamed",4));
+        assertEquals(409,error.status);assertEquals("completion_history_conflict",error.code);
+        var updated=service.edit(teacher,task.id(),"Renamed",6);
+        assertEquals(task.id(),updated.id());assertEquals(6,service.completedTokens(id,scope));
         assertEquals(rowid,scalar("SELECT rowid FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,task.id()));
         assertEquals("Renamed",service.list(teacher,scope).get(0).name());
     }
@@ -166,9 +170,11 @@ class CurriculumTest {
         var another = service.create(other, anotherScope, "Other", 20);
         assertEquals(403,assertThrows(CurriculumException.class,()->service.complete(other,another.id(),id)).status);
         assertEquals(12L, service.progress(teacher,id,scope).get("totalTokens"));
-        service.editTask(admin,central,"Central revised",4);
-        service.edit(teacher,own.id(),"Own revised",4);
-        assertEquals(8L, service.progress(teacher,id,scope).get("totalTokens"));
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.editTask(admin,central,"Central revised",4)).status);
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.edit(teacher,own.id(),"Own revised",4)).status);
+        service.editTask(admin,central,"Central revised",6);
+        service.edit(teacher,own.id(),"Own revised",6);
+        assertEquals(12L, service.progress(teacher,id,scope).get("totalTokens"));
         assertEquals(403,assertThrows(CurriculumException.class,()->service.progress(other,id,anotherScope)).status);
     }
     @Test void quotedNamesAreValidJsonAndDuplicateRenameIsAtomic() throws Exception {
@@ -328,8 +334,9 @@ class CurriculumTest {
         assertEquals(105L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
         assertEquals(403,assertThrows(CurriculumException.class,()->service.complete(teacher,a.id(),id)).status);
         service.complete(other,b.id(),id);assertEquals(105L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
-        service.edit(teacher,a.id(),"Historical edit",30);assertEquals(105L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
-        service.edit(other,b.id(),"Current edit",30);assertEquals(100L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.edit(teacher,a.id(),"Historical edit",30)).status);
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.edit(other,b.id(),"Current edit",30)).status);
+        service.edit(other,b.id(),"Current edit",35);assertEquals(105L,service.studentProgress(Student.get(id),id,id).get("totalTokens"));
         assertThrows(CurriculumException.class,()->service.edit(other,b.id(),"Over budget",36));
         assertEquals(409,assertThrows(CurriculumException.class,()->service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(a.id(),b.id(),35)))).status);
     }
@@ -466,15 +473,18 @@ class CurriculumTest {
     @Test void centralDetailsReflectCurrentTaskAndTopicDefinitions() throws Exception {
         int task=central(6);Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);
         assertEquals(6L,ownDetails().get("totalTokens"));
-        service.editTask(admin,task,"Renamed task",4);service.renameTopic(admin,topic,"Renamed topic");
-        var result=ownDetails();assertEquals(4L,result.get("totalTokens"));
-        assertEquals(new Curriculum.CompletedCentralTask(task,"Renamed task",4,1,topic,"Renamed topic"),centralDetails(result).get(0));
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.editTask(admin,task,"Renamed task",4)).status);
+        service.editTask(admin,task,"Renamed task",6);service.renameTopic(admin,topic,"Renamed topic");
+        var result=ownDetails();assertEquals(6L,result.get("totalTokens"));
+        assertEquals(new Curriculum.CompletedCentralTask(task,"Renamed task",6,1,topic,"Renamed topic"),centralDetails(result).get(0));
     }
     @Test void flexibleDetailsReflectCurrentDefinitionAfterCompletion() throws Exception {
         var task=service.create(teacher,scope,"Flexible",6);service.complete(teacher,task.id(),id);
-        assertEquals(6L,ownDetails().get("totalTokens"));service.edit(teacher,task.id(),"Renamed flexible",4);
-        var result=ownDetails();assertEquals(4L,result.get("totalTokens"));
-        assertEquals(List.of(new Curriculum.CompletedFlexibleTask(task.id(),"Renamed flexible",4)),flexibleDetails(result));
+        assertEquals(6L,ownDetails().get("totalTokens"));
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.edit(teacher,task.id(),"Renamed flexible",4)).status);
+        service.edit(teacher,task.id(),"Renamed flexible",6);
+        var result=ownDetails();assertEquals(6L,result.get("totalTokens"));
+        assertEquals(List.of(new Curriculum.CompletedFlexibleTask(task.id(),"Renamed flexible",6)),flexibleDetails(result));
     }
     @Test void detailArraysKeepZeroTokensAndDistinctIdsWithIdenticalNames() throws Exception {
         int first=central(0);Student.get(id).changeTaskStatus(Task.get(first),Task.STATUS_COMPLETED);
@@ -524,10 +534,11 @@ class CurriculumTest {
         assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,a.id()));
         var terminal=service.create(teacher,scope,"Terminal",6);
         service.transfer(admin,id,secondScope(),scope,List.of(new Curriculum.Transfer(b.id(),terminal.id(),6)));
-        service.edit(teacher,a.id(),"Historical A",4);service.edit(other,b.id(),"Historical B",4);
-        service.edit(teacher,terminal.id(),"Current terminal",4);
-        var result=ownDetails();assertEquals(4L,result.get("totalTokens"));
-        assertEquals(List.of(new Curriculum.CompletedFlexibleTask(terminal.id(),"Current terminal",4)),flexibleDetails(result));
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.edit(teacher,a.id(),"Historical A",4)).status);
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.edit(other,b.id(),"Historical B",4)).status);
+        service.edit(teacher,terminal.id(),"Current terminal",6);
+        var result=ownDetails();assertEquals(6L,result.get("totalTokens"));
+        assertEquals(List.of(new Curriculum.CompletedFlexibleTask(terminal.id(),"Current terminal",6)),flexibleDetails(result));
         assertEquals(3,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
         assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_completion_transfers WHERE student=?",id));
     }
@@ -571,7 +582,7 @@ class CurriculumTest {
         var flexible=service.create(teacher,scope,"Flexible",6);service.complete(teacher,flexible.id(),id);
         ExecutorService pool=Executors.newSingleThreadExecutor();
         try {
-            var edits=pool.submit(()->{for(int n=0;n<20;n++){int value=n%2==0?4:6;service.editTask(admin,task,"Central "+value,value);service.edit(teacher,flexible.id(),"Flexible "+value,value);}return null;});
+            var edits=pool.submit(()->{for(int n=0;n<20;n++){service.editTask(admin,task,"Central "+n,6);service.edit(teacher,flexible.id(),"Flexible "+n,6);}return null;});
             for(int n=0;n<20;n++)assertDetailSums(ownDetails());
             edits.get(10,TimeUnit.SECONDS);
         }finally{pool.shutdownNow();}
@@ -711,9 +722,9 @@ class CurriculumTest {
         assertEquals(b.id(),afterB.getAsJsonArray("completedFlexibleTasks").get(0).getAsJsonObject().get("id").getAsInt());
         var terminal=service.create(teacher,scope,"Terminal",6);
         service.transfer(admin,id,secondScope(),scope,List.of(new Curriculum.Transfer(b.id(),terminal.id(),6)));
-        service.edit(teacher,terminal.id(),"Current terminal",4);
+        service.edit(teacher,terminal.id(),"Current terminal",6);
         var result=jsonResponse(progressUser(student),progressPath(student),progressBody(student,false));
-        assertEquals(id,result.get("semesterId").getAsInt());assertEquals(4,result.get("totalTokens").getAsInt());
+        assertEquals(id,result.get("semesterId").getAsInt());assertEquals(6,result.get("totalTokens").getAsInt());
         assertEquals(1,result.getAsJsonArray("completedFlexibleTasks").size());
         assertEquals(terminal.id(),result.getAsJsonArray("completedFlexibleTasks").get(0).getAsJsonObject().get("id").getAsInt());
         assertEquals(3,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=?",id));
@@ -787,12 +798,13 @@ class CurriculumTest {
         assertFalse(before.getAsJsonArray("centralTasks").get(0).getAsJsonObject().get("completed").getAsBoolean());
         service.complete(teacher,flexible.id(),id);service.complete(teacher,flexible.id(),id);service.complete(teacher,zero.id(),id);
         Student.get(id).changeTaskStatus(Task.get(centralId),Task.STATUS_COMPLETED);
-        service.edit(teacher,flexible.id(),"Updated exercise",30);service.renameFlexibleTopic(teacher,own,"Updated topic");
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.edit(teacher,flexible.id(),"Updated exercise",30)).status);
+        service.edit(teacher,flexible.id(),"Updated exercise",35);service.renameFlexibleTopic(teacher,own,"Updated topic");
         var after=jsonResponse(Student.get(id),"/my-curriculum-catalog",body());
-        assertEquals(100,after.getAsJsonObject("progress").get("totalTokens").getAsInt());
+        assertEquals(105,after.getAsJsonObject("progress").get("totalTokens").getAsInt());
         var entry=after.getAsJsonArray("flexibleTasks").get(0).getAsJsonObject();
         assertEquals("Updated topic",entry.get("topicName").getAsString());assertEquals("Updated exercise",entry.get("name").getAsString());
-        assertEquals(30,entry.get("tokens").getAsInt());assertTrue(entry.get("completed").getAsBoolean());
+        assertEquals(35,entry.get("tokens").getAsInt());assertTrue(entry.get("completed").getAsBoolean());
         assertEquals(2,after.getAsJsonArray("flexibleTasks").size());
         assertEquals(jsonResponse(Student.get(id),"/my-curriculum-progress",body()),after.getAsJsonObject("progress"));
     }

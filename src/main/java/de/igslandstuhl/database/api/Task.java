@@ -26,7 +26,7 @@ public class Task implements APIObject {
      * SQL fields for the Task table.
      * Used for database queries to retrieve task information.
      */
-    private static final String[] SQL_FIELDS = {"id", "topic", "name", "niveau", "tokens"};
+    private static final String[] SQL_FIELDS = {"id", "topic", "name", "niveau", "stage_number", "tokens"};
     /**
      * A map to cache tasks by their unique identifier.
      * This helps avoid repeated database queries for the same task.
@@ -52,6 +52,7 @@ public class Task implements APIObject {
      * It is also used to calculate the task's ratio in relation to the topic.
      */
     private final TaskLevel niveau;
+    private final int stageNumber;
     /**
      * The number of tokens associated with the task.
      * This represents the value or reward for completing the task.
@@ -68,10 +69,15 @@ public class Task implements APIObject {
      * @param tokens the number of tokens associated with the task
      */
     protected Task(int id, Topic topic, String name, TaskLevel niveau, int tokens) {
+        this(id, topic, name, niveau, 0, tokens);
+    }
+
+    protected Task(int id, Topic topic, String name, TaskLevel niveau, int stageNumber, int tokens) {
         this.id = id;
         this.topic = topic;
         this.name = name;
         this.niveau = niveau;
+        this.stageNumber = stageNumber;
         this.tokens = tokens;
     }
     
@@ -111,6 +117,9 @@ public class Task implements APIObject {
     public TaskLevel getNiveau() {
         return niveau;
     }
+    public int getStageNumber() {
+        return stageNumber;
+    }
     /**
      * Returns the number of the task in relation to its topic and level.
      * The number is formatted as "topicNumber.level.taskIndex".
@@ -119,16 +128,7 @@ public class Task implements APIObject {
      * @return the formatted number of the task
      */
     public String getNumber() {
-        switch (niveau) {
-            case LEVEL1:
-                return topic.getNumber() + ".1." + (topic.getTasksLevel1().indexOf(this) + 1);
-            case LEVEL2:
-                return topic.getNumber() + ".2." + (topic.getTasksLevel2().indexOf(this) + 1);
-            case LEVEL3:
-                return topic.getNumber() + ".3." + (topic.getTasksLevel3().indexOf(this) + 1);
-            default:
-                throw new IllegalStateException("Unknown level: " + niveau);
-        }
+        return topic.getNumber() + "." + stageNumber;
     }
     /**
      * Returns the ratio of the task in relation to its topic and level.
@@ -181,8 +181,9 @@ public class Task implements APIObject {
         Topic topic = Topic.get(Integer.parseInt(fields[1]));
         String name = fields[2];
         TaskLevel niveau = TaskLevel.get(Integer.parseInt(fields[3]));
-        int tokens = Integer.parseInt(fields[4]);
-        return tasks.computeIfAbsent(id, key -> new Task(id, topic, name, niveau, tokens));
+        int stageNumber = Integer.parseInt(fields[4]);
+        int tokens = Integer.parseInt(fields[5]);
+        return tasks.computeIfAbsent(id, key -> new Task(id, topic, name, niveau, stageNumber, tokens));
     }
     /**
      * Retrieves a Task by its unique identifier.
@@ -281,7 +282,7 @@ public class Task implements APIObject {
 
     @Override
     public String toJSON() {
-        return "{\"id\": " + id + ", \"topic\": " + topic + ", \"name\": " + new com.google.gson.Gson().toJson(name) + ", \"niveau\": " + niveau + ", \"number\": \"" + getNumber() + "\", \"tokens\": " + getTokens() + "}";
+        return "{\"id\": " + id + ", \"topic\": " + topic + ", \"name\": " + new com.google.gson.Gson().toJson(name) + ", \"niveau\": " + niveau + ", \"stageNumber\": " + stageNumber + ", \"number\": \"" + getNumber() + "\", \"tokens\": " + getTokens() + "}";
     }
     
 }

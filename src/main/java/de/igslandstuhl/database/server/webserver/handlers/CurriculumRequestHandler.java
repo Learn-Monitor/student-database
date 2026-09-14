@@ -18,7 +18,9 @@ public final class CurriculumRequestHandler {
                 "/flexible-tasks","/add-flexible-task","/edit-flexible-task","/complete-flexible-task",
                 "/flexible-curriculum-structure","/add-flexible-topic","/rename-flexible-topic","/curriculum-releases","/set-curriculum-release"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
-        for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task","/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
+        for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task",
+                "/central-curriculum-overview","/preview-central-curriculum-import","/import-central-curriculum",
+                "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-progress",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-catalog",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
@@ -47,6 +49,11 @@ public final class CurriculumRequestHandler {
         if(!(value instanceof String s)) throw new CurriculumException(400,"invalid_input","name must be a string.");
         return s;
     }
+    private static String string(APIPostRequest rq,String key) {
+        Object value=rq.getJson().get(key);
+        if(!(value instanceof String s)) throw new CurriculumException(400,"invalid_input",key+" must be a string.");
+        return s;
+    }
     private static Integer optionalTopic(APIPostRequest rq) {
         return !rq.containsKey("topicId") || rq.getJson().get("topicId")==null ? null : integer(rq,"topicId");
     }
@@ -71,6 +78,7 @@ public final class CurriculumRequestHandler {
         try {
             if (rq.getJson() == null) throw new CurriculumException(400,"invalid_input","JSON object required.");
             Curriculum service=Curriculum.current();
+            CentralCurriculumImport centralImport=new CentralCurriculumImport(service);
             if(rq.getPath().equals("/my-curriculum-progress") || rq.getPath().equals("/my-curriculum-catalog")) {
                 if(rq.containsKey("studentId") || rq.containsKey("teacherId") || rq.containsKey("classId") || rq.containsKey("grade"))
                     throw new CurriculumException(400,"invalid_input","Student context is derived from the session and assignment.");
@@ -139,6 +147,9 @@ public final class CurriculumRequestHandler {
                 case "/assign-curriculum-context" -> {service.assign(actor,integer(rq,"studentId"),scope(rq,actor));result=Map.of("ok",true);}
                 case "/curriculum-catalog" -> result=service.catalog(actor);
                 case "/curriculum-structure" -> result=service.centralStructure(actor,integer(rq,"subjectId"),integer(rq,"grade"),integer(rq,"semesterId"));
+                case "/central-curriculum-overview" -> result=centralImport.overview(actor,integer(rq,"grade"),integer(rq,"semesterId"));
+                case "/preview-central-curriculum-import" -> result=centralImport.preview(actor,integer(rq,"grade"),integer(rq,"semesterId"),string(rq,"csv"));
+                case "/import-central-curriculum" -> result=centralImport.importCsv(actor,integer(rq,"grade"),integer(rq,"semesterId"),string(rq,"csv"));
                 case "/curriculum-budget" -> result=service.budget(actor,scope(rq,actor));
                 case "/curriculum-progress" -> result=service.progress(actor,integer(rq,"studentId"),scope(rq,actor,true));
                 case "/flexible-tasks" -> result=service.list(actor,scope(rq,actor));
@@ -153,7 +164,9 @@ public final class CurriculumRequestHandler {
                 case "/add-curriculum-topic" -> result=Map.of("id",service.createTopic(actor,integer(rq,"subjectId"),integer(rq,"grade"),integer(rq,"semesterId"),integer(rq,"number"),name(rq)));
                 case "/add-curriculum-task" -> {
                     if(!actor.admin()) throw new CurriculumException(403,"forbidden","Administrator required.");
-                    result=Map.of("id",service.createCentralTask(integer(rq,"topicId"),name(rq),TaskLevel.get(integer(rq,"level")),integer(rq,"tokens")));
+                    int level=rq.containsKey("level") ? integer(rq,"level") : TaskLevel.LEVEL1.getNumber();
+                    int stageNumber=rq.containsKey("stageNumber") ? integer(rq,"stageNumber") : 0;
+                    result=Map.of("id",service.createCentralTask(integer(rq,"topicId"),name(rq),TaskLevel.get(level),stageNumber,integer(rq,"tokens")));
                 }
                 default -> throw new CurriculumException(404,"not_found","Unknown curriculum operation.");
             }

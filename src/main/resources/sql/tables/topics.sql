@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS topics (
     number INTEGER NOT NULL,
     semester INTEGER,
 
-    UNIQUE(name, subject, grade),
-    UNIQUE(grade, subject, number),
+    UNIQUE(subject, grade, semester, number),
+    UNIQUE(subject, grade, semester, name),
     FOREIGN KEY (subject) REFERENCES subjects(id) ON DELETE CASCADE,
     FOREIGN KEY (semester) REFERENCES semesters(id) ON DELETE CASCADE
 )

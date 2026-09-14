@@ -344,6 +344,24 @@
         "namespaces": [],
         "access_level": "admin"
     },
+    "/central-curriculum-overview": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
+    "/preview-central-curriculum-import": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
+    "/import-central-curriculum": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
     "/curriculum-progress": {
         "type": "POST",
         "handler_type": "PostRequestHandler",

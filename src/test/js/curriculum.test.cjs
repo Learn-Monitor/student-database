@@ -30,7 +30,13 @@ async function setup(admin, options={}){
   else if(options.enrollment && url==='/curriculum-releases')body={topics:[{id:2,name:'Topic',active:false}],tasks:[{id:3,topicId:2,name:'Task',active:false}]};
   else if(options.enrollment && url==='/set-curriculum-release')body={ok:true};
   else if(url==='/curriculum-catalog')body=catalog;
-  else if(url==='/curriculum-structure')body={centralTokens,topics:[{id:2,name:topicName,number:1}],tasks:[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1}]};
+  else if(url==='/curriculum-structure')body={centralTokens,topics:[{id:2,name:topicName,number:1}],tasks:[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1,stageNumber:1}]};
+  else if(url==='/central-curriculum-overview')body={subjects:[{subjectId:1,subjectName:'Math',centralTokens,remainingRegular:100-centralTokens,remainingHard:105-centralTokens,warning:centralTokens>100}],rows:[{subjectId:1,subjectName:'Math',topicNumber:1,topicName,stageNumber:1,stageName:centralName,tokens:centralTokens}]};
+  else if(url==='/preview-central-curriculum-import'){
+   const bad=data.csv.includes('BAD'), warn=data.csv.includes('104');
+   body={rows:[{sourceLine:2,subjectId:1,subjectName:'Math',topicNumber:1,topicName:'<img src=x>',stageNumber:1,stageName:bad?'BAD':'Imported',tokens:warn?104:5,action:bad?'ERROR':'CREATE',message:bad?'Zeile 2: Fehler':'Neue Etappe.'}],creates:bad?0:1,updates:0,unchanged:0,errors:bad?['Zeile 2: Fehler']:[],warnings:warn?[{subjectId:1,subjectName:'Math',centralTokens:104,remainingRegular:-4,remainingHard:1,warning:true}]:[],subjects:[{subjectId:1,subjectName:'Math',centralTokens:warn?104:5,remainingRegular:warn?-4:95,remainingHard:warn?1:100,warning:warn}],canImport:!bad};
+  }
+  else if(url==='/import-central-curriculum'){centralName='Imported';centralTokens=5;body={createdTopics:1,updatedTopics:0,createdStages:1,updatedStages:0,unchangedStages:0,subjects:[{subjectId:1,subjectName:'Math',centralTokens:5,remainingRegular:95,remainingHard:100,warning:false}]};}
   else if(url==='/curriculum-budget'){const f=tasks.reduce((n,t)=>n+t.tokens,0);body={grade:5,centralTokens,flexibleTokens:f,totalTokens:centralTokens+f,remainingRegular:100-centralTokens-f,remainingHard:105-centralTokens-f};}
   else if(url==='/flexible-tasks')body=tasks;
   else if(url==='/flexible-curriculum-structure')body={topics:topicsByClass.get(data.classId)||[],tasks};
@@ -45,6 +51,7 @@ async function setup(admin, options={}){
    else{centralName=data.name;centralTokens=data.tokens;body={ok:true};}
   }
   else if(url==='/add-flexible-task'){tasks.push({id:101,name:data.name,tokens:data.tokens,topicId:data.topicId});byClass.set(data.classId,tasks);body=tasks.at(-1);}
+  else if(url==='/add-curriculum-task'){centralName=data.name;centralTokens+=data.tokens;body={id:301};}
   else if(url==='/edit-flexible-task'){const task=[...byClass.values()].flat().find(t=>t.id===data.taskId);Object.assign(task,{name:data.name,tokens:data.tokens,topicId:data.topicId});body=task;}
   else throw Error('Unexpected endpoint '+url);
   return {ok,status:ok?200:409,text:async()=>JSON.stringify(body)};
@@ -89,7 +96,7 @@ for(const [label,admin,pm,flexible,central] of [
 ])test(label,async()=>{
  const {dom,root}=await setup(admin,{pm});
  try{
-  const sections=root.querySelectorAll('section');assert.equal(sections.length,3);
+  const sections=root.querySelectorAll('section');assert.ok(sections.length>=3);
   assert.match(sections[0].textContent+[...sections[0].querySelectorAll('input')].map(n=>n.value).join(' '),/Central/);assert.match(sections[1].textContent+[...sections[1].querySelectorAll('input')].map(n=>n.value).join(' '),/Own task/);
   assert.equal(!!formWith(root,'Flexible Etappe anlegen'),flexible);
   assert.equal(sections[1].querySelectorAll('input').length>0,flexible);
@@ -205,7 +212,7 @@ test('teacher creates a flexible topic, assigns an open task and can detach it',
   assert.equal(requests.filter(r=>r.url==='/complete-flexible-task').length,0);
   let group=[...root.querySelectorAll('details')].find(d=>d.querySelector('summary').textContent==='<b>Practice</b>');
   form=formWith(group,'Speichern');assert.equal(form.querySelector('[name=topicId]').value,'500');
-  assert.match(form.textContent,/bereits abgeschlossene Etappen/);
+  assert.doesNotMatch(form.textContent,/gelten auch für bereits abgeschlossene Etappen/);
   form.querySelector('[name=topicId]').value='';await submit(dom,form);
   assert.equal(requests.find(r=>r.url==='/edit-flexible-task').data.topicId,null);
   group=[...root.querySelectorAll('details')].find(d=>d.querySelector('summary').textContent==='Noch keinem Thema zugeordnet');
@@ -265,5 +272,45 @@ test('old publication controls cannot write after scope change or permission rev
  const pm={...grants(),curriculum_publish:true};const {dom,root,requests}=await setup(false,{enrollment:true,pm});try{
   await clickNamed(dom,root,'Freischaltungen laden');const button=[...root.querySelectorAll('button')].find(b=>b.textContent==='Etappe freischalten');root.querySelector('[name=classId]').value='11';button.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
   root.querySelector('[name=classId]').value='10';pm.curriculum_publish=false;button.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
+ }finally{dom.window.close();}
+});
+
+function attachCsv(input,text){Object.defineProperty(input,'files',{configurable:true,value:[{text:async()=>text}]});}
+test('central csv import reads file, renders safe preview and confirms import',async()=>{
+ const {dom,root,requests}=await setup(true);try{
+  dom.window.confirm=()=>true;
+  const panel=root.querySelector('.central-curriculum-import');assert.ok(panel);
+  attachCsv(panel.querySelector('input[type=file]'),'Fach;Themennummer;Themenname;Etappennummer;Etappenname;Muenzen\nMath;1;<img src=x>;1;Imported;5\n');
+  await clickNamed(dom,panel,'Vorschau prüfen');
+  assert.equal(requests.some(r=>r.url==='/preview-central-curriculum-import'&&r.data.csv.includes('Imported')),true);
+  assert.equal(panel.querySelectorAll('img').length,0);
+  assert.match(panel.textContent,/CREATE/);
+  const importButton=[...panel.querySelectorAll('button')].find(b=>b.textContent==='Import bestätigen');assert.equal(importButton.disabled,false);
+  importButton.click();await tick();
+  assert.equal(requests.some(r=>r.url==='/import-central-curriculum'),true);
+  assert.equal(requests.filter(r=>r.url==='/central-curriculum-overview').length>=2,true);
+  assert.match(root.textContent,/Import erfolgreich/);
+ }finally{dom.window.close();}
+});
+test('central csv preview disables import on errors and shows warning range',async()=>{
+ const {dom,root,requests}=await setup(true);try{
+  const panel=root.querySelector('.central-curriculum-import'), importButton=[...panel.querySelectorAll('button')].find(b=>b.textContent==='Import bestätigen');
+  attachCsv(panel.querySelector('input[type=file]'),'BAD');
+  await clickNamed(dom,panel,'Vorschau prüfen');
+  assert.equal(importButton.disabled,true);assert.match(panel.textContent,/Zeile 2: Fehler/);
+  attachCsv(panel.querySelector('input[type=file]'),'104');
+  await clickNamed(dom,panel,'Vorschau prüfen');
+  assert.equal(importButton.disabled,false);assert.match(panel.textContent,/104/);assert.match(panel.textContent,/regulären Rahmen/);
+  assert.equal(requests.filter(r=>r.url==='/import-central-curriculum').length,0);
+ }finally{dom.window.close();}
+});
+test('central overview subject and text filters work without unsafe html',async()=>{
+ const {dom,root}=await setup(true);try{
+  const panel=root.querySelector('.central-curriculum-import');assert.match(panel.textContent,/Math: 70/);
+  const text=panel.querySelector('input[placeholder="Themen-/Etappenname filtern"]');text.value='missing';text.dispatchEvent(new dom.window.Event('input'));await tick();
+  assert.doesNotMatch(panel.querySelector('table')?.textContent||'',/Central/);
+  text.value='central';text.dispatchEvent(new dom.window.Event('input'));await tick();
+  assert.match(panel.querySelector('table').textContent,/Central/);
+  assert.equal(panel.querySelectorAll('script,img').length,0);
  }finally{dom.window.close();}
 });

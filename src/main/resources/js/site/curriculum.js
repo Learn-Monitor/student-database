@@ -214,7 +214,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             function editTask(parent, task, isFlexible) {
                 const form = el('form'), name = field(form,'Name',task.name), tokens = field(form,'Münzen',task.tokens,'number');
                 const topic = isFlexible ? topicField(form, task.topicId) : null;
-                form.append(el('small','Geänderte Münzwerte gelten auch für bereits abgeschlossene Etappen.'));
                 button(form,'Speichern');
                 form.addEventListener('submit', async event => {event.preventDefault();try {
                     const base = isFlexible ? budget.totalTokens : structure.centralTokens;
@@ -231,19 +230,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 choice.value=selected==null?'':String(selected);label.append(choice);form.append(label);return choice;
             }
             for (const topic of structure.topics) {
-                const section=el('details'), title=el('summary',topic.name+(manageCentral?' — Etappen anzeigen / bearbeiten':' — Etappen anzeigen'));section.append(title);central.append(section);
+                const section=el('details'), title=el('summary',`Thema ${topic.number} - ${topic.name}`+(manageCentral?' — Etappen anzeigen / bearbeiten':' — Etappen anzeigen'));section.append(title);central.append(section);
                 if(manageCentral) {
                     const form=el('form'), name=field(form,'Themenname',topic.name);button(form,'Thema umbenennen');section.append(form);
                     form.addEventListener('submit',async e=>{e.preventDefault();try{await save('/rename-topic',{topicId:topic.id,name:name.value});}catch(error){showError(error);}});
                 }
                 for(const task of structure.tasks.filter(t=>t.topic===topic.id)) {
-                    if(manageCentral) editTask(section,task,false);else section.append(el('p',task.name+': '+task.tokens+' Münzen'));
+                    if(manageCentral) {
+                        section.append(el('p',`Etappe ${task.stageNumber ?? ''} - ${task.name} - ${task.tokens} Münzen`));
+                        editTask(section,task,false);
+                    } else section.append(el('p',`Etappe ${task.stageNumber ?? ''} - ${task.name}: ${task.tokens} Münzen`));
                 }
                 if(manageCentral) {
-                    const form=el('form'), name=field(form,'Neue Etappe',''), tokens=field(form,'Münzen',0,'number'), level=field(form,'Niveau',1,'number');level.min=1;level.max=3;button(form,'Etappe anlegen');section.append(form);
+                    const form=el('form'), stage=field(form,'Etappennummer',Math.max(0,...structure.tasks.filter(t=>t.topic===topic.id).map(t=>t.stageNumber||0))+1,'number'), name=field(form,'Neue Etappe',''), tokens=field(form,'Münzen',0,'number');stage.min=1;stage.removeAttribute('max');button(form,'Etappe anlegen');section.append(form);
                     form.addEventListener('submit',async e=>{e.preventDefault();try{
                         if(structure.centralTokens+Number(tokens.value)>105) throw Error('Zentrale Summe über 105.');
-                        await save('/add-curriculum-task',{topicId:topic.id,name:name.value,tokens:Number(tokens.value),level:Number(level.value)});
+                        await save('/add-curriculum-task',{topicId:topic.id,stageNumber:Number(stage.value),name:name.value,tokens:Number(tokens.value)});
                     }catch(error){showError(error);}});
                 }
             }
@@ -314,8 +316,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await save('/add-flexible-task',{...scope,name:name.value,tokens:Number(tokens.value),topicId:topic.value?Number(topic.value):null});
             }catch(error){showError(error);}});
         }
+        async function mountCentralImport() {
+            if(!catalog.admin || !await allowed('curriculum_manage_central'))return;
+            const panel=el('section');panel.className='central-curriculum-import';root.append(panel);
+            panel.append(el('h3','Zentrales Curriculum importieren'));
+            const controls=el('div');panel.append(controls);
+            const importSemester=el('select'), importGrade=el('select'), file=el('input');file.type='file';file.accept='.csv,text/csv';
+            for(const item of catalog.semesters){const option=el('option',item.label||item.name);option.value=item.id;importSemester.append(option);}
+            for(let i=1;i<=13;i++){const option=el('option',String(i));option.value=String(i);importGrade.append(option);}
+            controls.append(el('label','Halbjahr '),importSemester,el('label',' Jahrgang '),importGrade,el('label',' CSV-Datei '),file);
+            const previewButton=el('button','Vorschau prüfen');previewButton.type='button';const importButton=el('button','Import bestätigen');importButton.type='button';importButton.disabled=true;controls.append(previewButton,importButton);
+            panel.append(el('p','Format: Fach;Themennummer;Themenname;Etappennummer;Etappenname;Muenzen'));
+            const filterBox=el('div'), subjectFilter=el('select'), textFilter=el('input');textFilter.placeholder='Themen-/Etappenname filtern';filterBox.append(subjectFilter,textFilter);panel.append(filterBox);
+            const sums=el('div'), previewArea=el('div'), overviewArea=el('div');panel.append(sums,previewArea,overviewArea);
+            let currentCsv='',currentPreview=null;
+            const selected=()=>({grade:Number(importGrade.value),semesterId:Number(importSemester.value)});
+            async function readCsv(){const selectedFile=file.files&&file.files[0];if(!selectedFile)throw Error('Bitte eine CSV-Datei auswählen.');if(typeof selectedFile.text==='function')return selectedFile.text();return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(Error('CSV-Datei konnte nicht gelesen werden.'));reader.readAsText(selectedFile,'UTF-8');});}
+            function renderSubjects(subjects=[]){sums.replaceChildren();subjectFilter.replaceChildren(el('option','Alle Fächer'));subjectFilter.firstChild.value='';for(const subject of subjects){const option=el('option',subject.subjectName);option.value=String(subject.subjectId);subjectFilter.append(option);const line=el('p',`${subject.subjectName}: ${subject.centralTokens} / 100 zentrale Münzen. Rest regulär: ${subject.remainingRegular}; Rest bis absolute Grenze: ${subject.remainingHard}.`);if(subject.warning)line.style.color='darkred';sums.append(line);}}
+            function table(headers, rows, area) {
+                const table=document.createElement('table'), head=table.insertRow();headers.forEach(h=>head.append(el('th',h)));
+                for(const row of rows){const tr=table.insertRow();for(const value of row){tr.insertCell().textContent=value == null ? '' : String(value);}}
+                area.append(table);
+            }
+            function renderPreview(preview){previewArea.replaceChildren();renderSubjects(preview.subjects||[]);importButton.disabled=preview.canImport!==true;const errors=preview.errors||[];for(const error of errors){const p=el('p',error);p.style.color='darkred';previewArea.append(p);}for(const warning of preview.warnings||[]){const p=el('p',`${warning.subjectName}: ${warning.centralTokens} Münzen überschreiten den regulären Rahmen.`);p.style.color='darkred';previewArea.append(p);}table(['Zeile','Fach','Thema Nr.','Thema','Etappe Nr.','Etappe','Münzen','Aktion','Hinweis'],(preview.rows||[]).map(r=>[r.sourceLine,r.subjectName,r.topicNumber,r.topicName,r.stageNumber,r.stageName,r.tokens,r.action,r.message]),previewArea);}
+            function renderOverview(overview){overviewArea.replaceChildren();renderSubjects(overview.subjects||[]);let rows=overview.rows||[];const apply=()=>{const subject=subjectFilter.value,text=textFilter.value.toLowerCase();const filtered=rows.filter(r=>(!subject||String(r.subjectId)===subject)&&(!text||String(r.topicName).toLowerCase().includes(text)||String(r.stageName).toLowerCase().includes(text)));overviewArea.replaceChildren();table(['Fach','Thema Nr.','Thema','Etappe Nr.','Etappe','Münzen'],filtered.map(r=>[r.subjectName,r.topicNumber,r.topicName,r.stageNumber,r.stageName,r.tokens]),overviewArea);};subjectFilter.onchange=apply;textFilter.oninput=apply;apply();}
+            async function reloadOverview(){const overview=await post('/central-curriculum-overview',selected());renderOverview(overview);}
+            previewButton.addEventListener('click',async()=>{try{currentCsv=await readCsv();currentPreview=await post('/preview-central-curriculum-import',{...selected(),csv:currentCsv});renderPreview(currentPreview);}catch(error){showError(error);}});
+            importButton.addEventListener('click',async()=>{try{if(!currentPreview?.canImport)return;if(!confirm('Die angezeigten Themen und Etappen jetzt übernehmen?'))return;await post('/import-central-curriculum',{...selected(),csv:currentCsv});message.textContent='Import erfolgreich.';message.style.color='';importButton.disabled=true;await reloadOverview();}catch(error){showError(error);}});
+            importSemester.addEventListener('change',()=>reloadOverview().catch(showError));importGrade.addEventListener('change',()=>reloadOverview().catch(showError));await reloadOverview().catch(showError);
+        }
         for(const node of [subject,semester,schoolClass,teacher,grade].filter(Boolean))node.addEventListener('change',()=>refresh().catch(showError));
         load.addEventListener('click',()=>refresh().catch(showError));await refresh().catch(showError);
+        await mountCentralImport();
         if(catalog.enrollmentEnabled)await mountEnrollment(catalog,()=>({subjectId:Number(subject.value),semesterId:Number(semester.value),classId:Number(schoolClass.value),teacherId:teacher?Number(teacher.value):catalog.teacherId}));
     } catch(error) { showError(error); }
 });

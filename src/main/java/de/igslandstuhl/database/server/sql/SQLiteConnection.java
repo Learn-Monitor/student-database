@@ -8,6 +8,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
@@ -80,17 +82,20 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
             for (BufferedReader in : Server.getInstance().getResourceManager().openResourcesAsReader(Pattern.compile(".*migrations.+\\.sql"))) {
                 try (in) {
                     String request = Server.getInstance().getResourceManager().readResourceCompletely(in);
-                    try {
-                        supplier.executeUpdate(request);
-                    } catch (SQLException e) {
-                        if (e.getMessage() != null && (
-                                e.getMessage().toLowerCase().contains("duplicate column name")
-                                || e.getMessage().toLowerCase().contains("no such column")
-                                || e.getMessage().toLowerCase().contains("no such table")
-                            )) {
-                            LOGGER.debug("Skipping already applied migration: {}", request);
-                        } else {
-                            throw e;
+                    for (String statement : splitSqlScript(request)) {
+                        try {
+                            supplier.executeUpdate(statement);
+                        } catch (SQLException e) {
+                            if (e.getMessage() != null && (
+                                    e.getMessage().toLowerCase().contains("duplicate column name")
+                                    || e.getMessage().toLowerCase().contains("no such column")
+                                    || e.getMessage().toLowerCase().contains("no such table")
+                                    || e.getMessage().toLowerCase().contains("already exists")
+                                )) {
+                                LOGGER.debug("Skipping already applied migration statement: {}", statement);
+                            } else {
+                                throw e;
+                            }
                         }
                     }
                 } catch (IOException e) {
@@ -100,6 +105,57 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
         } finally {
             lock.writeLock().unlock();
         }
+    }
+    static List<String> splitSqlScript(String script) {
+        List<String> statements = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean singleQuoted = false, doubleQuoted = false, lineComment = false;
+        for (int i = 0; i < script.length(); i++) {
+            char ch = script.charAt(i);
+            char next = i + 1 < script.length() ? script.charAt(i + 1) : '\0';
+            if (lineComment) {
+                current.append(ch);
+                if (ch == '\n' || ch == '\r') lineComment = false;
+                continue;
+            }
+            if (!singleQuoted && !doubleQuoted && ch == '-' && next == '-') {
+                lineComment = true;
+                current.append(ch);
+                continue;
+            }
+            if (ch == '\'' && !doubleQuoted) {
+                current.append(ch);
+                if (singleQuoted && next == '\'') {
+                    current.append(next);
+                    i++;
+                } else {
+                    singleQuoted = !singleQuoted;
+                }
+                continue;
+            }
+            if (ch == '"' && !singleQuoted) {
+                current.append(ch);
+                if (doubleQuoted && next == '"') {
+                    current.append(next);
+                    i++;
+                } else {
+                    doubleQuoted = !doubleQuoted;
+                }
+                continue;
+            }
+            if (ch == ';' && !singleQuoted && !doubleQuoted) {
+                addStatement(statements, current);
+                current.setLength(0);
+                continue;
+            }
+            current.append(ch);
+        }
+        addStatement(statements, current);
+        return statements;
+    }
+    private static void addStatement(List<String> statements, StringBuilder current) {
+        String statement = current.toString().strip();
+        if (!statement.isEmpty()) statements.add(statement);
     }
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {

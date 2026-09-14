@@ -45,7 +45,11 @@ public final class Curriculum {
         return value.strip();
     }
     private static void tokens(int value) {
-        if (value < 0) throw error(400, "invalid_input", "Tokens cannot be negative.");
+        if (value < 0 || value > HARD_LIMIT) throw error(400, "invalid_input", "Tokens must be between 0 and 105.");
+    }
+    private static int positive(int value, String name) {
+        if (value < 1) throw error(400, "invalid_input", name + " must be positive.");
+        return value;
     }
     static void admin(Actor actor) {
         if (!actor.admin()) throw error(403, "forbidden", "Only administrators may change central curriculum.");
@@ -166,15 +170,22 @@ public final class Curriculum {
     public void editTask(Actor actor,int id,String name,int tokenValue) throws SQLException {
         admin(actor);String value=validName(name);tokens(tokenValue);
         transaction(c->{var old=require(c,"SELECT topic,tokens FROM tasks WHERE id=?",id);
+            if (integer(old,"tokens") != tokenValue && number(c,"SELECT COUNT(*) FROM taskstats WHERE task=? AND status=?",id,Task.STATUS_COMPLETED)>0)
+                throw error(409,"completion_history_conflict","Der Münzwert kann nicht geändert werden, weil bereits Leistungen bestätigt wurden.");
             centralLimit(c,integer(old,"topic"),(long)tokenValue-integer(old,"tokens"));
             write(c,"UPDATE tasks SET name=?,tokens=? WHERE id=?",value,tokenValue,id);return null;}, ignored -> Task.refreshDefinition(id,value,tokenValue));
     }
     /** Core insertion path also used by legacy curriculum imports. */
     public int createCentralTask(int topicId,String name,TaskLevel level,int tokenValue) throws SQLException {
+        return createCentralTask(topicId,name,level,0,tokenValue);
+    }
+    public int createCentralTask(int topicId,String name,TaskLevel level,int stageNumber,int tokenValue) throws SQLException {
         String value=validName(name);tokens(tokenValue);
         if(level==null || level==TaskLevel.SPECIAL) throw error(400,"invalid_input","A central task requires a regular task level.");
+        if(stageNumber<0) throw error(400,"invalid_input","Stage number cannot be negative.");
         int id=transaction(c->{centralLimit(c,topicId,tokenValue);
-            write(c,"INSERT INTO tasks(topic,name,niveau,tokens) VALUES(?,?,?,?)",topicId,value,level.getNumber(),tokenValue);
+            int number=stageNumber>0?stageNumber:(int)number(c,"SELECT COALESCE(MAX(stage_number),0)+1 FROM tasks WHERE topic=?",topicId);
+            write(c,"INSERT INTO tasks(topic,name,niveau,stage_number,tokens) VALUES(?,?,?,?,?)",topicId,value,level.getNumber(),number,tokenValue);
             return (int)number(c,"SELECT last_insert_rowid()");});
         Topic.invalidateTaskLists(topicId);return id;
     }
@@ -213,6 +224,8 @@ public final class Curriculum {
         String value=validName(name);tokens(tokenValue);
         return transaction(c->{FlexibleTask old=task(require(c,"SELECT * FROM flexible_tasks WHERE id=?",id));
             authorize(c,actor,old.scope(),false);
+            if(old.tokens()!=tokenValue && number(c,"SELECT COUNT(*) FROM completed_flexible_tasks WHERE flexible_task=?",id)>0)
+                throw error(409,"completion_history_conflict","Der Münzwert kann nicht geändert werden, weil bereits Leistungen bestätigt wurden.");
             limit(List.of(Budget.of(old.scope(),old.grade(),central(c,old.subjectId(),old.grade(),old.semesterId()),flexible(c,old.scope())-old.tokens()+tokenValue)));
             write(c,"UPDATE flexible_tasks SET name=?,tokens=? WHERE id=?",value,tokenValue,id);
             if(updateTopic) setFlexibleTopic(c,old,topicId);
@@ -505,8 +518,8 @@ public final class Curriculum {
         return transaction(c->{
             require(c,"SELECT id FROM subjects WHERE id=?",subject);require(c,"SELECT id FROM semesters WHERE id=?",semester);
             Map<String,Object> out=new LinkedHashMap<>();
-            out.put("topics",rows(c,"SELECT id,name,number FROM topics WHERE subject=? AND grade=? AND semester=? ORDER BY number",subject,grade,semester));
-            out.put("tasks",rows(c,"SELECT t.id,t.topic,t.name,t.tokens,t.niveau FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=? ORDER BY p.number,t.id",subject,grade,semester));
+            out.put("topics",rows(c,"SELECT id,name,number FROM topics WHERE subject=? AND grade=? AND semester=? ORDER BY number,id",subject,grade,semester));
+            out.put("tasks",rows(c,"SELECT t.id,t.topic,t.stage_number AS stageNumber,t.name,t.tokens,t.niveau FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=? ORDER BY p.number,t.stage_number,t.id",subject,grade,semester));
             out.put("centralTokens",central(c,subject,grade,semester));out.put("regularLimit",REGULAR_LIMIT);out.put("hardLimit",HARD_LIMIT);return out;});
     }
 }
