@@ -23,7 +23,7 @@ async function setup(admin, options={}){
   const data=JSON.parse(requestOptions.body);requests.push({url,data});let body;let ok=true;
   if(options.response?.url===url)return {ok:false,status:options.response.status,text:async()=>options.response.body};
   const tasks=byClass.get(data.classId)||[];
-  if(options.enrollment && url==='/curriculum-enrollment-catalog')body={...catalog,subjects:[{id:1,name:'Math',wpf:0},{id:4,name:'WPF Kunst',wpf:1},{id:5,name:'WPF Technik',wpf:1}],teaching:[{classId:10,subjectId:1,teacherId:7},{classId:11,subjectId:1,teacherId:7},{classId:10,subjectId:4,teacherId:7},{classId:10,subjectId:5,teacherId:7}]};
+  if(options.enrollment && url==='/curriculum-enrollment-catalog')body={...catalog,subjects:[{id:1,name:'Math',wpf:0,mode:'REGULAR',assignmentGroup:null},{id:4,name:'WPF Kunst',wpf:1,mode:'INDIVIDUAL',assignmentGroup:'WPF'},{id:5,name:'WPF Technik',wpf:1,mode:'INDIVIDUAL',assignmentGroup:'WPF'},{id:6,name:'Evangelische Religion',wpf:0,mode:'INDIVIDUAL',assignmentGroup:'RELIGION_ETHIK'},{id:7,name:'Ethik',wpf:0,mode:'INDIVIDUAL',assignmentGroup:'RELIGION_ETHIK'}],teaching:[{classId:10,subjectId:1,teacherId:7},{classId:11,subjectId:1,teacherId:7},{grade:5,subjectId:4,teacherId:7},{grade:5,subjectId:5,teacherId:7},{grade:5,subjectId:6,teacherId:7},{grade:5,subjectId:7,teacherId:7}]};
   else if(options.enrollment && url==='/assign-grade-curriculum')body={students:2,assignments:2};
   else if(options.enrollment && url==='/curriculum-wpf-roster')body=[{id:50,first_name:'Test',last_name:'Kind',subjectId:null,teacherId:null}];
   else if(options.enrollment && url==='/assign-curriculum-wpf')body={ok:true};
@@ -232,20 +232,26 @@ test('context change invalidates an old topic form',async()=>{
 });
 
 async function clickNamed(dom,root,name){const b=[...root.querySelectorAll('button')].find(b=>b.textContent===name);assert(b,name);b.click();await tick();}
-test('admin grade batch excludes WPF and submits every class with its teacher',async()=>{
+test('admin grade batch excludes individual subjects and submits every regular class teacher assignment',async()=>{
  const {dom,root,requests}=await setup(true,{enrollment:true});try{
-  const panel=root.querySelector('.curriculum-enrollment');const checks=panel.querySelectorAll('input[type=checkbox]');assert.equal(checks.length,1);checks[0].checked=true;
-  await clickNamed(dom,panel,'Zuordnung vorbereiten');await clickNamed(dom,panel,'Dem gesamten Jahrgang zuordnen');
+  const panel=root.querySelector('.curriculum-enrollment');await clickNamed(dom,panel,'Jetzt verwalten');await clickNamed(dom,panel,'Auswahl bestätigen');
+  const rows=[...panel.querySelectorAll('.semester-create-panel .curriculum-wpf-table tr')].slice(1);assert.equal(rows.length,2);
+  assert.deepEqual(rows.map(r=>r.cells[1].textContent),['Math','Math']);
+  await clickNamed(dom,panel,'Dem gesamten Jahrgang zuordnen');
   const request=requests.find(r=>r.url==='/assign-grade-curriculum');assert.deepEqual(request.data.subjectIds,[1]);assert.equal(request.data.teaching.length,2);assert.equal(request.data.semesterId,20);
   assert.match(panel.textContent,/2 Kinder, 2 Fachzuordnungen/);
  }finally{dom.window.close();}
 });
-test('WPF keyboard selection and drag/drop use one guarded assignment endpoint',async()=>{
+test('individual subject groups save independently through the guarded assignment endpoint',async()=>{
  const {dom,root,requests}=await setup(true,{enrollment:true});try{
-  await clickNamed(dom,root,'WPF-Liste laden');let card=root.querySelector('[data-student-id="50"]');card.querySelector('select').value='4';await clickNamed(dom,card,'WPF speichern');
-  let request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.equal(request.data.studentId,50);assert.equal(request.data.subjectId,4);assert.equal(request.data.expectedSubjectId,null);
-  const column=[...root.querySelectorAll('.curriculum-wpf-board > section')].find(n=>n.querySelector('h4').textContent==='WPF Technik');const event=new dom.window.Event('drop',{bubbles:true,cancelable:true});event.dataTransfer={getData:()=> '50'};column.dispatchEvent(event);await tick();
-  request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.equal(request.data.subjectId,5);assert.equal(request.data.classId,10);
+  const panel=root.querySelector('.curriculum-enrollment');await clickNamed(dom,panel,'Jetzt verwalten');await clickNamed(dom,panel,'Auswahl bestätigen');
+  const group=[...panel.querySelectorAll('select')].find(select=>[...select.options].some(option=>option.value==='RELIGION_ETHIK'));assert.ok(group);assert.equal(group.value,'RELIGION_ETHIK');
+  await clickNamed(dom,panel,'WPF-Liste laden');
+  let row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');let selects=row.querySelectorAll('select');selects[0].value='6';selects[1].value='7';await clickNamed(dom,panel,'Zuordnungen speichern');
+  let request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.equal(request.data.studentId,50);assert.equal(request.data.subjectId,6);assert.equal(request.data.assignmentGroup,'RELIGION_ETHIK');assert.equal(request.data.expectedSubjectId,null);
+  group.value='WPF';group.dispatchEvent(new dom.window.Event('change'));await clickNamed(dom,panel,'WPF-Liste laden');
+  row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');selects=row.querySelectorAll('select');selects[0].value='5';selects[1].value='7';await clickNamed(dom,panel,'Zuordnungen speichern');
+  request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.equal(request.data.subjectId,5);assert.equal(request.data.classId,10);assert.equal(request.data.assignmentGroup,'WPF');
  }finally{dom.window.close();}
 });
 test('teacher publishes a whole topic or individual task but has no enrollment UI',async()=>{
