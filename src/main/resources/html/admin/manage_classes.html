@@ -19,10 +19,9 @@
             <table id="classTable">
                 <thead>
                     <tr>
-                        <th>ID</th>
                         <th>Name</th>
                         <th>Stufe</th>
-                        <th></th>
+                        <th>Aktionen</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -41,14 +40,48 @@
     });
 
     async function loadClasses() {
-        populateTable("/classes", "classTable", (newRow, cls) => {
-            newRow.innerHTML = `
-                <td>${cls.id}</td>
-                <td>${cls.label}</td>
-                <td>${cls.grade}</td>
-                <td><button class="edit" onclick='viewClass(${JSON.stringify(cls)})'>Bearbeiten</button>
-                    <button type="button" onclick='if(confirm("Klasse archivieren? Schüler bleiben erhalten und werden auf Nicht zugeordnet gesetzt.")) post("/delete-class",{id:${cls.id}}).then(()=>loadClasses())'>Archivieren</button></td>
-            `;
+        const classes = await fetchJson("/classes");
+        const tableBody = document.getElementById("classTable").getElementsByTagName("tbody")[0];
+        tableBody.replaceChildren();
+
+        classes.forEach(cls => {
+            const row = document.createElement("tr");
+
+            const nameCell = document.createElement("td");
+            nameCell.textContent = cls.label;
+            row.appendChild(nameCell);
+
+            const gradeCell = document.createElement("td");
+            gradeCell.textContent = cls.grade;
+            row.appendChild(gradeCell);
+
+            const actionCell = document.createElement("td");
+            const editButton = document.createElement("button");
+            editButton.className = "edit";
+            editButton.type = "button";
+            editButton.textContent = "Bearbeiten";
+            editButton.addEventListener("click", () => viewClass(cls));
+            actionCell.appendChild(editButton);
+
+            const archiveButton = document.createElement("button");
+            archiveButton.type = "button";
+            archiveButton.textContent = "Archivieren";
+            archiveButton.addEventListener("click", async () => {
+                if (!confirm("Klasse wirklich archivieren? Die Klasse wird deaktiviert. Die Schülerinnen und Schüler bleiben erhalten und werden der Klasse „Nicht zugeordnet“ zugewiesen.")) {
+                    return;
+                }
+                const response = await post("/delete-class", {id: cls.id});
+                if (response.ok) {
+                    alert("Klasse wurde archiviert.");
+                    await loadClasses();
+                } else {
+                    alert("Die Klasse konnte nicht archiviert werden.");
+                }
+            });
+            actionCell.appendChild(archiveButton);
+            row.appendChild(actionCell);
+
+            tableBody.appendChild(row);
         });
     }
 </script>

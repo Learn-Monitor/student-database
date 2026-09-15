@@ -1,4 +1,5 @@
 %[site;title=Klasse bearbeiten;content=!FOLLOWS]
+<script src="build_class.js"></script>
 <section id="dashboard">
     <header>
         <h1>Klasse bearbeiten</h1>
@@ -6,33 +7,24 @@
     <main>
         <section id="editData">
             <h2>Daten bearbeiten</h2>
+            <p id="systemClassNotice" hidden>„Nicht zugeordnet“ ist eine Systemklasse und kann nicht bearbeitet werden.</p>
             <form id="editClassForm" method="post" action="/edit-class">
                 <input type="hidden" class="classId" id="classId" name="classId">
                 <label for="className">Name der Klasse:</label>
                 <input type="text" id="className" name="name" class="className" required>
                 <label for="classGrade">Stufe:</label>
                 <input type="number" id="classGrade" name="grade" class="classGrade" required>
-                <button type="submit">Änderungen speichern</button>
+                <button id="saveClassButton" type="submit">Stammdaten speichern</button>
             </form>
         </section>
         <section id="deleteClass">
-            <h2>Klasse löschen</h2>
-            <button id="deleteClassButton">Klasse löschen</button>
+            <h2>Klasse archivieren</h2>
+            <button id="deleteClassButton" type="button">Klasse archivieren</button>
         </section>
-        <section id="subject-list">
-            <h2>Fächer der Klasse</h2>
-            <ul id="subjectList">
-                <!-- Subject items will be dynamically inserted here -->
-            </ul>
-            <section id="addSubject">
-                <h3>Fach hinzufügen</h3>
-                <form id="addSubjectForm" method="post" action="/add-subject-to-class">
-                    <input type="hidden" class="classId" id="subjectClassId" name="classId">
-                    <label for="subjectName">Fachname:</label>
-                    <select id="subjectSelect" name="subjectId" value="Mathematik"></select>
-                    <button type="submit">Fach hinzufügen</button>
-                </form>
-            </section>
+        <section id="class-assignments-note">
+            <h2>Schuljahr &amp; Zuordnungen</h2>
+            <p>Fächer und zuständige Lehrkräfte werden semesterbezogen unter „Schuljahr &amp; Zuordnungen“ verwaltet.</p>
+            <p><a href="/dashboard#schuljahr">Schuljahr &amp; Zuordnungen</a></p>
         </section>
         <section id="student-list">
             <h2>Schüler in der Klasse</h2>
@@ -40,8 +32,8 @@
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Graduierung</th>
-                        <th></th>
+                        <th>Abschlussstufe</th>
+                        <th>Aktionen</th>
                     </tr>
                 </thead>
                 <tbody id="studentTableBody">
