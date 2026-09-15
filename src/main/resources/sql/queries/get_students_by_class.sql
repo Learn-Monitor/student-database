@@ -1,3 +1,3 @@
 SELECT id
 FROM students
-WHERE class = ?;
+WHERE class = ? AND active = 1;

@@ -1,3 +1,3 @@
 SELECT *
 FROM students
-WHERE active = 1
+WHERE active = 0

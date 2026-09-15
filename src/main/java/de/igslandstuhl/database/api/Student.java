@@ -24,7 +24,7 @@ import de.igslandstuhl.database.server.sql.SQLHelper;
  * Inherits from {@link User} and provides student-specific data and logic.
  */
 public class Student extends User {
-    private static final String[] SQL_FIELDS = new String[] {"id", "first_name", "last_name", "email", "password", "class", "graduation_level"};
+    private static final String[] SQL_FIELDS = new String[] {"id", "first_name", "last_name", "email", "password", "class", "graduation_level", "active"};
     private static final String[] INTERESTING_TASKSTAT_FIELDS = {"task"};
     private static final String[] INTERESTING_SPECIAL_TASK_STAT_FIELDS = {"individual_task"};
     private static final Map<Integer, Student> students = new HashMap<>();
@@ -65,6 +65,11 @@ public class Student extends User {
     private final GraduationLevel graduationLevel;
 
     /**
+     * Whether the student appears in active operational lists and login lookup.
+     */
+    private final boolean active;
+
+    /**
      * The set of tasks currently selected by the student.
      */
     private final Set<Task> selectedTasks = new HashSet<>();
@@ -101,7 +106,7 @@ public class Student extends User {
      * @param graduationLevel The graduation level.
      */
     private Student(int id, String firstName, String lastName, String email, String passwordHash, SchoolClass schoolClass,
-            GraduationLevel graduationLevel) {
+            GraduationLevel graduationLevel, boolean active) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
@@ -109,6 +114,7 @@ public class Student extends User {
         this.passwordHash = passwordHash;
         this.schoolClass = schoolClass;
         this.graduationLevel = graduationLevel;
+        this.active = active;
     }
 
     /**
@@ -125,7 +131,8 @@ public class Student extends User {
         String password = fields[4];
         SchoolClass schoolClass = SchoolClass.get(Integer.parseInt(fields[5]));
         GraduationLevel graduationLevel = GraduationLevel.of(Integer.parseInt(fields[6]));
-        Student student = new Student(id, firstName, lastName, email, password, schoolClass, graduationLevel);
+        boolean active = Integer.parseInt(fields[7]) != 0;
+        Student student = new Student(id, firstName, lastName, email, password, schoolClass, graduationLevel, active);
         student.loadCurrentTopics();
         return student;
     }
@@ -221,6 +228,29 @@ public class Student extends User {
     }
 
     /**
+     * Retrieves all archived students from the database.
+     *
+     * @return a list of archived students
+     */
+    public static List<Student> getArchived() {
+        List<Integer> studentIDs = new ArrayList<>();
+        try {
+            Server.getInstance().processRequest(
+                fields -> {
+                    studentIDs.add(Integer.parseInt(fields[0]));
+                },
+                "get_archived_students", SQL_FIELDS
+            );
+        } catch (SQLException e) {
+            Application.LOGGER_API.error("Failed to retrieve archived student list from database", e);
+        }
+        return studentIDs.stream()
+            .map(Student::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+
+    /**
      * Registers a new student with a password.
      * This method creates a new student in the database and returns the created Student object.
      * 
@@ -235,7 +265,7 @@ public class Student extends User {
      * @throws SQLException if there is an error creating the student
      */
     public static Student registerStudentWithPassword(int id, String firstName, String lastName, String email, String password, SchoolClass schoolClass, GraduationLevel graduationLevel) throws SQLException {
-        Student student = new Student(id, firstName, lastName, email, User.passHash(password), schoolClass, graduationLevel);
+        Student student = new Student(id, firstName, lastName, email, User.passHash(password), schoolClass, graduationLevel, true);
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("student", String.valueOf(id), firstName, lastName, email, User.passHash(password), schoolClass != null ? String.valueOf(schoolClass.getId()) : "-1", String.valueOf(graduationLevel.getLevel())));
         students.put(id, student);
         return student;
@@ -344,6 +374,12 @@ public class Student extends User {
      * @return the graduation level
      */
     public GraduationLevel getGraduationLevel() { return graduationLevel; }
+
+    /**
+     * Returns whether the student is active.
+     * @return active status
+     */
+    public boolean isActive() { return active; }
 
     /**
      * Returns the set of selected tasks.
@@ -588,6 +624,22 @@ public class Student extends User {
         return get(id);
     }
 
+    public Student archive() throws SQLException {
+        return setActive(false);
+    }
+
+    public Student reactivate() throws SQLException {
+        return setActive(true);
+    }
+
+    private Student setActive(boolean active) throws SQLException {
+        Server.getInstance().getConnection().executeVoidProcessSecure(
+            SQLHelper.getUpdateObjectProcess("student_active", active ? "1" : "0", String.valueOf(id))
+        );
+        students.remove(id);
+        return get(id);
+    }
+
     /**
      * Removes a subject request for this student.
      * @param subjectId the subject ID
@@ -631,6 +683,7 @@ public class Student extends User {
         .append("\"email\": \"").append(email).append("\",\n")
         .append("\"schoolClass\": ").append(String.valueOf(schoolClass)).append(",\n")
         .append("\"graduationLevel\": ").append(graduationLevel.getLevel()).append(",\n")
+        .append("\"active\": ").append(active).append(",\n")
         .append("\"selectedTasks\": ").append(selectedTasks).append(",\n")
         .append("\"completedTasks\": ").append(completedTasks).append(",\n")
         .append("\"lockedTasks\": ").append(lockedTasks).append(",\n")

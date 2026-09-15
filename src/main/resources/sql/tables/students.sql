@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS students (
     password TEXT NOT NULL,
     class INTEGER NOT NULL,
     graduation_level INTEGER NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
 
     FOREIGN KEY (class) REFERENCES classes(id)
 )
