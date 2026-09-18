@@ -28,15 +28,16 @@
             <section id="class-selection">
                 <label for="classSelect">Wählen Sie eine Klasse:</label>
                 <select id="classSelect"></select>
-                <input id="studentFilter" placeholder="Schüler filtern">
+                <input id="studentFilter" placeholder="Nach Name oder Login suchen">
             </section>
             <table id="studentTable">
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Raum</th>
-                        <th>Graduierung</th>
-                        <th></th>
+                        <th>Nachname</th>
+                        <th>Vorname</th>
+                        <th>Klasse</th>
+                        <th>Abschlussstufe</th>
+                        <th>Aktionen</th>
                     </tr>
                 </thead>
                 <tbody id="studentTableBody"></tbody>
@@ -47,63 +48,4 @@
         %[admin_nav]
     </nav>
 </section>
-<script>
-    document.getElementById('add-students-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const form = e.target;
-        const csv = form['csv'].value;
-
-        postDataAndDownload('/add-students', csv, 'schueler.csv');
-    });
-    document.getElementById('download-grade-results-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const form = e.target;
-        const grade = Number(form['grade'].value);
-        const subjectId = Number(form['subject'].value);
-
-        postDataAndDownload('/grade-results', JSON.stringify({ grade, subjectId }), 'schueler_ergebnisse_' + grade + '_' + subjectId + '.csv');
-    });
-
-    async function onClassChange(event) {
-        const selectedClassId = Number(event.target.value);
-        const render=(newRow, student) => {
-            newRow.innerHTML = `
-                <td class="student-name">${student.name || ((student.firstName||'')+' '+(student.lastName||''))}</td>
-                <td class="student-room">${student.room || student.schoolClass?.label || ''}</td>
-                <td class="student-graduation-level"></td>
-                <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button><button type="button" onclick="if(confirm('Schüler wirklich löschen?')) post('/delete-student',{id:${student.id}}).then(()=>onClassChange({target:document.getElementById('classSelect')}))">Löschen</button></td>
-            `;
-            const graduationLevelSelect = document.createElement('select');
-            for (let i = 0;i<graduationLevels.length;i++) {
-                const option = document.createElement('option');
-                option.value = i;
-                option.textContent = graduationLevels[i];
-                option.selected = (i == student.graduationLevel);
-                graduationLevelSelect.appendChild(option);
-            }
-            graduationLevelSelect.addEventListener('change',  async e => {
-                const result = await changeGraduationLevel(student.id, Number(e.target.value));
-                if (!result.ok) {
-                    graduationLevelSelect.value = student.graduationLevel;
-                    alert("An error occured while trying to change the student's graduation");
-                }
-            });
-            newRow.getElementsByClassName('student-graduation-level')[0].appendChild(graduationLevelSelect);
-        };
-        if(selectedClassId===-1){const students=await fetchJson('/students');const body=document.querySelector('#studentTable tbody');body.replaceChildren();students.forEach(s=>{const row=body.insertRow();render(row,s)});}else populateStudentTable(selectedClassId,"studentTable",render);
-        document.getElementById('studentFilter').dispatchEvent(new Event('input'));
-    }
-
-    document.addEventListener('DOMContentLoaded', async () => {
-        const classSelect = document.getElementById('classSelect');
-        const classes = await fetchClasses();
-        classes.unshift({id:0,label:'Nicht zugeordnet'});
-        classes.unshift({id:-1,label:'Alle Klassen'});
-        populateClassSelect(classSelect, classes);
-        classSelect.addEventListener('change', onClassChange);
-        onClassChange({ target: classSelect }); // Trigger initial load
-        document.getElementById('studentFilter').addEventListener('input',e=>document.querySelectorAll('#studentTable tbody tr').forEach(r=>r.hidden=!r.textContent.toLowerCase().includes(e.target.value.toLowerCase())));
-        document.querySelectorAll('#studentTable th').forEach((th,i)=>{th.classList.add('sortable');th.addEventListener('click',()=>{const body=document.querySelector('#studentTable tbody');[...body.rows].sort((a,b)=>a.cells[i].textContent.localeCompare(b.cells[i].textContent,'de')).forEach(r=>body.append(r));});});
-        populateSubjectSelect('subjectSelect', await fetchAllSubjects());
-    });
-</script>
+<script src="/manage_students.js" defer></script>
