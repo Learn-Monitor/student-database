@@ -3,9 +3,12 @@ package de.igslandstuhl.database.server.webserver;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Field;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +18,7 @@ import de.igslandstuhl.database.api.PreConditions;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
 import de.igslandstuhl.database.server.webserver.sessions.Session;
 import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
+import de.igslandstuhl.database.server.webserver.sessions.SessionStorage;
 import de.igslandstuhl.database.server.webserver.handlers.SessionValidationResult;
 
 public class SessionManagerTest {
@@ -66,5 +70,62 @@ public class SessionManagerTest {
 
         PostRequest changedIp = new PostRequest("POST /dashboard HTTP/1.1\r\nCookie: " + cookie, null, "127.0.0.1", true);
         assertEquals(SessionValidationResult.INVALID_SESSION, sessionManager.validateSession(changedIp));
+    }
+
+    @Test
+    void invalidateUserSessionsRemovesTargetSessionsAndKeepsAdminAndOtherUsers() throws Exception {
+        Session target = session();
+        Session secondTarget = session();
+        Session other = session();
+        Session admin = session();
+
+        sessionManager.addSessionUser(target, "student@example.test");
+        sessionUsers().set(secondTarget, new String("student@example.test"));
+        sessionManager.addSessionUser(other, "other@example.test");
+        sessionManager.addSessionUser(admin, "adminUser");
+        lastActivity().set(target, Instant.now());
+        lastActivity().set(secondTarget, Instant.now());
+        requestCount().set(target, 7);
+        requestCount().set(secondTarget, 8);
+
+        sessionManager.invalidateUserSessions(new String("student@example.test"));
+
+        assertNull(sessionManager.getSession(target.getUUID()));
+        assertNull(sessionManager.getSession(secondTarget.getUUID()));
+        assertNotNull(sessionManager.getSession(other.getUUID()));
+        assertNotNull(sessionManager.getSession(admin.getUUID()));
+        assertNull(sessionUsers().get(target));
+        assertNull(sessionUsers().get(secondTarget));
+        assertNull(lastActivity().get(target));
+        assertNull(lastActivity().get(secondTarget));
+        assertNull(requestCount().get(target));
+        assertNull(requestCount().get(secondTarget));
+        assertEquals("other@example.test", sessionUsers().get(other));
+        assertEquals("adminUser", sessionUsers().get(admin));
+    }
+
+    private Session session() {
+        return sessionManager.getSession(new PostRequest("POST /login HTTP/1.1\r\nCookie: session=" + UUID.randomUUID(), "", LOCALHOST, true));
+    }
+
+    @SuppressWarnings("unchecked")
+    private SessionStorage<String> sessionUsers() throws ReflectiveOperationException {
+        return (SessionStorage<String>) field("sessionUsers").get(sessionManager);
+    }
+
+    @SuppressWarnings("unchecked")
+    private SessionStorage<Instant> lastActivity() throws ReflectiveOperationException {
+        return (SessionStorage<Instant>) field("lastActivity").get(sessionManager);
+    }
+
+    @SuppressWarnings("unchecked")
+    private SessionStorage<Integer> requestCount() throws ReflectiveOperationException {
+        return (SessionStorage<Integer>) field("requestCount").get(sessionManager);
+    }
+
+    private Field field(String name) throws ReflectiveOperationException {
+        Field field = SessionManager.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return field;
     }
 }

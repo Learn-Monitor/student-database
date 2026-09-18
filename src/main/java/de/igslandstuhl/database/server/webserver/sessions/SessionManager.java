@@ -2,6 +2,7 @@ package de.igslandstuhl.database.server.webserver.sessions;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Objects;
@@ -51,6 +52,7 @@ public class SessionManager {
             sessionUsers.remove(session);
         }
         lastActivity.remove(session);
+        requestCount.remove(session);
     }
     private Instant getOrCreateLastActivity(Session session) {
         Instant instant = lastActivity.get(session);
@@ -106,6 +108,15 @@ public class SessionManager {
      */
     public void logout(HttpRequest request) {
         removeSession(getSession(request));
+    }
+
+    public void invalidateUserSessions(String username) {
+        if (username == null) return;
+        List<Session> sessions;
+        synchronized (sessionUsers) {
+            sessions = sessionUsers.getSessions(username);
+        }
+        sessions.forEach(this::removeSession);
     }
 
     public Session getSession(UUID sessionUUID) {

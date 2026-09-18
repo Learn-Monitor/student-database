@@ -208,6 +208,33 @@ public class PostRequestHandler {
             return PostResponse.badRequest("Schülerprofil konnte nicht gespeichert werden.", rq);
         }
     }
+    static PostResponse handleArchiveStudent(APIPostRequest rq) {
+        try {
+            Student student = Student.get(requiredInt(rq, "id"));
+            if (student == null) return PostResponse.badRequest("Schüler nicht gefunden", rq);
+            Student archived = student.archive();
+            Server.getInstance().getWebServer().getSessionManager().invalidateUserSessions(archived.getUsername());
+            return PostResponse.json(Map.of("id", archived.getId(), "active", archived.isActive()), rq);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return PostResponse.badRequest("Ungültige Schüler-ID.", rq);
+        } catch (SQLException e) {
+            LOGGER.warn("Could not archive student", e);
+            return PostResponse.badRequest("Schüler konnte nicht archiviert werden.", rq);
+        }
+    }
+    static PostResponse handleReactivateStudent(APIPostRequest rq) {
+        try {
+            Student student = Student.get(requiredInt(rq, "id"));
+            if (student == null) return PostResponse.badRequest("Schüler nicht gefunden", rq);
+            Student reactivated = student.reactivate();
+            return PostResponse.json(Map.of("id", reactivated.getId(), "active", reactivated.isActive()), rq);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return PostResponse.badRequest("Ungültige Schüler-ID.", rq);
+        } catch (SQLException e) {
+            LOGGER.warn("Could not reactivate student", e);
+            return PostResponse.badRequest("Schüler konnte nicht reaktiviert werden.", rq);
+        }
+    }
     private static String requiredPrepared(APIPostRequest rq, String key, boolean sanitize) {
         if (!rq.containsKey(key)) throw new IllegalArgumentException("Missing field: " + key);
         String value = rq.getString(key);
@@ -454,6 +481,8 @@ public class PostRequestHandler {
             handleObjectAction(rq, new TypeToken<SchoolClass>() {}, PostResponse.redirect("/manage_classes", rq), (schoolClass) -> schoolClass.delete())            
         );
         HttpHandler.registerPostRequestHandler("/delete-student", AccessLevel.ADMIN, rq -> { Student s=Student.get(rq.getInt("id")); if(s==null)return PostResponse.badRequest("Schüler nicht gefunden",rq); s.delete(); return PostResponse.redirect("/manage_students",rq); });
+        HttpHandler.registerPostRequestHandler("/archive-student", AccessLevel.ADMIN, PostRequestHandler::handleArchiveStudent);
+        HttpHandler.registerPostRequestHandler("/reactivate-student", AccessLevel.ADMIN, PostRequestHandler::handleReactivateStudent);
         HttpHandler.registerPostRequestHandler("/edit-class", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<SchoolClass>() {}, PostResponse.redirect("/manage_classes", rq), (schoolClass) -> schoolClass.edit(prepare(rq.getString("name")), rq.getInt("grade")))
         );

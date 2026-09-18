@@ -1,7 +1,9 @@
 package de.igslandstuhl.database.server.webserver.sessions;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
@@ -28,8 +30,14 @@ public class SessionStorage<T> {
         intern.remove(session,value);
     }
     public void remove(T value) {
-        intern.keySet().stream().filter((key) -> intern.get(key) == value)
+        intern.keySet().stream().filter((key) -> Objects.equals(intern.get(key), value))
         .toList().forEach((k) -> remove(k));
+    }
+    public List<Session> getSessions(T value) {
+        return intern.entrySet().stream()
+            .filter(entry -> Objects.equals(entry.getValue(), value))
+            .map(Map.Entry::getKey)
+            .toList();
     }
     public boolean contains(T value) {
         return intern.values().contains(value);

@@ -50,6 +50,7 @@ public interface SQLRequestHandler {
 
         Registry.sqlRequestHandlerRegistry().register("teachers", (user) -> new HashSet<>(Teacher.getAll()).toString());
         Registry.sqlRequestHandlerRegistry().register("students", (user) -> new HashSet<>(Student.getAll()).toString());
+        Registry.sqlRequestHandlerRegistry().register("archived-students", (user) -> new HashSet<>(Student.getArchived()).toString());
         Registry.sqlRequestHandlerRegistry().register("subjects", (user) -> new HashSet<>(Subject.getAll()).toString());
         Registry.sqlRequestHandlerRegistry().register("classes", (user) -> new HashSet<>(SchoolClass.getAll()).toString());
         Registry.sqlRequestHandlerRegistry().register("all-student-resukts", (user) -> Student.getAllResultsCSV());

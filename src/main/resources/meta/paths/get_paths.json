@@ -34,6 +34,13 @@
         "context": "virtual",
         "access_level": "admin"
     },
+    "/archived-students": {
+        "type": "GET",
+        "handler_type": "SQLRequestHandler",
+        "namespaces": ["sql"],
+        "context": "virtual",
+        "access_level": "admin"
+    },
     "/subjects": {
         "type": "GET",
         "handler_type": "SQLRequestHandler",

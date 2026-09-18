@@ -174,6 +174,7 @@ public class Student extends User {
         if (students.keySet().contains(id)) return students.get(id);
         try {
             Student student = Server.getInstance().processSingleRequest(Student::fromSQL, "get_student_by_id", SQL_FIELDS, String.valueOf(id));
+            if (student == null) return null;
             students.put(id, student);
             student.fetchTasks();
             return student;
