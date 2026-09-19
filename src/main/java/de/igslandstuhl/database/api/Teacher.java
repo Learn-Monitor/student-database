@@ -359,15 +359,14 @@ public class Teacher extends User {
         addClass(schoolClass.getId());
     }
 
+    private void evictCaches() {
+        teachers.remove(id);
+        teachersByEmail.remove(email);
+    }
+
     @Override
     public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + id;
-        result = prime * result + ((firstName == null) ? 0 : firstName.hashCode());
-        result = prime * result + ((lastName == null) ? 0 : lastName.hashCode());
-        result = prime * result + ((email == null) ? 0 : email.hashCode());
-        return result;
+        return Integer.hashCode(id);
     }
 
     @Override
@@ -379,35 +378,21 @@ public class Teacher extends User {
         if (getClass() != obj.getClass())
             return false;
         Teacher other = (Teacher) obj;
-        if (id != other.id)
-            return false;
-        if (firstName == null) {
-            if (other.firstName != null)
-                return false;
-        } else if (!firstName.equals(other.firstName))
-            return false;
-        if (lastName == null) {
-            if (other.lastName != null)
-                return false;
-        } else if (!lastName.equals(other.lastName))
-            return false;
-        if (email == null) {
-            if (other.email != null)
-                return false;
-        } else if (!email.equals(other.email))
-            return false;
-        return true;
+        return id == other.id;
     }
 
     @Override
     public Teacher setPassword(String password) throws SQLException {
         Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("password_hash_for_teachers", passHash(password), String.valueOf(id)));
-        teachers.remove(id);
+        evictCaches();
         return get(id);
     }
 
     public Teacher updateProfile(String firstName,String lastName,String email,String password) throws SQLException {
-        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("teacher_profile",firstName,lastName,email,password==null||password.isEmpty()?passwordHash:passHash(password),String.valueOf(id)));
-        teachers.remove(id); return get(id);
+        if (!Objects.equals(this.email, email)) {
+            throw new IllegalArgumentException("Loginname kann nicht über updateProfile geändert werden.");
+        }
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getUpdateObjectProcess("teacher_profile",firstName,lastName,email,password==null||password.isEmpty()?passwordHash:passHash(password),String.valueOf(id)));
+        evictCaches(); return get(id);
     }
 }
