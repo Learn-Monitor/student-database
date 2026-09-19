@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
         const action=(parent,label,fn)=>{const b=el('button',label);b.type='button';parent.append(b);b.addEventListener('click',()=>run(async()=>{b.disabled=true;try{await fn();}finally{b.disabled=false;}}));return b;};
         const call=async(path,data,permission)=>{if(!await allowed(permission))throw Error(permissionDenied);return post(path,data);};
-        if(await allowed('curriculum_publish')) {
+        if(catalog.admin && await allowed('curriculum_publish')) {
             const panel=el('details');panel.hidden=Boolean(catalog.admin);panel.append(el('summary','Themen und Etappen für die Klasse freischalten'));section.append(panel);
             panel.append(el('p','Verwendet die oben ausgewählte Klasse, das Fach und das Halbjahr. Eine Themenfreigabe gilt auch für künftig ergänzte Etappen. Einzelne Etappen können abweichend gesperrt werden. Verdiente Münzen bleiben erhalten.'));
             const content=el('div');panel.append(content);let generation=0;
@@ -231,6 +231,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!scope.subjectId || !scope.semesterId || !g) { message.textContent='Noch keine passenden Fächer, Klassen oder Halbjahre vorhanden.'; return; }
             const structure = await post('/curriculum-structure', {...scope,grade:g});
             if (current !== version) return;
+            async function saveRelease(values) {
+                if (current !== version) throw Error('Die Auswahl wurde geändert. Bitte das aktuelle Formular verwenden.');
+                if (!teacherMode || !await allowed('curriculum_publish')) throw Error(permissionDenied);
+                await post('/set-curriculum-release',{...scope,...values}); await refresh();
+            }
+            function releaseTask(releases, task) {
+                return (releases.tasks || []).find(item => item.id === task.id || item.taskId === task.id);
+            }
+            function releaseTopic(releases, topic) {
+                return (releases.topics || []).find(item => item.id === topic.id || item.topicId === topic.id);
+            }
+            function topicStatus(topic, tasks, releases) {
+                if (!tasks.length) return releaseTopic(releases, topic)?.active ? 'freigegeben' : 'gesperrt';
+                const active = tasks.filter(task => releaseTask(releases, task)?.active === true).length;
+                if (active === tasks.length) return 'freigegeben';
+                if (active === 0) return 'gesperrt';
+                return 'teilweise freigegeben';
+            }
+            function appendReleaseButton(parent, label, values) {
+                const b=el('button',label);b.type='button';parent.append(b);b.addEventListener('click',()=>saveRelease(values).catch(showError));return b;
+            }
             central.replaceChildren(el('h3','Zentrale Themen und Etappen'));
             summary.textContent = `Zentrale Summe Jahrgang ${g}: ${structure.centralTokens} / 100 Münzen (absolute Grenze 105).`;
             summary.style.color = structure.centralTokens > 100 ? 'darkred' : '';
@@ -261,6 +282,63 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const option=el('option',item.name);option.value=String(item.id);choice.append(option);
                 }
                 choice.value=selected==null?'':String(selected);label.append(choice);form.append(label);return choice;
+            }
+            if (teacherMode) {
+                central.replaceChildren(el('h3','Themen & Etappen')); flexible.replaceChildren();
+                if(!scope.classId || !scope.teacherId){central.append(el('p','Für diese Auswahl ist kein Unterrichtskontext zugewiesen.'));return;}
+                budget=await post('/curriculum-budget',scope);
+                const flexibleStructure=await post('/flexible-curriculum-structure',scope);if(current!==version)return;
+                const canPublish=await allowed('curriculum_publish');
+                const releases=canPublish ? await post('/curriculum-releases',scope) : {topics:[],tasks:[]};if(current!==version)return;
+                const tasks=flexibleStructure.tasks;flexibleTopics=flexibleStructure.topics;
+                summary.textContent=`Geplant: zentral ${budget.centralTokens} + flexibel ${budget.flexibleTokens} = ${budget.totalTokens} Münzen · regulärer Rahmen 100 · absolute Grenze 105`;
+                summary.style.color=budget.totalTokens>100?'darkred':'';
+                const manageFlexible=await allowed('curriculum_manage_flexible');
+                for (const topic of structure.topics) {
+                    const topicTasks=structure.tasks.filter(t=>t.topic===topic.id);
+                    const section=el('details');section.open=true;
+                    section.append(el('summary',`Thema ${topic.number} - ${topic.name} · Zentral · ${topicStatus(topic, topicTasks, releases)}`));
+                    central.append(section);
+                    if(canPublish) {
+                        appendReleaseButton(section,'Alle freigeben',{topicId:topic.id,active:true});
+                        appendReleaseButton(section,'Alle sperren',{topicId:topic.id,active:false});
+                    }
+                    for(const task of topicTasks) {
+                        const active=releaseTask(releases,task)?.active === true;
+                        const row=el('p',`Etappe ${task.stageNumber ?? ''} - ${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);
+                        section.append(row);
+                        if(canPublish) appendReleaseButton(row,active?'Sperren':'Freigeben',{taskId:task.id,active:!active});
+                    }
+                }
+                for(const topic of flexibleTopics) {
+                    const group=el('details');group.open=true;group.append(el('summary',`${topic.name} · Flexibel`));central.append(group);
+                    if(manageFlexible) {
+                        const form=el('form'),name=field(form,'Themenname',topic.name);button(form,'Flexibles Thema umbenennen');group.append(form);
+                        form.addEventListener('submit',async e=>{e.preventDefault();try{await save('/rename-flexible-topic',{topicId:topic.id,name:name.value});}catch(error){showError(error);}});
+                    }
+                    for(const task of tasks.filter(task=>(task.topicId??null)===topic.id)) {
+                        if(manageFlexible) editTask(group,task,true);
+                        else group.append(el('p',task.name+': '+task.tokens+' Münzen'));
+                    }
+                }
+                const unassigned=tasks.filter(task=>(task.topicId??null)===null);
+                if(unassigned.length) {
+                    const group=el('details');group.open=true;group.append(el('summary','Ohne Thema · Flexibel'));central.append(group);
+                    for(const task of unassigned) {
+                        if(manageFlexible) editTask(group,task,true);
+                        else group.append(el('p',task.name+': '+task.tokens+' Münzen'));
+                    }
+                }
+                if (!manageFlexible) { central.append(el('p','Flexible Inhalte sind nur lesbar.')); return; }
+                central.append(el('p','Flexible Münzen sind geplant. Verdient werden sie erst durch bestätigte Abschlüsse.'));
+                const topicForm=el('form'),topicName=field(topicForm,'Neues flexibles Thema','');button(topicForm,'Flexibles Thema anlegen');central.append(topicForm);
+                topicForm.addEventListener('submit',async e=>{e.preventDefault();try{await save('/add-flexible-topic',{...scope,name:topicName.value});}catch(error){showError(error);}});
+                const form=el('form'), name=field(form,'Neue flexible Etappe',''), tokens=field(form,'Münzen',0,'number'), topic=topicField(form,null);button(form,'Flexible Etappe anlegen');central.append(form);
+                form.addEventListener('submit',async e=>{e.preventDefault();try{
+                    if(budget.totalTokens+Number(tokens.value)>105)throw Error('Dieses Unterrichtsbudget würde 105 überschreiten.');
+                    await save('/add-flexible-task',{...scope,name:name.value,tokens:Number(tokens.value),topicId:topic.value?Number(topic.value):null});
+                }catch(error){showError(error);}});
+                return;
             }
             for (const topic of structure.topics) {
                 const section=el('details'), title=el('summary',`Thema ${topic.number} - ${topic.name}`+(manageCentral?' — Etappen anzeigen / bearbeiten':' — Etappen anzeigen'));section.append(title);central.append(section);

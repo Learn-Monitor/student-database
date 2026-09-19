@@ -19,6 +19,8 @@ async function setup(admin, options={}){
  let centralTokens=70;
  let centralName='Central';
  let topicName='Topic';
+ let releaseTopics=options.releaseTopics||[{id:2,name:'Topic',active:false}];
+ let releaseTasks=options.releaseTasks||[{id:3,topicId:2,name:'Task',active:false}];
  const byClass=new Map([[10,[{id:100,name:'Own task',tokens:30}]],[11,[]]]);
  const topicsByClass=new Map([[10,[]],[11,[]]]);
  const defaultContexts=[
@@ -39,10 +41,14 @@ async function setup(admin, options={}){
   else if(options.enrollment && url==='/assign-grade-curriculum')body={students:2,assignments:2};
   else if(options.enrollment && url==='/curriculum-wpf-roster')body=[{id:50,first_name:'Test',last_name:'Kind',subjectId:null,teacherId:null}];
   else if(options.enrollment && url==='/assign-curriculum-wpf')body={ok:true};
-  else if(options.enrollment && url==='/curriculum-releases')body={topics:[{id:2,name:'Topic',active:false}],tasks:[{id:3,topicId:2,name:'Task',active:false}]};
-  else if(options.enrollment && url==='/set-curriculum-release')body={ok:true};
+  else if(url==='/curriculum-releases')body={topics:releaseTopics,tasks:releaseTasks};
+  else if(url==='/set-curriculum-release'){
+   if(data.topicId!=null)releaseTopics=releaseTopics.map(t=>t.id===data.topicId?{...t,active:data.active}:t);
+   if(data.taskId!=null)releaseTasks=releaseTasks.map(t=>t.id===data.taskId?{...t,active:data.active}:t);
+   body={ok:true};
+  }
   else if(url==='/curriculum-catalog')body=catalog;
-  else if(url==='/curriculum-structure')body={centralTokens,topics:[{id:2,name:topicName,number:1}],tasks:[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1,stageNumber:1}]};
+  else if(url==='/curriculum-structure')body={centralTokens,topics:options.centralTopics||[{id:2,name:topicName,number:1}],tasks:options.centralTasks||[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1,stageNumber:1}]};
   else if(url==='/central-curriculum-overview')body={subjects:[{subjectId:1,subjectName:'Math',centralTokens,remainingRegular:100-centralTokens,remainingHard:105-centralTokens,warning:centralTokens>100}],rows:[{subjectId:1,subjectName:'Math',topicNumber:1,topicName,stageNumber:1,stageName:centralName,tokens:centralTokens}]};
   else if(url==='/preview-central-curriculum-import'){
    const bad=data.csv.includes('BAD'), warn=data.csv.includes('104');
@@ -88,7 +94,7 @@ test('teacher gets own context, can edit and create, and UI blocks totals above 
  try{
   assert.equal(formWith(root,'Thema umbenennen'),undefined);
   let form=formWith(root,'Speichern');form.querySelector('input[type=number]').value=35;await submit(dom,form);
-  assert.match(root.textContent,/Rest regulär: -5/);
+  assert.match(root.textContent,/Geplant: zentral 70 \+ flexibel 35 = 105 Münzen/);
   form=formWith(root,'Flexible Etappe anlegen');form.querySelector('input[type=text]').value='Too much';form.querySelector('input[type=number]').value=1;await submit(dom,form);
   assert.equal(requests.filter(r=>r.url==='/add-flexible-task').length,0);
   const select=root.querySelector('[name=classId]');select.value=11;select.dispatchEvent(new dom.window.Event('change'));await tick();
@@ -123,7 +129,7 @@ test('teacher class changes rebuild subjects and requests canonical context scop
   assert.deepEqual(budget.data,{subjectId:3,semesterId:20,classId:11,teacherId:7});
   const flexible=requests.filter(r=>r.url==='/flexible-curriculum-structure').at(-1);
   assert.deepEqual(flexible.data,{subjectId:3,semesterId:20,classId:11,teacherId:7});
-  assert.match(root.textContent,/Zentrale Summe Jahrgang 6/);
+  assert.match(root.textContent,/Geplant: zentral 70 \+ flexibel 0 = 70 Münzen/);
  }finally{dom.window.close();}
 });
 test('teacher without active contexts sees message and sends no curriculum detail requests',async()=>{
@@ -144,6 +150,63 @@ test('admin curriculum filters keep subject semester class teacher and grade sel
   assert.ok(root.querySelector('[name=grade]'));
  }finally{dom.window.close();}
 });
+test('teacher sees one combined topics and stages area with central and flexible markers',async()=>{
+ const{dom,root}=await setup(false,{pm:{...grants(),curriculum_publish:true}});
+ try{
+  assert.match(root.textContent,/Themen & Etappen/);
+  assert.doesNotMatch(root.textContent,/Zentrale Themen und Etappen|Flexible Lehrer-Etappen|Themen und Etappen für die Klasse freischalten/);
+  assert.match(root.textContent,/Geplant: zentral 70 \+ flexibel 30 = 100 Münzen · regulärer Rahmen 100 · absolute Grenze 105/);
+  const central=[...root.querySelectorAll('details')].find(d=>d.querySelector('summary')?.textContent.includes('Zentral'));
+  const flexible=[...root.querySelectorAll('details')].find(d=>d.querySelector('summary')?.textContent.includes('Flexibel'));
+  assert.ok(central);assert.ok(flexible);
+  assert.match(central.textContent,/Central: 70 Münzen/);
+  assert.equal(central.querySelectorAll('input').length,0);
+  assert.ok(formWith(flexible,'Speichern'));
+  assert.match(root.textContent,/Ohne Thema/);
+ }finally{dom.window.close();}
+});
+test('teacher central release buttons send topic and task changes and reload releases',async()=>{
+ const centralTasks=[
+  {id:3,topic:2,name:'Central A',tokens:35,niveau:1,stageNumber:1},
+  {id:4,topic:2,name:'Central B',tokens:35,niveau:1,stageNumber:2}
+ ];
+ const releaseTasks=[{id:3,topicId:2,name:'Central A',active:true},{id:4,topicId:2,name:'Central B',active:false}];
+ const{dom,root,requests}=await setup(false,{pm:{...grants(),curriculum_publish:true},centralTasks,releaseTasks});
+ try{
+  assert.match(root.textContent,/teilweise freigegeben/);
+  const before=requests.filter(r=>r.url==='/curriculum-releases').length;
+  await clickNamed(dom,root,'Alle freigeben');
+  let sent=requests.filter(r=>r.url==='/set-curriculum-release').at(-1);
+  assert.equal(sent.data.topicId,2);assert.equal(sent.data.active,true);
+  assert.ok(requests.filter(r=>r.url==='/curriculum-releases').length>before);
+  await clickNamed(dom,root,'Alle sperren');
+  sent=requests.filter(r=>r.url==='/set-curriculum-release').at(-1);
+  assert.equal(sent.data.topicId,2);assert.equal(sent.data.active,false);
+  await clickNamed(dom,root,'Sperren');
+  sent=requests.filter(r=>r.url==='/set-curriculum-release').at(-1);
+  assert.equal(sent.data.taskId,3);assert.equal(sent.data.active,false);
+ }finally{dom.window.close();}
+});
+test('teacher central topic status distinguishes all released all locked and mixed stages',async()=>{
+ const centralTasks=[
+  {id:3,topic:2,name:'Central A',tokens:35,niveau:1,stageNumber:1},
+  {id:4,topic:2,name:'Central B',tokens:35,niveau:1,stageNumber:2}
+ ];
+ let env=await setup(false,{pm:{...grants(),curriculum_publish:true},centralTasks,releaseTasks:[{id:3,topicId:2,active:true},{id:4,topicId:2,active:true}]});
+ try{assert.match(env.root.textContent,/freigegeben/);assert.doesNotMatch(env.root.textContent,/teilweise freigegeben/);}finally{env.dom.window.close();}
+ env=await setup(false,{pm:{...grants(),curriculum_publish:true},centralTasks,releaseTasks:[{id:3,topicId:2,active:false},{id:4,topicId:2,active:false}]});
+ try{assert.match(env.root.textContent,/gesperrt/);assert.doesNotMatch(env.root.textContent,/teilweise freigegeben/);}finally{env.dom.window.close();}
+ env=await setup(false,{pm:{...grants(),curriculum_publish:true},centralTasks,releaseTasks:[{id:3,topicId:2,active:true},{id:4,topicId:2,active:false}]});
+ try{assert.match(env.root.textContent,/teilweise freigegeben/);}finally{env.dom.window.close();}
+});
+test('teacher without publish sees central content but no release controls or writes',async()=>{
+ const{dom,root,requests}=await setup(false,{pm:grants()});
+ try{
+  assert.match(root.textContent,/Central: 70 Münzen/);
+  assert.doesNotMatch(root.textContent,/Alle freigeben|Alle sperren|Freigeben|Sperren/);
+  assert.equal(requests.some(r=>r.url==='/set-curriculum-release'),false);
+ }finally{dom.window.close();}
+});
 
 const grants=(flexible=true,central=false)=>({curriculum_view:true,curriculum_manage_flexible:flexible,curriculum_manage_central:central});
 for(const [label,admin,pm,flexible,central] of [
@@ -158,12 +221,16 @@ for(const [label,admin,pm,flexible,central] of [
  const {dom,root}=await setup(admin,{pm});
  try{
   const sections=root.querySelectorAll('section');assert.ok(sections.length>=3);
-  assert.match(sections[0].textContent+[...sections[0].querySelectorAll('input')].map(n=>n.value).join(' '),/Central/);assert.match(sections[1].textContent+[...sections[1].querySelectorAll('input')].map(n=>n.value).join(' '),/Own task/);
+  if(admin) {
+   assert.match(sections[0].textContent+[...sections[0].querySelectorAll('input')].map(n=>n.value).join(' '),/Central/);assert.match(sections[1].textContent+[...sections[1].querySelectorAll('input')].map(n=>n.value).join(' '),/Own task/);
+  } else {
+   assert.match(root.textContent+[...root.querySelectorAll('input')].map(n=>n.value).join(' '),/Central/);assert.match(root.textContent+[...root.querySelectorAll('input')].map(n=>n.value).join(' '),/Own task/);
+  }
   assert.equal(!!formWith(root,'Flexible Etappe anlegen'),flexible);
-  assert.equal(sections[1].querySelectorAll('input').length>0,flexible);
-  assert.equal(sections[0].querySelectorAll('input').length>0,central);
+  assert.equal((admin?sections[1]:root).querySelectorAll('input').length>0,flexible);
+  assert.equal(admin && sections[0].querySelectorAll('input').length>0,central);
   for(const label of ['Thema umbenennen','Etappe anlegen','Thema anlegen'])assert.equal(!!formWith(root,label),central);
-  if(!flexible){assert.match(sections[1].textContent,/Own task: 30 Münzen/);assert.match(sections[1].textContent,/Nur lesbar/);assert.equal(sections[1].querySelectorAll('form,button').length,0);}
+  if(!flexible){assert.match(root.textContent,/Own task: 30 Münzen/);assert.match(root.textContent,/Flexible Inhalte sind nur lesbar|Nur lesbar/);assert.equal(root.querySelectorAll('form').length,0);}
  }finally{dom.window.close();}
 });
 for(const [label,options] of [
@@ -207,10 +274,10 @@ for(const [path,admin,label,section] of [
 ])test(`revoked permission blocks stale ${path} form`,async()=>{
  const pm=grants(true,true),{dom,root,requests}=await setup(admin,{pm});
  try{
-  const form=formWith(root.querySelectorAll('section')[section],label);
+  const form=formWith(admin?root.querySelectorAll('section')[section]:root,label);
   assert.ok(form);pm[section===1?'curriculum_manage_flexible':'curriculum_manage_central']=false;
   await submit(dom,form);assert.equal(requests.filter(r=>r.url===path).length,0);
-  assert.equal(root.querySelectorAll('section')[section].querySelectorAll('form').length,0);
+  assert.equal((admin?root.querySelectorAll('section')[section]:root).querySelectorAll('form').length,0);
  }finally{dom.window.close();}
 });
 test('view revoked after render blocks mutation and subsequent reads',async()=>{
@@ -271,12 +338,12 @@ test('teacher creates a flexible topic, assigns an open task and can detach it',
   const created=requests.find(r=>r.url==='/add-flexible-task');assert.equal(created.data.topicId,500);assert.equal(created.data.tokens,5);
   assert.match(root.textContent,/erst durch bestätigte Abschlüsse/);
   assert.equal(requests.filter(r=>r.url==='/complete-flexible-task').length,0);
-  let group=[...root.querySelectorAll('details')].find(d=>d.querySelector('summary').textContent==='<b>Practice</b>');
+  let group=[...root.querySelectorAll('details')].find(d=>d.querySelector('summary').textContent==='<b>Practice</b> · Flexibel');
   form=formWith(group,'Speichern');assert.equal(form.querySelector('[name=topicId]').value,'500');
   assert.doesNotMatch(form.textContent,/gelten auch für bereits abgeschlossene Etappen/);
   form.querySelector('[name=topicId]').value='';await submit(dom,form);
   assert.equal(requests.find(r=>r.url==='/edit-flexible-task').data.topicId,null);
-  group=[...root.querySelectorAll('details')].find(d=>d.querySelector('summary').textContent==='Noch keinem Thema zugeordnet');
+  group=[...root.querySelectorAll('details')].find(d=>d.querySelector('summary').textContent==='Ohne Thema · Flexibel');
   assert.ok([...group.querySelectorAll('input')].some(i=>i.value==='Practice step'));
  } finally {dom.window.close();}
 });
@@ -323,16 +390,17 @@ test('individual subject groups save independently through the guarded assignmen
  }finally{dom.window.close();}
 });
 test('teacher publishes a whole topic or individual task but has no enrollment UI',async()=>{
- const {dom,root,requests}=await setup(false,{enrollment:true});try{
+ const {dom,root,requests}=await setup(false,{enrollment:true,pm:{...grants(),curriculum_publish:true}});try{
   assert.doesNotMatch(root.querySelector('.curriculum-enrollment').textContent,/WPF-Zuteilung/);
-  await clickNamed(dom,root,'Freischaltungen laden');await clickNamed(dom,root,'Ganzes Thema freischalten');await clickNamed(dom,root,'Etappe freischalten');
+  assert.equal(root.textContent.includes('Themen und Etappen für die Klasse freischalten'),false);
+  await clickNamed(dom,root,'Alle freigeben');await clickNamed(dom,root,'Freigeben');
   const writes=requests.filter(r=>r.url==='/set-curriculum-release');assert.equal(writes[0].data.topicId,2);assert.equal(writes[1].data.taskId,3);assert.equal(writes[0].data.teacherId,7);
  }finally{dom.window.close();}
 });
 test('old publication controls cannot write after scope change or permission revocation',async()=>{
  const pm={...grants(),curriculum_publish:true};const {dom,root,requests}=await setup(false,{enrollment:true,pm});try{
-  await clickNamed(dom,root,'Freischaltungen laden');const button=[...root.querySelectorAll('button')].find(b=>b.textContent==='Etappe freischalten');root.querySelector('[name=classId]').value='11';button.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
-  root.querySelector('[name=classId]').value='10';pm.curriculum_publish=false;button.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
+  const button=[...root.querySelectorAll('button')].find(b=>b.textContent==='Freigeben');root.querySelector('[name=classId]').value='11';root.querySelector('[name=classId]').dispatchEvent(new dom.window.Event('change'));button.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
+  root.querySelector('[name=classId]').value='10';root.querySelector('[name=classId]').dispatchEvent(new dom.window.Event('change'));await tick();const fresh=[...root.querySelectorAll('button')].find(b=>b.textContent==='Freigeben');pm.curriculum_publish=false;fresh.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
  }finally{dom.window.close();}
 });
 
