@@ -3,6 +3,7 @@ package de.igslandstuhl.database.server.webserver.handlers;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,12 +23,16 @@ import de.igslandstuhl.database.api.GraduationLevel;
 import de.igslandstuhl.database.api.PreConditions;
 import de.igslandstuhl.database.api.SchoolClass;
 import de.igslandstuhl.database.api.Student;
+import de.igslandstuhl.database.api.Task;
+import de.igslandstuhl.database.api.TaskLevel;
 import de.igslandstuhl.database.api.User;
+import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.ContentType;
 import de.igslandstuhl.database.server.webserver.Cookie;
 import de.igslandstuhl.database.server.webserver.Status;
 import de.igslandstuhl.database.server.webserver.WebPath;
+import de.igslandstuhl.database.server.webserver.requests.RequestType;
 import de.igslandstuhl.database.server.webserver.handlers.get.SQLRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
 import de.igslandstuhl.database.server.webserver.responses.HttpResponse;
@@ -56,6 +61,35 @@ class StudentArchiveRouteTest {
 
         assertEquals(Status.FORBIDDEN, response.getStatus());
         assertTrue(Student.get(student.getId()).isActive());
+    }
+
+    @Test
+    void studentHardDeleteEndpointIsNotRegistered() {
+        assertNull(Registry.postRequestHandlerRegistry().get("/delete-student"));
+        assertNull(Registry.webPathRegistry().get(WebPath.PathInfo.get("/delete-student", RequestType.POST)));
+        assertNotNull(Registry.postRequestHandlerRegistry().get("/archive-student"));
+        assertNotNull(Registry.postRequestHandlerRegistry().get("/reactivate-student"));
+        assertNotNull(Registry.webPathRegistry().get(WebPath.PathInfo.get("/archive-student", RequestType.POST)));
+        assertNotNull(Registry.webPathRegistry().get(WebPath.PathInfo.get("/reactivate-student", RequestType.POST)));
+    }
+
+    @Test
+    void oldStudentHardDeleteEndpointReturnsNotFoundAndDoesNotMutateStudent() throws Exception {
+        Student student = fixtureStudent("hard-delete-removed", "password");
+        int taskId = student.getId() + 1;
+        addTaskstat(student, taskId, Task.STATUS_COMPLETED);
+        Cookie adminCookie = sessionCookieFor(ADMIN);
+
+        HttpResponse response = post("/delete-student", "{\"id\":" + student.getId() + "}", adminCookie);
+
+        assertEquals(Status.NOT_FOUND, response.getStatus());
+        assertTrue(body(response).contains("Unknown post request path: /delete-student"));
+        Student loaded = Student.get(student.getId());
+        assertNotNull(loaded);
+        assertTrue(loaded.isActive());
+        assertEquals(student.getSchoolClass().getId(), loaded.getSchoolClass().getId());
+        assertEquals(1, scalar("SELECT COUNT(*) FROM students WHERE id=?", student.getId()));
+        assertEquals(Task.STATUS_COMPLETED, scalar("SELECT status FROM taskstats WHERE student=? AND task=?", student.getId(), taskId));
     }
 
     @Test
@@ -141,6 +175,16 @@ class StudentArchiveRouteTest {
         return SchoolClass.get(id);
     }
 
+    private static void addTaskstat(Student student, int taskId, int status) throws Exception {
+        Server.getInstance().getConnection().writeTransaction(c -> {
+            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", taskId, "Archive Route Subject " + taskId);
+            exec(c, "INSERT INTO topics(id,name,subject,grade,number) VALUES(?,?,?,?,1)", taskId, "Archive Route Topic " + taskId, taskId, student.getSchoolClass().getGrade());
+            exec(c, "INSERT INTO tasks(id,topic,name,niveau,stage_number,tokens) VALUES(?,?,?,?,1,5)", taskId, taskId, "Archive Route Task " + taskId, TaskLevel.LEVEL1.getNumber());
+            exec(c, "INSERT INTO taskstats(student,task,status) VALUES(?,?,?)", student.getId(), taskId, status);
+            return null;
+        });
+    }
+
     private static void exec(Connection connection, String sql, Object... args) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             for (int i = 0; i < args.length; i++) statement.setObject(i + 1, args[i]);
@@ -181,6 +225,16 @@ class StudentArchiveRouteTest {
         String raw = raw(response);
         int split = raw.indexOf("\r\n\r\n");
         return split >= 0 ? raw.substring(split + 4) : raw;
+    }
+
+    private static long scalar(String sql, Object... args) throws SQLException {
+        try (PreparedStatement statement = Server.getInstance().getConnection().getSQLConnection().prepareStatement(sql)) {
+            for (int i = 0; i < args.length; i++) statement.setObject(i + 1, args[i]);
+            try (var result = statement.executeQuery()) {
+                assertTrue(result.next());
+                return result.getLong(1);
+            }
+        }
     }
 
     private static Cookie responseCookie(HttpResponse response) {

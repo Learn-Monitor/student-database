@@ -480,7 +480,6 @@ public class PostRequestHandler {
         HttpHandler.registerPostRequestHandler("/delete-class", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<SchoolClass>() {}, PostResponse.redirect("/manage_classes", rq), (schoolClass) -> schoolClass.delete())            
         );
-        HttpHandler.registerPostRequestHandler("/delete-student", AccessLevel.ADMIN, rq -> { Student s=Student.get(rq.getInt("id")); if(s==null)return PostResponse.badRequest("Schüler nicht gefunden",rq); s.delete(); return PostResponse.redirect("/manage_students",rq); });
         HttpHandler.registerPostRequestHandler("/archive-student", AccessLevel.ADMIN, PostRequestHandler::handleArchiveStudent);
         HttpHandler.registerPostRequestHandler("/reactivate-student", AccessLevel.ADMIN, PostRequestHandler::handleReactivateStudent);
         HttpHandler.registerPostRequestHandler("/edit-class", AccessLevel.ADMIN, (rq) -> 

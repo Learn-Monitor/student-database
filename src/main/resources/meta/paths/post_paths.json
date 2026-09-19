@@ -186,7 +186,6 @@
         "access_level": "admin"
     },
     "/edit-student-profile": {"type":"POST","handler_type":"PostRequestHandler","namespaces":[],"access_level":"admin"},
-    "/delete-student": {"type":"POST","handler_type":"PostRequestHandler","namespaces":[],"access_level":"admin"},
     "/archive-student": {"type":"POST","handler_type":"PostRequestHandler","namespaces":[],"access_level":"admin"},
     "/reactivate-student": {"type":"POST","handler_type":"PostRequestHandler","namespaces":[],"access_level":"admin"},
     "/edit-teacher-profile": {"type":"POST","handler_type":"PostRequestHandler","namespaces":[],"access_level":"admin"},
