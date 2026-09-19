@@ -21,7 +21,16 @@ async function setup(admin, options={}){
  let topicName='Topic';
  const byClass=new Map([[10,[{id:100,name:'Own task',tokens:30}]],[11,[]]]);
  const topicsByClass=new Map([[10,[]],[11,[]]]);
- const catalog={admin,enrollmentEnabled:options.enrollment===true,teacherId:7,subjects:[{id:1,name:'Math'}],classes:[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5}],semesters:[{id:20,label:'H1'},{id:21,label:'H2'}],teachers:[{id:7,first_name:'Test',last_name:'Teacher'}]};
+ const defaultContexts=[
+  {semesterId:20,semesterLabel:'H1',activeSemester:true,classId:10,classLabel:'5a',grade:5,subjectId:1,subjectName:'Math'},
+  {semesterId:20,semesterLabel:'H1',activeSemester:true,classId:11,classLabel:'5b',grade:6,subjectId:1,subjectName:'Math'},
+  {semesterId:20,semesterLabel:'H1',activeSemester:true,classId:11,classLabel:'5b',grade:6,subjectId:3,subjectName:'Science'},
+  {semesterId:21,semesterLabel:'H2',activeSemester:false,classId:13,classLabel:'7a',grade:7,subjectId:4,subjectName:'History'}
+ ];
+ const catalog={admin,enrollmentEnabled:options.enrollment===true,teacherId:7,
+  subjects:admin?[{id:1,name:'Math'}]:[{id:1,name:'Math'},{id:2,name:'Legacy only'}],
+  classes:admin?[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5}]:[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5},{id:12,label:'Legacy class',grade:8}],
+  semesters:[{id:20,label:'H1'},{id:21,label:'H2'}],teachers:[{id:7,first_name:'Test',last_name:'Teacher'}],contexts:options.contexts ?? defaultContexts};
  dom.window.fetch=async(url,requestOptions)=>{
   const data=JSON.parse(requestOptions.body);requests.push({url,data});let body;let ok=true;
   if(options.response?.url===url)return {ok:false,status:options.response.status,text:async()=>options.response.body};
@@ -40,7 +49,7 @@ async function setup(admin, options={}){
    body={rows:[{sourceLine:2,subjectId:1,subjectName:'Math',topicNumber:1,topicName:'<img src=x>',stageNumber:1,stageName:bad?'BAD':'Imported',tokens:warn?104:5,action:bad?'ERROR':'CREATE',message:bad?'Zeile 2: Fehler':'Neue Etappe.'}],creates:bad?0:1,updates:0,unchanged:0,errors:bad?['Zeile 2: Fehler']:[],warnings:warn?[{subjectId:1,subjectName:'Math',centralTokens:104,remainingRegular:-4,remainingHard:1,warning:true}]:[],subjects:[{subjectId:1,subjectName:'Math',centralTokens:warn?104:5,remainingRegular:warn?-4:95,remainingHard:warn?1:100,warning:warn}],canImport:!bad};
   }
   else if(url==='/import-central-curriculum'){centralName='Imported';centralTokens=5;body={createdTopics:1,updatedTopics:0,createdStages:1,updatedStages:0,unchangedStages:0,subjects:[{subjectId:1,subjectName:'Math',centralTokens:5,remainingRegular:95,remainingHard:100,warning:false}]};}
-  else if(url==='/curriculum-budget'){const f=tasks.reduce((n,t)=>n+t.tokens,0);body={grade:5,centralTokens,flexibleTokens:f,totalTokens:centralTokens+f,remainingRegular:100-centralTokens-f,remainingHard:105-centralTokens-f};}
+  else if(url==='/curriculum-budget'){const f=tasks.reduce((n,t)=>n+t.tokens,0);body={grade:data.classId===11?6:5,centralTokens,flexibleTokens:f,totalTokens:centralTokens+f,remainingRegular:100-centralTokens-f,remainingHard:105-centralTokens-f};}
   else if(url==='/flexible-tasks')body=tasks;
   else if(url==='/flexible-curriculum-structure')body={topics:topicsByClass.get(data.classId)||[],tasks};
   else if(url==='/add-flexible-topic'){body={id:500,name:data.name};topicsByClass.get(data.classId).push(body);}
@@ -64,6 +73,7 @@ async function setup(admin, options={}){
 }
 function formWith(root,button){return [...root.querySelectorAll('form')].find(f=>f.querySelector('button')?.textContent===button);}
 async function submit(dom,form){form.dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));await tick();}
+const optionsOf=select=>[...select.options].map(option=>({value:option.value,text:option.textContent}));
 test('admin can rename topics and tasks safely and sees server budget conflicts',async()=>{
  const{dom,requests,root}=await setup(true);
  try{
@@ -84,6 +94,54 @@ test('teacher gets own context, can edit and create, and UI blocks totals above 
   const select=root.querySelector('[name=classId]');select.value=11;select.dispatchEvent(new dom.window.Event('change'));await tick();
   form=formWith(root,'Flexible Etappe anlegen');form.querySelector('input[type=text]').value='Own 5b';form.querySelector('input[type=number]').value=30;await submit(dom,form);
   const create=requests.find(r=>r.url==='/add-flexible-task');assert.equal(create.data.teacherId,7);assert.equal(create.data.classId,11);assert.equal(create.data.semesterId,20);
+ }finally{dom.window.close();}
+});
+test('teacher filters use only active canonical contexts',async()=>{
+ const{dom,root}=await setup(false);
+ try{
+  const classes=optionsOf(root.querySelector('[name=classId]')).map(option=>option.text);
+  assert.deepEqual(classes,['5a','5b']);
+  assert.doesNotMatch(classes.join(' '),/Legacy class|7a/);
+  const subjects=optionsOf(root.querySelector('[name=subjectId]')).map(option=>option.text);
+  assert.deepEqual(subjects,['Math']);
+  assert.doesNotMatch(subjects.join(' '),/Legacy only|History/);
+  assert.equal(root.querySelector('[name=semesterId]'),null);
+  assert.equal(root.querySelector('[name=teacherId]'),null);
+  assert.equal(root.querySelector('[name=grade]'),null);
+ }finally{dom.window.close();}
+});
+test('teacher class changes rebuild subjects and requests canonical context scope',async()=>{
+ const{dom,root,requests}=await setup(false);
+ try{
+  const classSelect=root.querySelector('[name=classId]'),subjectSelect=root.querySelector('[name=subjectId]');
+  classSelect.value='11';classSelect.dispatchEvent(new dom.window.Event('change'));await tick();
+  assert.deepEqual(optionsOf(subjectSelect),[{value:'1',text:'Math'},{value:'3',text:'Science'}]);
+  subjectSelect.value='3';subjectSelect.dispatchEvent(new dom.window.Event('change'));await tick();
+  const structure=requests.filter(r=>r.url==='/curriculum-structure').at(-1);
+  assert.deepEqual(structure.data,{subjectId:3,semesterId:20,classId:11,teacherId:7,grade:6});
+  const budget=requests.filter(r=>r.url==='/curriculum-budget').at(-1);
+  assert.deepEqual(budget.data,{subjectId:3,semesterId:20,classId:11,teacherId:7});
+  const flexible=requests.filter(r=>r.url==='/flexible-curriculum-structure').at(-1);
+  assert.deepEqual(flexible.data,{subjectId:3,semesterId:20,classId:11,teacherId:7});
+  assert.match(root.textContent,/Zentrale Summe Jahrgang 6/);
+ }finally{dom.window.close();}
+});
+test('teacher without active contexts sees message and sends no curriculum detail requests',async()=>{
+ const contexts=[{semesterId:21,semesterLabel:'H2',activeSemester:false,classId:10,classLabel:'5a',grade:5,subjectId:1,subjectName:'Math'}];
+ const{dom,root,requests}=await setup(false,{contexts});
+ try{
+  assert.match(root.textContent,/Für das aktive Halbjahr sind keine Lerngruppen oder Fächer zugewiesen/);
+  assert.equal(requests.filter(r=>['/curriculum-structure','/curriculum-budget','/flexible-curriculum-structure'].includes(r.url)).length,0);
+ }finally{dom.window.close();}
+});
+test('admin curriculum filters keep subject semester class teacher and grade selects',async()=>{
+ const{dom,root}=await setup(true);
+ try{
+  assert.ok(root.querySelector('[name=subjectId]'));
+  assert.ok(root.querySelector('[name=semesterId]'));
+  assert.ok(root.querySelector('[name=classId]'));
+  assert.ok(root.querySelector('[name=teacherId]'));
+  assert.ok(root.querySelector('[name=grade]'));
  }finally{dom.window.close();}
 });
 

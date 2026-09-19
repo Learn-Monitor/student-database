@@ -174,13 +174,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (!await allowed('curriculum_view')) { message.textContent = 'Das Curriculum ist derzeit nicht verfügbar.'; return; }
         const catalog = await post('/curriculum-catalog');
-        const subject = select('Fach', catalog.subjects, 'subjectId');
-        const semester = select('Halbjahr', catalog.semesters, 'semesterId');
-        const schoolClass = select('Klasse/Lerngruppe', catalog.classes, 'classId');
+        const teacherMode = catalog.admin !== true;
+        const activeContexts = teacherMode ? (catalog.contexts || []).filter(context => context.activeSemester === true) : [];
+        if (teacherMode && !activeContexts.length) {
+            message.textContent = 'Für das aktive Halbjahr sind keine Lerngruppen oder Fächer zugewiesen.';
+            return;
+        }
+        const uniqueBy = (items, key) => {
+            const seen = new Set(), out = [];
+            for (const item of items) { const value = key(item); if (seen.has(value)) continue; seen.add(value); out.push(item); }
+            return out;
+        };
+        const teacherClasses = teacherMode ? uniqueBy(activeContexts, context => context.classId).map(context => ({id:context.classId,label:context.classLabel,grade:context.grade})) : [];
+        const subject = teacherMode ? select('Fach', [], 'subjectId') : select('Fach', catalog.subjects, 'subjectId');
+        const semester = teacherMode ? null : select('Halbjahr', catalog.semesters, 'semesterId');
+        const schoolClass = select('Klasse/Lerngruppe', teacherMode ? teacherClasses : catalog.classes, 'classId');
         const teacher = catalog.admin ? select('Lehrkraft (flexible Etappen)', catalog.teachers.map(t => ({id:t.id,name:t.first_name+' '+t.last_name})), 'teacherId') : null;
         const grade = catalog.admin ? select('Jahrgang (zentral)', Array.from({length:13},(_,i)=>({id:i+1,name:String(i+1)})), 'grade') : null;
         if (catalog.admin && separatedAdmin) [schoolClass, teacher].filter(Boolean).forEach(node => node.closest('label').remove());
         if (grade) grade.value = String(catalog.classes[0]?.grade || 5);
+        function contextsForClass() {
+            return activeContexts.filter(context => context.classId === Number(schoolClass.value));
+        }
+        function rebuildTeacherSubjects() {
+            if (!teacherMode) return;
+            const subjects = uniqueBy(contextsForClass(), context => context.subjectId).map(context => ({id:context.subjectId,name:context.subjectName}));
+            subject.replaceChildren();
+            for (const item of subjects) { const option = el('option', item.name); option.value = item.id; subject.append(option); }
+        }
+        function selectedTeacherContext() {
+            if (!teacherMode) return null;
+            return activeContexts.find(context => context.classId === Number(schoolClass.value) && context.subjectId === Number(subject.value)) || null;
+        }
+        rebuildTeacherSubjects();
         const load = el('button', 'Anzeigen / Aktualisieren'); load.type = 'button'; root.append(load);
         const summary = el('p'), central = el('section'), flexible = el('section'), assignments = el('section'); root.append(summary, central, flexible, assignments);
         const genericControls=[subject,semester,schoolClass,teacher,grade,load,summary,central,flexible,assignments].filter(Boolean);
@@ -195,9 +221,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const manageAssignments = catalog.admin === true && await allowed('curriculum_assign_context');
             const manageFlexible = await allowed('curriculum_manage_flexible');
             const manageCentral = catalog.admin === true && await allowed('curriculum_manage_central');
-            const scope = {subjectId:Number(subject.value),semesterId:Number(semester.value),classId:Number(schoolClass.value),teacherId:teacher?Number(teacher.value):catalog.teacherId};
-            const selectedClass = catalog.classes.find(c => c.id === scope.classId);
-            const g = grade ? Number(grade.value) : selectedClass?.grade;
+            const context = selectedTeacherContext();
+            if (teacherMode && !context) { message.textContent='Für diese Auswahl ist kein Unterrichtskontext zugewiesen.'; return; }
+            const scope = teacherMode
+                ? {subjectId:context.subjectId,semesterId:context.semesterId,classId:context.classId,teacherId:catalog.teacherId}
+                : {subjectId:Number(subject.value),semesterId:Number(semester.value),classId:Number(schoolClass.value),teacherId:teacher?Number(teacher.value):catalog.teacherId};
+            const selectedClass = teacherMode ? null : catalog.classes.find(c => c.id === scope.classId);
+            const g = teacherMode ? context.grade : grade ? Number(grade.value) : selectedClass?.grade;
             if (!scope.subjectId || !scope.semesterId || !g) { message.textContent='Noch keine passenden Fächer, Klassen oder Halbjahre vorhanden.'; return; }
             const structure = await post('/curriculum-structure', {...scope,grade:g});
             if (current !== version) return;
@@ -349,9 +379,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             importButton.addEventListener('click',async()=>{try{if(!currentPreview?.canImport)return;if(!confirm('Die angezeigten Themen und Etappen jetzt übernehmen?'))return;await post('/import-central-curriculum',{...selected(),csv:currentCsv});message.textContent='Import erfolgreich.';message.style.color='';importButton.disabled=true;await reloadOverview();}catch(error){showError(error);}});
             importSemester.addEventListener('change',()=>reloadOverview().catch(showError));importGrade.addEventListener('change',()=>reloadOverview().catch(showError));await reloadOverview().catch(showError);
         }
-        for(const node of [subject,semester,schoolClass,teacher,grade].filter(Boolean))node.addEventListener('change',()=>refresh().catch(showError));
+        schoolClass.addEventListener('change',()=>{rebuildTeacherSubjects();refresh().catch(showError);});
+        for(const node of [subject,semester,teacher,grade].filter(Boolean))node.addEventListener('change',()=>refresh().catch(showError));
         load.addEventListener('click',()=>refresh().catch(showError));await refresh().catch(showError);
         await mountCentralImport();
-        if(catalog.enrollmentEnabled)await mountEnrollment(catalog,()=>({subjectId:Number(subject.value),semesterId:Number(semester.value),classId:Number(schoolClass.value),teacherId:teacher?Number(teacher.value):catalog.teacherId}),adminEnrollmentRoot||root);
+        if(catalog.enrollmentEnabled)await mountEnrollment(catalog,()=>{
+            const context = selectedTeacherContext();
+            return teacherMode && context ? {subjectId:context.subjectId,semesterId:context.semesterId,classId:context.classId,teacherId:catalog.teacherId}
+                : {subjectId:Number(subject.value),semesterId:Number(semester.value),classId:Number(schoolClass.value),teacherId:teacher?Number(teacher.value):catalog.teacherId};
+        },adminEnrollmentRoot||root);
     } catch(error) { showError(error); }
 });
