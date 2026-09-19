@@ -123,8 +123,11 @@ function viewSubject(subject) {
     sessionStorage.setItem('currentSubject', JSON.stringify(subject));
     window.location.href = '/subject';
 }
-function viewTeacher(teacher) {
-    sessionStorage.setItem('currentTeacher', JSON.stringify(teacher));
+function viewTeacher(teacherId) {
+    const id = Number(teacherId);
+    if (!Number.isInteger(id) || id <= 0) return;
+    sessionStorage.removeItem('currentTeacher');
+    sessionStorage.setItem('selectedTeacherId', String(id));
     window.location.href = '/teacher';
 }
 function viewClass(cls) {

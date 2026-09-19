@@ -1,22 +1,23 @@
-%[site;title=Lehrerverwaltung;content=!FOLLOWS]
+%[site;title=Lehrkraft bearbeiten;content=!FOLLOWS]
 <section id="dashboard">
     <header>
-        <h1>Lehrerverwaltung - <span id="teacher-name"></span></h1>
+        <h1>Lehrkraft bearbeiten - <span id="teacher-name"></span></h1>
     </header>
     <main>
         <section id="edit-teacher">
-            <h2>Lehrer bearbeiten</h2>
-            <form method="post" action="/edit-teacher-profile" onsubmit="return confirm('Änderungen an dieser Lehrkraft speichern?')">
-                <input type="hidden" name="id" class="teacherId">
+            <h2>Lehrkraft bearbeiten</h2>
+            <p id="teacher-load-message" hidden></p>
+            <p id="teacher-back-link" hidden><a href="/manage_teachers">Zur Lehrkräfteverwaltung</a></p>
+            <form id="teacher-profile-form" method="post" action="/edit-teacher-profile">
+                <input type="hidden" name="id" id="teacherId" class="teacherId">
                 <label>Vorname <input name="firstName" id="teacherFirstName" required></label>
                 <label>Nachname <input name="lastName" id="teacherLastName" required></label>
                 <label>Loginname <input type="text" name="email" id="teacherEmail" required></label>
-                <label>Neues Passwort <input type="password" name="password" id="teacherPassword"></label>
+                <label>Neues Passwort (optional) <input type="password" name="password" id="teacherPassword" autocomplete="new-password"></label>
                 <button type="submit">Stammdaten speichern</button>
             </form>
-            <p>Fächer- und Klassen-Zuordnungen werden im Bereich <a href="/dashboard#halbjahre">Halbjahre einrichten</a> verwaltet.</p>
+            <p>Klassen-, Fach- und Semesterzuordnungen werden im Bereich <a href="/dashboard#schuljahr">Schuljahr &amp; Zuordnungen</a> verwaltet.</p>
         </section>
-        %[teacher_infos]
     </main>
     <nav>
         %[admin_teacher_nav]

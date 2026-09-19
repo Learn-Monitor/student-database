@@ -112,7 +112,7 @@
         editButton.type = "button";
         editButton.className = "view-teacher";
         editButton.textContent = "Bearbeiten";
-        editButton.addEventListener("click", () => viewTeacher(teacher));
+        editButton.addEventListener("click", () => viewTeacher(teacher.id));
         actionCell.appendChild(editButton);
         return row;
     }

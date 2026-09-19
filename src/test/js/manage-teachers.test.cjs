@@ -117,12 +117,12 @@ test('teacher rows are rendered safely without innerHTML or inline onclick',asyn
   }
 });
 
-test('edit button calls viewTeacher with the real teacher object',async()=>{
+test('edit button calls viewTeacher with only the teacher id',async()=>{
   const {dom,calls}=await setup();
   try {
     dom.window.document.querySelector('#teacherTableBody tr .view-teacher').click();
     assert.equal(calls.viewed.length,1);
-    assert.equal(calls.viewed[0],teachers[2]);
+    assert.equal(calls.viewed[0],teachers[2].id);
   } finally {
     dom.window.close();
   }
