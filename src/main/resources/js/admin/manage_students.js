@@ -1,6 +1,14 @@
 (function() {
     let allStudents = [];
 
+    function currentStatus() {
+        return document.getElementById("studentStatus").value;
+    }
+
+    function activeStatus() {
+        return currentStatus() === "active";
+    }
+
     function studentFirstName(student) {
         if (student.firstName) return student.firstName;
         const name = student.name || "";
@@ -57,7 +65,7 @@
         const classId = selectedClassId();
         const query = document.getElementById("studentFilter").value || "";
         return allStudents
-            .filter(student => classId === -1 || studentClassId(student) === classId)
+            .filter(student => !activeStatus() || classId === -1 || studentClassId(student) === classId)
             .filter(student => matchesSearch(student, query))
             .sort(compareStudents);
     }
@@ -68,6 +76,10 @@
         cell.textContent = text;
         row.appendChild(cell);
         return cell;
+    }
+
+    function createGraduationText(student) {
+        return graduationLevels[Number(student.graduationLevel)] || "";
     }
 
     function createGraduationSelect(student) {
@@ -87,10 +99,34 @@
                 student.graduationLevel = next;
             } else {
                 select.value = String(previous);
-                alert("An error occured while trying to change the student's graduation");
+                alert("Die Abschlussstufe konnte nicht geändert werden.");
             }
         });
         return select;
+    }
+
+    async function archiveStudent(student) {
+        if (!confirm("Schüler wirklich archivieren? Der Schüler kann sich danach nicht mehr anmelden. Leistungsdaten und Zuordnungen bleiben erhalten.")) {
+            return;
+        }
+        const response = await post("/archive-student", {id: student.id});
+        if (response.ok) {
+            await loadStudents();
+        } else {
+            alert("Der Schüler konnte nicht archiviert werden.");
+        }
+    }
+
+    async function reactivateStudent(student) {
+        if (!confirm("Schüler wieder aktivieren? Der Schüler kann sich anschließend wieder mit seinen vorhandenen Zugangsdaten anmelden.")) {
+            return;
+        }
+        const response = await post("/reactivate-student", {id: student.id});
+        if (response.ok) {
+            await loadStudents();
+        } else {
+            alert("Der Schüler konnte nicht wiederhergestellt werden.");
+        }
     }
 
     function renderStudentRow(student) {
@@ -99,15 +135,35 @@
         appendCell(row, "student-first-name", studentFirstName(student));
         appendCell(row, "student-class", studentClassLabel(student));
         const graduationCell = appendCell(row, "student-graduation-level", "");
-        graduationCell.appendChild(createGraduationSelect(student));
+        if (activeStatus()) {
+            graduationCell.appendChild(createGraduationSelect(student));
+        } else {
+            graduationCell.textContent = createGraduationText(student);
+        }
 
         const actionCell = appendCell(row, "student-action", "");
-        const editButton = document.createElement("button");
-        editButton.type = "button";
-        editButton.className = "edit-student";
-        editButton.textContent = "Bearbeiten";
-        editButton.addEventListener("click", () => viewStudent(student.id));
-        actionCell.appendChild(editButton);
+        if (activeStatus()) {
+            const editButton = document.createElement("button");
+            editButton.type = "button";
+            editButton.className = "edit-student";
+            editButton.textContent = "Bearbeiten";
+            editButton.addEventListener("click", () => viewStudent(student.id));
+            actionCell.appendChild(editButton);
+
+            const archiveButton = document.createElement("button");
+            archiveButton.type = "button";
+            archiveButton.className = "archive-student";
+            archiveButton.textContent = "Archivieren";
+            archiveButton.addEventListener("click", () => archiveStudent(student));
+            actionCell.appendChild(archiveButton);
+        } else {
+            const reactivateButton = document.createElement("button");
+            reactivateButton.type = "button";
+            reactivateButton.className = "reactivate-student";
+            reactivateButton.textContent = "Wiederherstellen";
+            reactivateButton.addEventListener("click", () => reactivateStudent(student));
+            actionCell.appendChild(reactivateButton);
+        }
         return row;
     }
 
@@ -115,6 +171,21 @@
         const body = document.getElementById("studentTableBody");
         const rows = filteredStudents().map(renderStudentRow);
         body.replaceChildren(...rows);
+    }
+
+    async function loadStudents() {
+        const students = await fetchJson(activeStatus() ? "/students" : "/archived-students");
+        allStudents = Array.isArray(students) ? students : [];
+        renderStudents();
+    }
+
+    function updateClassFilterState() {
+        const classSelect = document.getElementById("classSelect");
+        const classLabel = document.querySelector('label[for="classSelect"]');
+        const archived = !activeStatus();
+        classSelect.disabled = archived;
+        classSelect.hidden = archived;
+        if (classLabel) classLabel.hidden = archived;
     }
 
     function populateClassFilter(classes) {
@@ -149,16 +220,19 @@
 
     document.addEventListener("DOMContentLoaded", async () => {
         setupDownloads();
-        const [students, classes, subjects] = await Promise.all([
-            fetchJson("/students"),
+        const [classes, subjects] = await Promise.all([
             fetchClasses(),
             fetchAllSubjects()
         ]);
-        allStudents = Array.isArray(students) ? students : [];
         populateClassFilter((Array.isArray(classes) ? classes : []).filter(cls => Number(cls.id ?? cls.classId) !== 0 && cls.active !== false));
         populateSubjectSelect("subjectSelect", Array.isArray(subjects) ? subjects : []);
+        document.getElementById("studentStatus").addEventListener("change", async () => {
+            updateClassFilterState();
+            await loadStudents();
+        });
         document.getElementById("classSelect").addEventListener("change", renderStudents);
         document.getElementById("studentFilter").addEventListener("input", renderStudents);
-        renderStudents();
+        updateClassFilterState();
+        await loadStudents();
     });
 })();

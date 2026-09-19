@@ -13,6 +13,10 @@ const students=[
   {id:1,firstName:'Berta',lastName:'Albrecht',email:'berta@example.test',schoolClass:{id:0,label:'Nicht zugeordnet'},graduationLevel:2},
   {id:2,firstName:'Ada',lastName:'Albrecht',email:'ada.login@example.test',schoolClass:{id:11,label:'6a'},graduationLevel:0}
 ];
+const archivedStudents=[
+  {id:5,firstName:'Clara',lastName:'Bach',email:'clara@example.test',schoolClass:{id:12,label:'7b'},graduationLevel:3,active:false},
+  {id:4,firstName:'Anton',lastName:'Bach',email:'anton.archive@example.test',schoolClass:{id:11,label:'6a'},graduationLevel:1,active:false}
+];
 
 function stripTemplate(value) {
   return value
@@ -22,7 +26,7 @@ function stripTemplate(value) {
 }
 
 async function setup(options={}) {
-  const calls={fetchJson:[],viewed:[],changed:[],downloads:[],subjects:[]};
+  const calls={fetchJson:[],viewed:[],changed:[],downloads:[],subjects:[],posts:[],confirms:[],alerts:[]};
   let innerHTMLWrites=0;
   const virtualConsole=new VirtualConsole();
   virtualConsole.on('jsdomError',()=>{});
@@ -44,7 +48,8 @@ async function setup(options={}) {
   dom.window.graduationLevels=['Neustarter','Starter','Durchstarter','Lernprofi'];
   dom.window.fetchJson=async url=>{
     calls.fetchJson.push(url);
-    assert.equal(url,'/students');
+    assert.ok(['/students','/archived-students'].includes(url));
+    if (url==='/archived-students') return options.archivedStudents || archivedStudents;
     return options.students || students;
   };
   dom.window.fetchClasses=async()=>options.classes || [
@@ -67,8 +72,18 @@ async function setup(options={}) {
     calls.changed.push({id,graduationLevel});
     return {ok:options.changeOk!==false};
   };
+  dom.window.post=async(url,data)=>{
+    calls.posts.push({url,data});
+    if (url==='/archive-student') return {ok:options.archiveOk!==false};
+    if (url==='/reactivate-student') return {ok:options.reactivateOk!==false};
+    return {ok:true};
+  };
   dom.window.postDataAndDownload=(url,data,filename)=>calls.downloads.push({url,data,filename});
-  dom.window.alert=()=>{};
+  dom.window.confirm=message=>{
+    calls.confirms.push(message);
+    return options.confirm!==false;
+  };
+  dom.window.alert=message=>calls.alerts.push(message);
   dom.window.eval(script);
   dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
   await tick();
@@ -83,9 +98,10 @@ function rowTexts(document) {
   return rows(document).map(row=>[...row.children].map(cell=>cell.textContent.trim()));
 }
 
-test('/students is loaded and downloads/import remain present',async()=>{
+test('default status is active and downloads/import remain present',async()=>{
   const {dom,calls}=await setup();
   try {
+    assert.equal(dom.window.document.getElementById('studentStatus').value,'active');
     assert.ok(calls.fetchJson.includes('/students'));
     assert.equal(calls.fetchJson.includes('/archived-students'),false);
     assert.equal(dom.window.document.querySelector('#add-students-form')?.getAttribute('action'),'/add-students');
@@ -94,6 +110,39 @@ test('/students is loaded and downloads/import remain present',async()=>{
     dom.window.document.querySelector('#csv-input').value='csv-data';
     dom.window.document.querySelector('#add-students-form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
     assert.deepEqual(calls.downloads[0],{url:'/add-students',data:'csv-data',filename:'schueler.csv'});
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('archived status loads archived students without page reload',async()=>{
+  const {dom,calls}=await setup();
+  try {
+    const before=dom.window.location.href;
+    const status=dom.window.document.getElementById('studentStatus');
+    status.value='archived';
+    status.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    assert.equal(dom.window.location.href,before);
+    assert.ok(calls.fetchJson.includes('/archived-students'));
+    assert.deepEqual(rowTexts(dom.window.document).map(cells=>cells[1]),['Anton','Clara']);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('status can switch archived back to active',async()=>{
+  const {dom,calls}=await setup();
+  try {
+    const status=dom.window.document.getElementById('studentStatus');
+    status.value='archived';
+    status.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    status.value='active';
+    status.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    assert.equal(calls.fetchJson.filter(url=>url==='/students').length>=2,true);
+    assert.deepEqual(rowTexts(dom.window.document).map(cells=>cells[1]),['Ada','Berta','Zoë']);
   } finally {
     dom.window.close();
   }
@@ -163,6 +212,42 @@ test('edit button uses the correct student id',async()=>{
   }
 });
 
+test('active student has edit and archive actions',async()=>{
+  const {dom}=await setup();
+  try {
+    const actions=rowTexts(dom.window.document)[0][4];
+    assert.match(actions,/Bearbeiten/);
+    assert.match(actions,/Archivieren/);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('archive confirms posts id and reloads active list on success',async()=>{
+  const {dom,calls}=await setup();
+  try {
+    dom.window.document.querySelector('#studentTableBody .archive-student').click();
+    await tick();
+    assert.equal(calls.confirms[0],'Schüler wirklich archivieren? Der Schüler kann sich danach nicht mehr anmelden. Leistungsdaten und Zuordnungen bleiben erhalten.');
+    assert.equal(calls.posts[0].url,'/archive-student');
+    assert.equal(calls.posts[0].data.id,2);
+    assert.equal(calls.fetchJson.filter(url=>url==='/students').length>=2,true);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('failed archive shows German error',async()=>{
+  const {dom,calls}=await setup({archiveOk:false});
+  try {
+    dom.window.document.querySelector('#studentTableBody .archive-student').click();
+    await tick();
+    assert.deepEqual(calls.alerts,['Der Schüler konnte nicht archiviert werden.']);
+  } finally {
+    dom.window.close();
+  }
+});
+
 test('graduation level remains changeable',async()=>{
   const {dom,calls}=await setup();
   try {
@@ -171,6 +256,120 @@ test('graduation level remains changeable',async()=>{
     select.dispatchEvent(new dom.window.Event('change'));
     await tick();
     assert.deepEqual(calls.changed,[{id:2,graduationLevel:3}]);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('failed graduation level change shows German error',async()=>{
+  const {dom,calls}=await setup({changeOk:false});
+  try {
+    const select=dom.window.document.querySelector('#studentTableBody tr select');
+    select.value='3';
+    select.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    assert.deepEqual(calls.alerts,['Die Abschlussstufe konnte nicht geändert werden.']);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('archived student only has restore action no edit and no graduation select',async()=>{
+  const {dom}=await setup();
+  try {
+    const status=dom.window.document.getElementById('studentStatus');
+    status.value='archived';
+    status.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    assert.equal(dom.window.document.querySelector('#studentTableBody .edit-student'),null);
+    assert.equal(dom.window.document.querySelector('#studentTableBody select'),null);
+    assert.equal(dom.window.document.querySelectorAll('#studentTableBody .reactivate-student').length,2);
+    assert.deepEqual(rowTexts(dom.window.document).map(cells=>cells[4]),['Wiederherstellen','Wiederherstellen']);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('restore posts id and reloads archived list on success',async()=>{
+  const {dom,calls}=await setup();
+  try {
+    const status=dom.window.document.getElementById('studentStatus');
+    status.value='archived';
+    status.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    dom.window.document.querySelector('#studentTableBody .reactivate-student').click();
+    await tick();
+    assert.equal(calls.confirms.at(-1),'Schüler wieder aktivieren? Der Schüler kann sich anschließend wieder mit seinen vorhandenen Zugangsdaten anmelden.');
+    assert.equal(calls.posts[0].url,'/reactivate-student');
+    assert.equal(calls.posts[0].data.id,4);
+    assert.equal(calls.fetchJson.filter(url=>url==='/archived-students').length>=2,true);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('failed restore shows German error',async()=>{
+  const {dom,calls}=await setup({reactivateOk:false});
+  try {
+    const status=dom.window.document.getElementById('studentStatus');
+    status.value='archived';
+    status.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    dom.window.document.querySelector('#studentTableBody .reactivate-student').click();
+    await tick();
+    assert.deepEqual(calls.alerts,['Der Schüler konnte nicht wiederhergestellt werden.']);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('class filter is disabled in archive view and enabled again for active',async()=>{
+  const {dom}=await setup();
+  try {
+    const status=dom.window.document.getElementById('studentStatus');
+    const classSelect=dom.window.document.getElementById('classSelect');
+    status.value='archived';
+    status.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    assert.equal(classSelect.disabled,true);
+    assert.equal(classSelect.hidden,true);
+    status.value='active';
+    status.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    assert.equal(classSelect.disabled,false);
+    assert.equal(classSelect.hidden,false);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('search works in archived view',async()=>{
+  const {dom}=await setup();
+  try {
+    const status=dom.window.document.getElementById('studentStatus');
+    status.value='archived';
+    status.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    const input=dom.window.document.getElementById('studentFilter');
+    input.value='anton.archive';
+    input.dispatchEvent(new dom.window.Event('input'));
+    assert.deepEqual(rowTexts(dom.window.document).map(cells=>cells[1]),['Anton']);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('sorting remains last name first name in archived view',async()=>{
+  const {dom}=await setup();
+  try {
+    const status=dom.window.document.getElementById('studentStatus');
+    status.value='archived';
+    status.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    assert.deepEqual(rowTexts(dom.window.document).map(cells=>cells.slice(0,2)),[
+      ['Bach','Anton'],
+      ['Bach','Clara']
+    ]);
   } finally {
     dom.window.close();
   }
