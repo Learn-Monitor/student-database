@@ -465,6 +465,18 @@ public final class Curriculum {
         Subject subject=Subject.get(activated.subjectId());
         if(student!=null && subject!=null) student.clearSelectedTasksForSubject(subject);
     }
+    public void deactivateFlexibleStage(int studentId,int taskId) throws SQLException {
+        FlexibleTask deactivated=transaction(c->{
+            FlexibleTask task=task(require(c,"SELECT * FROM flexible_tasks WHERE id=?",taskId));
+            var student=require(c,"SELECT class FROM students WHERE id=?",studentId);
+            if(integer(student,"class")!=task.classId()) throw error(403,"forbidden","Student does not belong to this task's class.");
+            int grade=requireAssignment(c,studentId,task.scope());
+            if(grade!=task.grade()) throw error(409,"context_conflict","Context contains inconsistent historical grades.");
+            write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=? AND flexible_task=?",studentId,task.subjectId(),task.id());
+            return task;
+        });
+        if(deactivated==null) throw error(404,"not_found","Requested curriculum object does not exist.");
+    }
     public void clearActiveStage(int studentId,int subjectId) throws SQLException {
         transaction(c->{write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=?",studentId,subjectId);return null;});
     }
@@ -577,6 +589,16 @@ public final class Curriculum {
             Set<Integer> centralDone=new HashSet<>(),flexibleDone=new HashSet<>();
             for(Object entry:(List<?>)earned.get("completedCentralTasks")) centralDone.add(((CompletedCentralTask)entry).id());
             for(Object entry:(List<?>)earned.get("completedFlexibleTasks")) flexibleDone.add(((CompletedFlexibleTask)entry).id());
+            var activeRows=rows(c,"SELECT a.subject,a.semester,a.central_task,a.flexible_task,ct.name AS centralName,ft.name AS flexibleName "
+                    + "FROM student_active_curriculum_stages a LEFT JOIN tasks ct ON ct.id=a.central_task LEFT JOIN flexible_tasks ft ON ft.id=a.flexible_task "
+                    + "WHERE a.student=? AND a.subject=? AND a.semester=?",studentId,subject,semester);
+            ActiveStage activeStage=null;
+            if(!activeRows.isEmpty()) {
+                var row=activeRows.get(0);
+                activeStage=row.get("central_task")!=null
+                        ? new ActiveStage(ActiveStageType.CENTRAL,integer(row,"central_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("centralName"))
+                        : new ActiveStage(ActiveStageType.FLEXIBLE,integer(row,"flexible_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("flexibleName"));
+            }
             var centralTasks=rows(c,"SELECT t.id,t.name,t.tokens,t.niveau,p.id AS topicId,p.name AS topicName FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=? ORDER BY p.number,t.id",subject,grade,semester);
             var visibleCentral=new ArrayList<Map<String,Object>>();
             for(var task:centralTasks) {
@@ -606,14 +628,26 @@ public final class Curriculum {
                 if(CurriculumEnrollment.flexibleTopicReleased(c,scope,topicId) || flexibleTasks.stream().anyMatch(t->t.get("topicId")!=null && integer(t,"topicId")==topicId))
                     visibleFlexibleTopics.add(topic);
             }
-            centralTasks.forEach(t->t.put("completed",centralDone.contains(integer(t,"id"))));
-            flexibleTasks.forEach(t->t.put("completed",flexibleDone.contains(integer(t,"id"))));
+            ActiveStage finalActiveStage=activeStage;
+            centralTasks.forEach(t->{int taskId=integer(t,"id");boolean completed=centralDone.contains(taskId);
+                t.put("completed",completed);
+                t.put("inProgress",!completed && finalActiveStage!=null && finalActiveStage.type()==ActiveStageType.CENTRAL && finalActiveStage.taskId()==taskId);
+            });
+            flexibleTasks.forEach(t->{int taskId=integer(t,"id");boolean completed=flexibleDone.contains(taskId);
+                t.put("completed",completed);
+                t.put("inProgress",!completed && finalActiveStage!=null && finalActiveStage.type()==ActiveStageType.FLEXIBLE && finalActiveStage.taskId()==taskId);
+            });
             long centralPlanned=central(c,subject,grade,semester),flexiblePlanned=flexible(c,scope);
-            return Map.of("semesterId",semester,
-                    "centralTopics",visibleTopics,
-                    "centralTasks",centralTasks,"flexibleTopics",visibleFlexibleTopics,"flexibleTasks",flexibleTasks,
-                    "planned",Map.of("centralTokens",centralPlanned,"flexibleTokens",flexiblePlanned,"totalTokens",centralPlanned+flexiblePlanned,"regularLimit",REGULAR_LIMIT,"hardLimit",HARD_LIMIT,"unreleasedCentralTokens",centralPlanned-centralTasks.stream().mapToLong(t->integer(t,"tokens")).sum()),
-                    "progress",earned);
+            Map<String,Object> out=new LinkedHashMap<>();
+            out.put("semesterId",semester);
+            out.put("activeStage",activeStage==null?null:Map.of("type",activeStage.type().name(),"taskId",activeStage.taskId(),"subjectId",activeStage.subjectId(),"semesterId",activeStage.semesterId(),"name",activeStage.name()));
+            out.put("centralTopics",visibleTopics);
+            out.put("centralTasks",centralTasks);
+            out.put("flexibleTopics",visibleFlexibleTopics);
+            out.put("flexibleTasks",flexibleTasks);
+            out.put("planned",Map.of("centralTokens",centralPlanned,"flexibleTokens",flexiblePlanned,"totalTokens",centralPlanned+flexiblePlanned,"regularLimit",REGULAR_LIMIT,"hardLimit",HARD_LIMIT,"unreleasedCentralTokens",centralPlanned-centralTasks.stream().mapToLong(t->integer(t,"tokens")).sum()));
+            out.put("progress",earned);
+            return out;
         });
     }
 

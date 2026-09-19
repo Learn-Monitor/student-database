@@ -105,6 +105,34 @@ class TaskAndStudentProfileHandlerTest {
     }
 
     @Test
+    void flexibleThenCentralHttpLeavesOnlyCentralActive() throws Exception {
+        var flexible = curriculum.create(teacher, scope, "Flexible", 5);
+        new CurriculumEnrollment(curriculum).release(teacher, scope, null, null, null, flexible.id(), true);
+        assertEquals(Status.OK, flexibleChange(Student.get(id), "/begin-flexible-task", flexible.id()).getStatus());
+        assertEquals("FLEXIBLE", curriculum.activeStage(id, id).type().name());
+
+        assertEquals(Status.OK, taskChange(Student.get(id), Task.STATUS_IN_PROGRESS).getStatus());
+        assertEquals("CENTRAL", curriculum.activeStage(id, id).type().name());
+        assertEquals(task, curriculum.activeStage(id, id).taskId());
+        assertEquals(Task.STATUS_IN_PROGRESS, scalar("SELECT status FROM taskstats WHERE student=? AND task=?", id, task));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=?", id, id));
+    }
+
+    @Test
+    void centralThenFlexibleHttpLeavesOnlyFlexibleActive() throws Exception {
+        var flexible = curriculum.create(teacher, scope, "Flexible", 5);
+        new CurriculumEnrollment(curriculum).release(teacher, scope, null, null, null, flexible.id(), true);
+        assertEquals(Status.OK, taskChange(Student.get(id), Task.STATUS_IN_PROGRESS).getStatus());
+        assertEquals(Task.STATUS_IN_PROGRESS, scalar("SELECT status FROM taskstats WHERE student=? AND task=?", id, task));
+
+        assertEquals(Status.OK, flexibleChange(Student.get(id), "/begin-flexible-task", flexible.id()).getStatus());
+        assertEquals("FLEXIBLE", curriculum.activeStage(id, id).type().name());
+        assertEquals(flexible.id(), curriculum.activeStage(id, id).taskId());
+        assertEquals(Task.STATUS_NOT_STARTED, scalar("SELECT status FROM taskstats WHERE student=? AND task=?", id, task));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=?", id, id));
+    }
+
+    @Test
     void archivedClassStudentCanBeReassignedWithValidProfilePayloadOnly() throws Exception {
         Student.get(id).changeTaskStatus(Task.get(task), Task.STATUS_COMPLETED);
         SchoolClass.get(id).delete();
@@ -129,6 +157,13 @@ class TaskAndStudentProfileHandlerTest {
 
     private PostResponse taskChange(User user, int status) throws Exception {
         return PostRequestHandler.handleTaskChange(apiRequest(user, "{\"studentId\":" + id + ",\"taskId\":" + task + "}"), status);
+    }
+
+    private PostResponse flexibleChange(User user, String path, int taskId) {
+        String body = "{\"taskId\":" + taskId + "}";
+        return CurriculumRequestHandler.handle(new APIPostRequest(new HttpHeader("POST " + path + " HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: " + body.length() + "\r\n"), body, "127.0.0.1", true) {
+            @Override public User getUser() { return user; }
+        });
     }
 
     private APIPostRequest apiRequest(User user, String body) {

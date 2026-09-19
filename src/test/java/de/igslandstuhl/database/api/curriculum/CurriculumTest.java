@@ -1253,6 +1253,18 @@ class CurriculumTest {
     Map<String,Object> byId(List<Map<String,Object>> rows,int rowId) {
         return rows.stream().filter(r->((Number)r.get("id")).intValue()==rowId).findFirst().orElseThrow();
     }
+    com.google.gson.JsonObject byId(com.google.gson.JsonArray rows,int rowId) {
+        for(var entry:rows) {
+            var row=entry.getAsJsonObject();
+            if(row.get("id").getAsInt()==rowId)return row;
+        }
+        throw new AssertionError("Missing row "+rowId);
+    }
+    long countInProgress(com.google.gson.JsonArray rows) {
+        long count=0;
+        for(var entry:rows) if(entry.getAsJsonObject().get("inProgress").getAsBoolean()) count++;
+        return count;
+    }
     @Test void flexiblePublicationDefaultsClosedInheritsTopicsAndClearsOverrides() throws Exception {
         var enrollment=new CurriculumEnrollment(service);
         int topicId=service.createFlexibleTopic(teacher,scope,"Practice");
@@ -1327,6 +1339,81 @@ class CurriculumTest {
         enrollment.release(teacher,scope,null,null,null,completed.id(),false);
         assertTrue(rows(service.studentCatalog(Student.get(id),id,id),"flexibleTasks").stream().anyMatch(r->((Number)r.get("id")).intValue()==completed.id()));
         assertEquals(15L,((Map<?,?>)service.studentCatalog(Student.get(id),id,id).get("planned")).get("flexibleTokens"));
+    }
+    @Test void studentFlexibleActiveStageHttpUsesOnlySessionStudentAndRelease() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        var hidden=service.create(teacher,scope,"Hidden",5);
+        assertEquals(Status.FORBIDDEN,request(Student.get(id),"/begin-flexible-task","{\"taskId\":"+hidden.id()+"}").getStatus());
+        enrollment.release(teacher,scope,null,null,null,hidden.id(),true);
+        assertEquals(Status.BAD_REQUEST,request(Student.get(id),"/begin-flexible-task","{\"taskId\":"+hidden.id()+",\"studentId\":"+(id+1)+"}").getStatus());
+        for(String field:List.of("teacherId","classId","grade","subjectId","semesterId"))
+            assertEquals(Status.BAD_REQUEST,request(Student.get(id),"/begin-flexible-task","{\"taskId\":"+hidden.id()+",\""+field+"\":1}").getStatus());
+        assertEquals(Status.FORBIDDEN,request(Teacher.get(id),"/begin-flexible-task","{\"taskId\":"+hidden.id()+"}").getStatus());
+        assertEquals(Status.FORBIDDEN,request(Admin.create("student-flex-admin-"+id,"synthetic-test-only"),"/begin-flexible-task","{\"taskId\":"+hidden.id()+"}").getStatus());
+
+        assertEquals(Status.OK,request(Student.get(id),"/begin-flexible-task","{\"taskId\":"+hidden.id()+"}").getStatus());
+        var catalog=jsonResponse(Student.get(id),"/my-curriculum-catalog",body());
+        assertEquals("FLEXIBLE",catalog.getAsJsonObject("activeStage").get("type").getAsString());
+        assertEquals(hidden.id(),catalog.getAsJsonObject("activeStage").get("taskId").getAsInt());
+        assertEquals(1,countInProgress(catalog.getAsJsonArray("flexibleTasks")));
+        assertEquals(0,countInProgress(catalog.getAsJsonArray("centralTasks")));
+        var entry=byId(catalog.getAsJsonArray("flexibleTasks"),hidden.id());
+        assertTrue(entry.get("active").getAsBoolean());assertFalse(entry.get("completed").getAsBoolean());assertTrue(entry.get("inProgress").getAsBoolean());
+    }
+    @Test void studentFlexibleCancelIsIdempotentAndPreservesCompletionsAndOtherActiveStages() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        var first=service.create(teacher,scope,"First active",5);
+        var second=service.create(teacher,scope,"Second inactive",6);
+        enrollment.release(teacher,scope,null,null,null,first.id(),true);
+        enrollment.release(teacher,scope,null,null,null,second.id(),true);
+        service.complete(teacher,first.id(),id);
+        assertEquals(Status.OK,request(Student.get(id),"/begin-flexible-task","{\"taskId\":"+second.id()+"}").getStatus());
+        assertEquals(Status.OK,request(Student.get(id),"/cancel-flexible-task","{\"taskId\":"+first.id()+"}").getStatus());
+        assertEquals(second.id(),service.activeStage(id,id).taskId());
+        assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,first.id()));
+        assertEquals(Status.OK,request(Student.get(id),"/cancel-flexible-task","{\"taskId\":"+second.id()+"}").getStatus());
+        assertNull(service.activeStage(id,id));
+        var catalog=jsonResponse(Student.get(id),"/my-curriculum-catalog",body());
+        assertTrue(catalog.get("activeStage").isJsonNull());
+        assertEquals(0,countInProgress(catalog.getAsJsonArray("flexibleTasks")));
+        assertEquals(Status.OK,request(Student.get(id),"/cancel-flexible-task","{\"taskId\":"+second.id()+"}").getStatus());
+        assertNull(service.activeStage(id,id));
+    }
+    @Test void studentCatalogReportsCentralActiveStageAndNeverMarksCompletedInProgress() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int active=centralNamed("Current central",5),done=centralNamed("Completed central",6);
+        enrollment.release(teacher,scope,topic,null,true);
+        service.activateCentralStage(id,active);
+        Student.get(id).changeTaskStatus(Task.get(done),Task.STATUS_COMPLETED);
+        db.writeTransaction(c->{exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?,?,NULL) ON CONFLICT(student,subject) DO UPDATE SET central_task=excluded.central_task,flexible_task=NULL,semester=excluded.semester",id,id,id,done);return null;});
+        var inconsistent=jsonResponse(Student.get(id),"/my-curriculum-catalog",body());
+        assertEquals("CENTRAL",inconsistent.getAsJsonObject("activeStage").get("type").getAsString());
+        assertEquals(done,inconsistent.getAsJsonObject("activeStage").get("taskId").getAsInt());
+        assertEquals(0,countInProgress(inconsistent.getAsJsonArray("centralTasks")));
+        service.activateCentralStage(id,active);
+        var catalog=jsonResponse(Student.get(id),"/my-curriculum-catalog",body());
+        assertEquals("CENTRAL",catalog.getAsJsonObject("activeStage").get("type").getAsString());
+        assertEquals(active,catalog.getAsJsonObject("activeStage").get("taskId").getAsInt());
+        assertEquals(1,countInProgress(catalog.getAsJsonArray("centralTasks")));
+        assertEquals(0,countInProgress(catalog.getAsJsonArray("flexibleTasks")));
+        var activeEntry=byId(catalog.getAsJsonArray("centralTasks"),active);
+        assertTrue(activeEntry.get("active").getAsBoolean());assertFalse(activeEntry.get("completed").getAsBoolean());assertTrue(activeEntry.get("inProgress").getAsBoolean());
+    }
+    @Test void studentFlexibleActiveStagesKeepSubjectsIndependentAndBlockForeignContext() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        var math=service.create(teacher,scope,"Math flexible",5);
+        enrollment.release(teacher,scope,null,null,null,math.id(),true);
+        int germanCentral=otherSubjectCentral("German central",7);
+        service.activateCentralStage(id,germanCentral);
+        assertEquals(Status.OK,request(Student.get(id),"/begin-flexible-task","{\"taskId\":"+math.id()+"}").getStatus());
+        assertEquals(math.id(),service.activeStage(id,id).taskId());
+        assertEquals(germanCentral,service.activeStage(id,id+1).taskId());
+        assertEquals("FLEXIBLE",jsonResponse(Student.get(id),"/my-curriculum-catalog",body()).getAsJsonObject("activeStage").get("type").getAsString());
+        assertEquals("CENTRAL",jsonResponse(Student.get(id),"/my-curriculum-catalog","{\"subjectId\":"+(id+1)+",\"semesterId\":"+id+"}").getAsJsonObject("activeStage").get("type").getAsString());
+
+        var foreign=service.create(other,secondScope(),"Foreign",5);
+        new CurriculumEnrollment(service).release(other,secondScope(),null,null,null,foreign.id(),true);
+        assertEquals(Status.FORBIDDEN,request(Student.get(id),"/begin-flexible-task","{\"taskId\":"+foreign.id()+"}").getStatus());
     }
     @Test void publicationCannotBeChangedByOtherTeacherAndCompletedCoinsRemain() throws Exception {
         var enrollment=new CurriculumEnrollment(service);int task=central(7);

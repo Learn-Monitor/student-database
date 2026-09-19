@@ -275,6 +275,10 @@ public class PostResponse implements HttpResponse {
         Gson gson = new Gson();
         return new PostResponse(Status.OK, gson.toJson(json), ContentType.JSON, request);
     }
+    public static PostResponse jsonWithNulls(Object json, PostRequest request) {
+        Gson gson = new com.google.gson.GsonBuilder().serializeNulls().create();
+        return new PostResponse(Status.OK, gson.toJson(json), ContentType.JSON, request);
+    }
     @Override
     public Status getStatus() {
         return statusCode;

@@ -24,6 +24,8 @@ public final class CurriculumRequestHandler {
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-progress",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-catalog",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
+        HttpHandler.registerPostRequestHandler("/begin-flexible-task",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
+        HttpHandler.registerPostRequestHandler("/cancel-flexible-task",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
     }
     private static int integer(APIPostRequest rq,String key) {
         return integer(rq.getJson().get(key),key);
@@ -79,6 +81,18 @@ public final class CurriculumRequestHandler {
             if (rq.getJson() == null) throw new CurriculumException(400,"invalid_input","JSON object required.");
             Curriculum service=Curriculum.current();
             CentralCurriculumImport centralImport=new CentralCurriculumImport(service);
+            if(rq.getPath().equals("/begin-flexible-task") || rq.getPath().equals("/cancel-flexible-task")) {
+                if(rq.getJson().keySet().stream().anyMatch(key -> !key.equals("taskId")))
+                    throw new CurriculumException(400,"invalid_input","Only taskId is accepted.");
+                if(rq.getUser()==null || rq.getUser()==de.igslandstuhl.database.api.User.ANONYMOUS)
+                    throw new CurriculumException(401,"unauthorized","Please sign in.");
+                if(!rq.getUser().isStudent())
+                    throw new CurriculumException(403,"forbidden","Student session required.");
+                int studentId=rq.getUser().asStudent().getId(), taskId=integer(rq,"taskId");
+                if(rq.getPath().equals("/begin-flexible-task"))service.activateFlexibleStage(studentId,taskId);
+                else service.deactivateFlexibleStage(studentId,taskId);
+                return PostResponse.json(Map.of("ok",true),rq);
+            }
             if(rq.getPath().equals("/my-curriculum-progress") || rq.getPath().equals("/my-curriculum-catalog")) {
                 if(rq.containsKey("studentId") || rq.containsKey("teacherId") || rq.containsKey("classId") || rq.containsKey("grade"))
                     throw new CurriculumException(400,"invalid_input","Student context is derived from the session and assignment.");
@@ -88,9 +102,9 @@ public final class CurriculumRequestHandler {
                 if(!rq.getUser().isStudent())
                     throw new CurriculumException(403,"forbidden","Student session required.");
                 int subject=integer(rq,"subjectId"),semester=effectiveSemesterId(rq);
-                return PostResponse.json(rq.getPath().equals("/my-curriculum-catalog")
-                        ? service.studentCatalog(rq.getUser(),subject,semester)
-                        : service.studentProgress(rq.getUser(),subject,semester),rq);
+                if(rq.getPath().equals("/my-curriculum-catalog"))
+                    return PostResponse.jsonWithNulls(service.studentCatalog(rq.getUser(),subject,semester),rq);
+                return PostResponse.json(service.studentProgress(rq.getUser(),subject,semester),rq);
             }
             Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
             CurriculumEnrollment enrollment=new CurriculumEnrollment(service);
