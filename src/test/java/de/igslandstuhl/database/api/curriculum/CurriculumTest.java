@@ -205,6 +205,86 @@ class CurriculumTest {
         assertTrue(output.toString().contains("budget_exceeded"));assertTrue(output.toString().contains("remainingHard"));
         assertEquals(de.igslandstuhl.database.server.webserver.Status.OK,request(user,"/curriculum-catalog","{}").getStatus());
     }
+    @SuppressWarnings("unchecked")
+    List<Map<String,Object>> teacherContexts(int teacherId) throws Exception {
+        return (List<Map<String,Object>>)service.catalog(new Curriculum.Actor(false,teacherId)).get("contexts");
+    }
+    Map<String,Object> context(List<Map<String,Object>> contexts,int classId,int subjectId,int semesterId) {
+        return contexts.stream().filter(row -> ((Number)row.get("classId")).intValue()==classId
+                && ((Number)row.get("subjectId")).intValue()==subjectId
+                && ((Number)row.get("semesterId")).intValue()==semesterId).findFirst().orElse(null);
+    }
+    @Test void teacherCatalogContextsUseCanonicalRegularAssignments() throws Exception {
+        db.writeTransaction(c->{
+            exec(c,"DELETE FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",id,id,id);
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);
+            exec(c,"UPDATE school_years SET current_semester=? WHERE id=?",id,id);
+            return null;
+        });
+        var contexts=teacherContexts(id);
+        var ctx=context(contexts,id,id,id);
+        assertNotNull(ctx);
+        assertEquals(id,((Number)ctx.get("semesterId")).intValue());
+        assertEquals("Semester-"+id,ctx.get("semesterLabel"));
+        assertEquals(true,ctx.get("activeSemester"));
+        assertEquals(id,((Number)ctx.get("classId")).intValue());
+        assertEquals("Class-"+id,ctx.get("classLabel"));
+        assertEquals(5,((Number)ctx.get("grade")).intValue());
+        assertEquals(id,((Number)ctx.get("subjectId")).intValue());
+        assertEquals("Subject-"+id,ctx.get("subjectName"));
+        assertEquals("REGULAR",ctx.get("subjectMode"));
+    }
+    @Test void teacherCatalogContextsIgnoreLegacyOnlyAndOtherTeachers() throws Exception {
+        db.writeTransaction(c->{
+            exec(c,"DELETE FROM student_curriculum_contexts WHERE subject=? AND semester=?",id,id);
+            exec(c,"DELETE FROM curriculum_class_teachers WHERE subject=? AND semester=?",id,id);
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id+1);
+            return null;
+        });
+        var contexts=teacherContexts(id);
+        assertNull(context(contexts,id,id,id));
+        assertTrue(contexts.stream().noneMatch(row -> ((Number)row.get("subjectId")).intValue()==id && ((Number)row.get("classId")).intValue()==id));
+    }
+    @Test void teacherCatalogContextsUseDistinctIndividualStudentContexts() throws Exception {
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO curriculum_subject_types(subject,wpf,mode,assignment_group) VALUES(?,1,'INDIVIDUAL','WPF')",id+1);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Second','Student',?,'unused',?,1)",id+2,"student"+(id+2)+"@example.invalid",id);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)",id,id+1,id,id,id);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)",id+2,id+1,id,id,id);
+            return null;
+        });
+        var contexts=teacherContexts(id);
+        var matching=contexts.stream().filter(row -> ((Number)row.get("classId")).intValue()==id
+                && ((Number)row.get("subjectId")).intValue()==id+1
+                && ((Number)row.get("semesterId")).intValue()==id).toList();
+        assertEquals(1,matching.size());
+        assertEquals("Other-"+id,matching.get(0).get("subjectName"));
+        assertEquals("INDIVIDUAL",matching.get(0).get("subjectMode"));
+        assertEquals("WPF",matching.get(0).get("assignmentGroup"));
+    }
+    @Test void teacherCatalogContextsExcludeUnassignedAndInactiveClasses() throws Exception {
+        db.writeTransaction(c->{
+            exec(c,"INSERT OR IGNORE INTO classes(id,label,grade,active) VALUES(0,'Nicht zugeordnet',0,1)");
+            exec(c,"INSERT INTO classes(id,label,grade,active) VALUES(?,?,5,0)",id+3,"Inactive-"+id);
+            exec(c,"INSERT OR REPLACE INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,0,id,id);
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id+3,id,id);
+            return null;
+        });
+        var contexts=teacherContexts(id);
+        assertTrue(contexts.stream().noneMatch(row -> ((Number)row.get("classId")).intValue()==0));
+        assertTrue(contexts.stream().noneMatch(row -> ((Number)row.get("classId")).intValue()==id+3));
+    }
+    @Test void teacherCatalogContextsMarkInactiveSemesters() throws Exception {
+        db.writeTransaction(c->{
+            exec(c,"DELETE FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",id,id,id);
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);
+            exec(c,"UPDATE school_years SET current_semester=? WHERE id=?",id+1,id);
+            return null;
+        });
+        var ctx=context(teacherContexts(id),id,id,id);
+        assertNotNull(ctx);
+        assertEquals(false,ctx.get("activeSemester"));
+    }
     Curriculum.Scope secondScope() {return new Curriculum.Scope(id+1,id,id,id);}
     void unassign() throws Exception {
         db.writeTransaction(c->{exec(c,"DELETE FROM student_curriculum_contexts WHERE student=?",id);return null;});

@@ -511,8 +511,32 @@ public final class Curriculum {
             out.put("subjects",rows(c,actor.admin()?"SELECT id,name FROM subjects ORDER BY name":"SELECT s.id,s.name FROM subjects s JOIN teacher_subjects t ON t.subject_id=s.id WHERE t.teacher_id=? ORDER BY s.name",actor.admin()?new Object[]{}:new Object[]{actor.teacherId()}));
             out.put("classes",rows(c,actor.admin()?"SELECT id,label,grade FROM classes WHERE active=1 AND id<>0 ORDER BY grade,label":"SELECT s.id,s.label,s.grade FROM classes s JOIN teacher_classes t ON t.class_id=s.id WHERE t.teacher_id=? AND s.active=1 AND s.id<>0 ORDER BY s.grade,s.label",actor.admin()?new Object[]{}:new Object[]{actor.teacherId()}));
             out.put("semesters",rows(c,"SELECT id,label,school_year FROM semesters ORDER BY school_year,position"));
+            if(!actor.admin()) out.put("contexts",teacherContexts(c,actor.teacherId()));
             if(actor.admin()) out.put("teachers",rows(c,"SELECT id,first_name,last_name FROM teachers ORDER BY id"));
             return out;});
+    }
+    private static List<Map<String,Object>> teacherContexts(Connection c,int teacher) throws SQLException {
+        var contexts=rows(c,
+                "SELECT DISTINCT ct.semester AS semesterId,sem.label AS semesterLabel,CASE WHEN y.current_semester=sem.id THEN 1 ELSE 0 END AS activeSemester,"
+                        + "cl.id AS classId,cl.label AS classLabel,cl.grade AS grade,s.id AS subjectId,s.name AS subjectName,"
+                        + "COALESCE(t.mode,'REGULAR') AS subjectMode,t.assignment_group AS assignmentGroup "
+                        + "FROM curriculum_class_teachers ct "
+                        + "JOIN semesters sem ON sem.id=ct.semester JOIN school_years y ON y.id=sem.school_year "
+                        + "JOIN classes cl ON cl.id=ct.class JOIN subjects s ON s.id=ct.subject "
+                        + "LEFT JOIN curriculum_subject_types t ON t.subject=ct.subject "
+                        + "WHERE ct.teacher=? AND cl.id<>0 AND cl.grade<>0 AND cl.active=1 AND COALESCE(t.mode,'REGULAR')='REGULAR' "
+                        + "UNION "
+                        + "SELECT DISTINCT sc.semester AS semesterId,sem.label AS semesterLabel,CASE WHEN y.current_semester=sem.id THEN 1 ELSE 0 END AS activeSemester,"
+                        + "cl.id AS classId,cl.label AS classLabel,cl.grade AS grade,s.id AS subjectId,s.name AS subjectName,"
+                        + "COALESCE(t.mode,'REGULAR') AS subjectMode,t.assignment_group AS assignmentGroup "
+                        + "FROM student_curriculum_contexts sc "
+                        + "JOIN semesters sem ON sem.id=sc.semester JOIN school_years y ON y.id=sem.school_year "
+                        + "JOIN classes cl ON cl.id=sc.class JOIN subjects s ON s.id=sc.subject "
+                        + "LEFT JOIN curriculum_subject_types t ON t.subject=sc.subject "
+                        + "WHERE sc.teacher=? AND cl.id<>0 AND cl.grade<>0 AND cl.active=1 AND COALESCE(t.mode,'REGULAR')='INDIVIDUAL' "
+                        + "ORDER BY semesterId,grade,classLabel,subjectName",teacher,teacher);
+        contexts.forEach(row -> row.put("activeSemester",integer(row,"activeSemester")==1));
+        return contexts;
     }
     public Map<String,Object> centralStructure(Actor actor,int subject,int grade,int semester) throws SQLException {
         return transaction(c->{
