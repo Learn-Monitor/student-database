@@ -118,8 +118,22 @@ test('teacher profile loads current server data by selectedTeacherId',async()=>{
     assert.equal(document.getElementById('teacherFirstName').value,'Ada <b>');
     assert.equal(document.getElementById('teacherLastName').value,'Lovelace');
     assert.equal(document.getElementById('teacherEmail').value,'ada.login@example.test');
+    assert.equal(document.getElementById('teacherEmail').readOnly,true);
+    assert.equal(document.getElementById('teacherEmail').disabled,false);
     assert.equal(document.getElementById('teacherPassword').value,'');
     assert.equal(document.getElementById('teacher-profile-form').hidden,false);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('teacher loginname field is readonly but submitted',()=>{
+  const dom=new JSDOM(`<!doctype html><html><body>${stripTemplate(html)}</body></html>`);
+  try {
+    const email=dom.window.document.getElementById('teacherEmail');
+    assert.equal(email.readOnly,true);
+    assert.equal(email.disabled,false);
+    assert.equal(email.getAttribute('name'),'email');
   } finally {
     dom.window.close();
   }

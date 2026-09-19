@@ -208,6 +208,31 @@ public class PostRequestHandler {
             return PostResponse.badRequest("Schülerprofil konnte nicht gespeichert werden.", rq);
         }
     }
+    static PostResponse handleEditTeacherProfile(APIPostRequest rq) {
+        try {
+            int teacherId = requiredInt(rq, "id");
+            Teacher teacher = Teacher.get(teacherId);
+            if (teacher == null) return PostResponse.badRequest("Lehrkraft nicht gefunden", rq);
+            String firstName = requiredPrepared(rq, "firstName", true);
+            String lastName = requiredPrepared(rq, "lastName", true);
+            String loginName = requiredPrepared(rq, "email", false);
+            if (firstName.isBlank() || lastName.isBlank() || loginName.isBlank())
+                return PostResponse.badRequest("Pflichtfelder dürfen nicht leer sein.", rq);
+            if (!loginName.equals(teacher.getEmail()))
+                return PostResponse.badRequest("Loginname kann hier nicht geändert werden.", rq);
+            String password = rq.containsKey("password") ? rq.getString("password") : "";
+            boolean passwordChanged = password != null && !password.isEmpty();
+            teacher.updateProfile(firstName, lastName, loginName, password);
+            if (passwordChanged)
+                Server.getInstance().getWebServer().getSessionManager().invalidateUserSessions(teacher.getUsername());
+            return PostResponse.redirect("/manage_teachers", rq);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return PostResponse.badRequest("Ungültige Lehrkraftprofildaten.", rq);
+        } catch (SQLException e) {
+            LOGGER.warn("Could not update teacher profile", e);
+            return PostResponse.badRequest("Lehrkraftprofil konnte nicht gespeichert werden.", rq);
+        }
+    }
     static PostResponse handleArchiveStudent(APIPostRequest rq) {
         try {
             Student student = Student.get(requiredInt(rq, "id"));
@@ -486,7 +511,7 @@ public class PostRequestHandler {
             handleObjectAction(rq, new TypeToken<SchoolClass>() {}, PostResponse.redirect("/manage_classes", rq), (schoolClass) -> schoolClass.edit(prepare(rq.getString("name")), rq.getInt("grade")))
         );
         HttpHandler.registerPostRequestHandler("/edit-student-profile", AccessLevel.ADMIN, PostRequestHandler::handleEditStudentProfile);
-        HttpHandler.registerPostRequestHandler("/edit-teacher-profile", AccessLevel.ADMIN, rq -> { Teacher t=Teacher.get(rq.getInt("id")); if(t==null)return PostResponse.badRequest("Lehrkraft nicht gefunden",rq); t.updateProfile(prepare(rq.getString("firstName")),prepare(rq.getString("lastName")),prepare(rq.getString("email")),rq.getString("password")); return PostResponse.redirect("/manage_teachers",rq); });
+        HttpHandler.registerPostRequestHandler("/edit-teacher-profile", AccessLevel.ADMIN, PostRequestHandler::handleEditTeacherProfile);
         HttpHandler.registerPostRequestHandler("/add-subject-to-class", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<SchoolClass>() {}, PostResponse.redirect("/class", rq), (schoolClass) -> schoolClass.addSubject(rq.getSubject()))
         );
