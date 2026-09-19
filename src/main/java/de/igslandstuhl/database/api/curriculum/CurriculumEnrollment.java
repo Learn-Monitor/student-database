@@ -255,23 +255,54 @@ public final class CurriculumEnrollment {
     static boolean topicReleased(Connection c,Scope scope,int topic) throws SQLException {
         return number(c,"SELECT COUNT(*) FROM curriculum_topic_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND topic=? AND active=1",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic)>0;
     }
+    static boolean flexibleReleased(Connection c,Scope scope,int task,Integer topic) throws SQLException {
+        var override=rows(c,"SELECT active FROM flexible_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND flexible_task=?",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),task);
+        if(!override.isEmpty())return integer(override.get(0),"active")==1;
+        return topic!=null && flexibleTopicReleased(c,scope,topic);
+    }
+    static boolean flexibleTopicReleased(Connection c,Scope scope,int topic) throws SQLException {
+        return number(c,"SELECT COUNT(*) FROM flexible_topic_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND flexible_topic=? AND active=1",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic)>0;
+    }
     public Map<String,Object> releases(Actor actor,Scope scope) throws SQLException {
         return curriculum.transaction(c->{int grade=authorize(c,new Actor(false,scope.teacherId()),scope,false);authorize(c,actor,scope,false);
             var topics=rows(c,"SELECT id,name FROM topics WHERE subject=? AND grade=? AND semester=? ORDER BY number,id",scope.subjectId(),grade,scope.semesterId());
             var tasks=rows(c,"SELECT t.id,t.name,t.topic AS topicId FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=? ORDER BY p.number,t.id",scope.subjectId(),grade,scope.semesterId());
             for(var topic:topics)topic.put("active",topicReleased(c,scope,integer(topic,"id")));
             for(var task:tasks)task.put("active",released(c,scope,integer(task,"id"),integer(task,"topicId")));
-            return Map.of("topics",topics,"tasks",tasks);
+            var flexibleTopics=rows(c,"SELECT id,name FROM flexible_topics WHERE owner_teacher=? AND class=? AND subject=? AND semester=? ORDER BY id",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId());
+            var flexibleTasks=rows(c,"SELECT t.id,t.name,p.id AS topicId FROM flexible_tasks t LEFT JOIN flexible_task_topics m ON m.flexible_task=t.id LEFT JOIN flexible_topics p ON p.id=m.flexible_topic AND p.owner_teacher=t.owner_teacher AND p.subject=t.subject AND p.class=t.class AND p.semester=t.semester AND p.grade=t.grade WHERE t.owner_teacher=? AND t.class=? AND t.subject=? AND t.semester=? ORDER BY t.id",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId());
+            for(var topic:flexibleTopics)topic.put("active",flexibleTopicReleased(c,scope,integer(topic,"id")));
+            for(var task:flexibleTasks)task.put("active",flexibleReleased(c,scope,integer(task,"id"),task.get("topicId")==null?null:integer(task,"topicId")));
+            return Map.of("topics",topics,"tasks",tasks,"flexibleTopics",flexibleTopics,"flexibleTasks",flexibleTasks);
         });
     }
     public void release(Actor actor,Scope scope,Integer topic,Integer task,boolean active) throws SQLException {
-        if((topic==null)==(task==null))throw error(400,"invalid_input","Select exactly one topic or task.");
+        release(actor,scope,topic,task,null,null,active);
+    }
+    public void release(Actor actor,Scope scope,Integer topic,Integer task,Integer flexibleTopic,Integer flexibleTask,boolean active) throws SQLException {
+        int selected=0;for(Integer value:new Integer[]{topic,task,flexibleTopic,flexibleTask})if(value!=null)selected++;
+        if(selected!=1)throw error(400,"invalid_input","Select exactly one topic or task.");
         curriculum.transaction(c->{int grade=authorize(c,new Actor(false,scope.teacherId()),scope,false);authorize(c,actor,scope,false);
-            int topicId=topic!=null?topic:integer(require(c,"SELECT topic FROM tasks WHERE id=?",task),"topic");
-            require(c,"SELECT id FROM topics WHERE id=? AND subject=? AND grade=? AND semester=?",topicId,scope.subjectId(),grade,scope.semesterId());
-            String table=topic!=null?"curriculum_topic_releases":"curriculum_task_releases",column=topic!=null?"topic":"task";
-            write(c,"INSERT INTO "+table+"(teacher,class,subject,semester,"+column+",active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,"+column+") DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic!=null?topic:task,active?1:0);
-            if(topic!=null)write(c,"DELETE FROM curriculum_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND task IN(SELECT id FROM tasks WHERE topic=?)",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic);
+            if(topic!=null || task!=null) {
+                int topicId=topic!=null?topic:integer(require(c,"SELECT topic FROM tasks WHERE id=?",task),"topic");
+                require(c,"SELECT id FROM topics WHERE id=? AND subject=? AND grade=? AND semester=?",topicId,scope.subjectId(),grade,scope.semesterId());
+                String table=topic!=null?"curriculum_topic_releases":"curriculum_task_releases",column=topic!=null?"topic":"task";
+                write(c,"INSERT INTO "+table+"(teacher,class,subject,semester,"+column+",active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,"+column+") DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic!=null?topic:task,active?1:0);
+                if(topic!=null)write(c,"DELETE FROM curriculum_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND task IN(SELECT id FROM tasks WHERE topic=?)",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic);
+                return null;
+            }
+            if(flexibleTopic!=null) {
+                var row=require(c,"SELECT * FROM flexible_topics WHERE id=?",flexibleTopic);
+                if(integer(row,"owner_teacher")!=scope.teacherId() || integer(row,"class")!=scope.classId() || integer(row,"subject")!=scope.subjectId() || integer(row,"semester")!=scope.semesterId() || integer(row,"grade")!=grade)
+                    throw error(403,"forbidden","Flexible topic does not belong to this context.");
+                write(c,"INSERT INTO flexible_topic_releases(teacher,class,subject,semester,flexible_topic,active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,flexible_topic) DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),flexibleTopic,active?1:0);
+                write(c,"DELETE FROM flexible_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND flexible_task IN(SELECT flexible_task FROM flexible_task_topics WHERE flexible_topic=?)",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),flexibleTopic);
+                return null;
+            }
+            var row=require(c,"SELECT t.*,p.flexible_topic AS topic FROM flexible_tasks t LEFT JOIN flexible_task_topics p ON p.flexible_task=t.id WHERE t.id=?",flexibleTask);
+            if(integer(row,"owner_teacher")!=scope.teacherId() || integer(row,"class")!=scope.classId() || integer(row,"subject")!=scope.subjectId() || integer(row,"semester")!=scope.semesterId() || integer(row,"grade")!=grade)
+                throw error(403,"forbidden","Flexible task does not belong to this context.");
+            write(c,"INSERT INTO flexible_task_releases(teacher,class,subject,semester,flexible_task,active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,flexible_task) DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),integer(row,"id"),active?1:0);
             return null;
         });
     }

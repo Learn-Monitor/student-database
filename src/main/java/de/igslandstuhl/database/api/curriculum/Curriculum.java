@@ -494,12 +494,27 @@ public final class Curriculum {
                 if(CurriculumEnrollment.topicReleased(c,scope,topicId) || centralTasks.stream().anyMatch(t->integer(t,"topicId")==topicId))visibleTopics.add(topic);
             }
             var flexibleTasks=plannedFlexibleTasks(c,scope);
+            var visibleFlexibleTasks=new ArrayList<Map<String,Object>>();
+            for(var task:flexibleTasks) {
+                int taskId=integer(task,"id");
+                boolean active=CurriculumEnrollment.flexibleReleased(c,scope,taskId,task.get("topicId")==null?null:integer(task,"topicId"));
+                task.put("active",active);
+                if(active || flexibleDone.contains(taskId))visibleFlexibleTasks.add(task);
+            }
+            flexibleTasks=visibleFlexibleTasks;
+            var flexibleTopics=flexibleTopics(c,scope);
+            var visibleFlexibleTopics=new ArrayList<Map<String,Object>>();
+            for(var topic:flexibleTopics) {
+                int topicId=integer(topic,"id");
+                if(CurriculumEnrollment.flexibleTopicReleased(c,scope,topicId) || flexibleTasks.stream().anyMatch(t->t.get("topicId")!=null && integer(t,"topicId")==topicId))
+                    visibleFlexibleTopics.add(topic);
+            }
             centralTasks.forEach(t->t.put("completed",centralDone.contains(integer(t,"id"))));
             flexibleTasks.forEach(t->t.put("completed",flexibleDone.contains(integer(t,"id"))));
             long centralPlanned=central(c,subject,grade,semester),flexiblePlanned=flexible(c,scope);
             return Map.of("semesterId",semester,
                     "centralTopics",visibleTopics,
-                    "centralTasks",centralTasks,"flexibleTopics",flexibleTopics(c,scope),"flexibleTasks",flexibleTasks,
+                    "centralTasks",centralTasks,"flexibleTopics",visibleFlexibleTopics,"flexibleTasks",flexibleTasks,
                     "planned",Map.of("centralTokens",centralPlanned,"flexibleTokens",flexiblePlanned,"totalTokens",centralPlanned+flexiblePlanned,"regularLimit",REGULAR_LIMIT,"hardLimit",HARD_LIMIT,"unreleasedCentralTokens",centralPlanned-centralTasks.stream().mapToLong(t->integer(t,"tokens")).sum()),
                     "progress",earned);
         });

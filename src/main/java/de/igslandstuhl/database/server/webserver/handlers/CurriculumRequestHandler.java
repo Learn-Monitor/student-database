@@ -127,7 +127,12 @@ public final class CurriculumRequestHandler {
                     result=Map.of("ok",true);
                 }
                 case "/curriculum-releases" -> result=enrollment.releases(actor,scope(rq,actor));
-                case "/set-curriculum-release" -> {enrollment.release(actor,scope(rq,actor),rq.containsKey("topicId")?integer(rq,"topicId"):null,rq.containsKey("taskId")?integer(rq,"taskId"):null,bool(rq,"active"));result=Map.of("ok",true);}
+                case "/set-curriculum-release" -> {enrollment.release(actor,scope(rq,actor),
+                        rq.containsKey("topicId")?integer(rq,"topicId"):null,
+                        rq.containsKey("taskId")?integer(rq,"taskId"):null,
+                        rq.containsKey("flexibleTopicId")?integer(rq,"flexibleTopicId"):null,
+                        rq.containsKey("flexibleTaskId")?integer(rq,"flexibleTaskId"):null,
+                        bool(rq,"active"));result=Map.of("ok",true);}
 
                 case "/curriculum-transfer-preview" -> result=service.transferPreview(actor,integer(rq,"studentId"),scope(rq,actor));
                 case "/transfer-curriculum-context" -> {

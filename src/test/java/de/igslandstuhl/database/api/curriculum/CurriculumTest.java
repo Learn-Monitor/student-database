@@ -1109,6 +1109,86 @@ class CurriculumTest {
         enrollment.release(teacher,scope,null,a,true);
         assertEquals(1,((List<?>)service.studentCatalog(Student.get(id),id,id).get("centralTopics")).size());
     }
+    @SuppressWarnings("unchecked")
+    List<Map<String,Object>> rows(Map<String,Object> result,String key) { return (List<Map<String,Object>>)result.get(key); }
+    Map<String,Object> byId(List<Map<String,Object>> rows,int rowId) {
+        return rows.stream().filter(r->((Number)r.get("id")).intValue()==rowId).findFirst().orElseThrow();
+    }
+    @Test void flexiblePublicationDefaultsClosedInheritsTopicsAndClearsOverrides() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int topicId=service.createFlexibleTopic(teacher,scope,"Practice");
+        var first=service.create(teacher,scope,"First",5,topicId);
+        var second=service.create(teacher,scope,"Second",6,topicId);
+        var loose=service.create(teacher,scope,"Loose",7);
+        var releases=enrollment.releases(teacher,scope);
+        assertFalse((Boolean)byId(rows(releases,"flexibleTopics"),topicId).get("active"));
+        assertFalse((Boolean)byId(rows(releases,"flexibleTasks"),first.id()).get("active"));
+        assertFalse((Boolean)byId(rows(releases,"flexibleTasks"),loose.id()).get("active"));
+        enrollment.release(teacher,scope,null,null,topicId,null,true);
+        releases=enrollment.releases(teacher,scope);
+        assertTrue((Boolean)byId(rows(releases,"flexibleTasks"),first.id()).get("active"));
+        assertTrue((Boolean)byId(rows(releases,"flexibleTasks"),second.id()).get("active"));
+        enrollment.release(teacher,scope,null,null,null,first.id(),false);
+        releases=enrollment.releases(teacher,scope);
+        assertFalse((Boolean)byId(rows(releases,"flexibleTasks"),first.id()).get("active"));
+        assertTrue((Boolean)byId(rows(releases,"flexibleTasks"),second.id()).get("active"));
+        enrollment.release(teacher,scope,null,null,topicId,null,true);
+        releases=enrollment.releases(teacher,scope);
+        assertTrue((Boolean)byId(rows(releases,"flexibleTasks"),first.id()).get("active"));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM flexible_task_releases WHERE flexible_task=?",first.id()));
+        enrollment.release(teacher,scope,null,null,topicId,null,false);
+        releases=enrollment.releases(teacher,scope);
+        assertFalse((Boolean)byId(rows(releases,"flexibleTasks"),first.id()).get("active"));
+        assertFalse((Boolean)byId(rows(releases,"flexibleTasks"),second.id()).get("active"));
+        enrollment.release(teacher,scope,null,null,null,loose.id(),true);
+        assertTrue((Boolean)byId(rows(enrollment.releases(teacher,scope),"flexibleTasks"),loose.id()).get("active"));
+    }
+    @Test void flexiblePublicationRejectsForeignActorScopeAndInvalidIdentityMix() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int topicId=service.createFlexibleTopic(teacher,scope,"Practice");
+        var task=service.create(teacher,scope,"First",5,topicId);
+        assertEquals(403,assertThrows(CurriculumException.class,()->enrollment.release(other,scope,null,null,topicId,null,true)).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->enrollment.release(teacher,new Curriculum.Scope(id,id,id+1,id),null,null,topicId,null,true)).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->enrollment.release(teacher,new Curriculum.Scope(id,id,id+1,id),null,null,null,task.id(),true)).status);
+        assertEquals(400,assertThrows(CurriculumException.class,()->enrollment.release(teacher,scope,topic,null,topicId,null,true)).status);
+        assertEquals(400,assertThrows(CurriculumException.class,()->enrollment.release(teacher,scope,null,null,null,null,true)).status);
+    }
+    @Test void releasesResponseIncludesCentralAndFlexibleEntries() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);central(5);
+        int flexibleTopic=service.createFlexibleTopic(teacher,scope,"Practice");
+        var flexibleTask=service.create(teacher,scope,"Exercise",6,flexibleTopic);
+        var releases=enrollment.releases(teacher,scope);
+        assertFalse(rows(releases,"topics").isEmpty());assertFalse(rows(releases,"tasks").isEmpty());
+        assertEquals(flexibleTopic,((Number)rows(releases,"flexibleTopics").get(0).get("id")).intValue());
+        assertEquals(flexibleTask.id(),((Number)rows(releases,"flexibleTasks").get(0).get("id")).intValue());
+        assertEquals(flexibleTopic,((Number)rows(releases,"flexibleTasks").get(0).get("topicId")).intValue());
+    }
+    @Test void flexiblePublicationHttpExtendsExistingReleaseRoute() throws Exception {
+        int flexibleTopic=service.createFlexibleTopic(teacher,scope,"Practice");
+        String payload=assignmentBody().replace("}",",\"flexibleTopicId\":"+flexibleTopic+",\"active\":true}");
+        assertEquals(Status.OK,request(Teacher.get(id),"/set-curriculum-release",payload).getStatus());
+        assertEquals(1,scalar("SELECT active FROM flexible_topic_releases WHERE flexible_topic=?",flexibleTopic));
+        assertEquals(Status.BAD_REQUEST,request(Teacher.get(id),"/set-curriculum-release",payload.replace("}",",\"topicId\":"+topic+"}")).getStatus());
+    }
+    @Test void studentCatalogFiltersFlexibleReleasesButKeepsCompletedAndPlanning() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int hiddenTopic=service.createFlexibleTopic(teacher,scope,"Hidden topic");
+        service.create(teacher,scope,"Hidden task",4,hiddenTopic);
+        int visibleTopic=service.createFlexibleTopic(teacher,scope,"Visible topic");
+        var visible=service.create(teacher,scope,"Visible task",5,visibleTopic);
+        var completed=service.create(teacher,scope,"Completed task",6);
+        service.complete(teacher,completed.id(),id);
+        long planned=(Long)((Map<?,?>)service.studentCatalog(Student.get(id),id,id).get("planned")).get("flexibleTokens");
+        assertEquals(15L,planned);
+        assertTrue(rows(service.studentCatalog(Student.get(id),id,id),"flexibleTasks").stream().noneMatch(r->((Number)r.get("id")).intValue()==visible.id()));
+        enrollment.release(teacher,scope,null,null,null,visible.id(),true);
+        var catalog=service.studentCatalog(Student.get(id),id,id);
+        assertEquals(List.of(visible.id(),completed.id()),rows(catalog,"flexibleTasks").stream().map(r->((Number)r.get("id")).intValue()).sorted().toList());
+        assertEquals(List.of(visibleTopic),rows(catalog,"flexibleTopics").stream().map(r->((Number)r.get("id")).intValue()).toList());
+        enrollment.release(teacher,scope,null,null,null,completed.id(),false);
+        assertTrue(rows(service.studentCatalog(Student.get(id),id,id),"flexibleTasks").stream().anyMatch(r->((Number)r.get("id")).intValue()==completed.id()));
+        assertEquals(15L,((Map<?,?>)service.studentCatalog(Student.get(id),id,id).get("planned")).get("flexibleTokens"));
+    }
     @Test void publicationCannotBeChangedByOtherTeacherAndCompletedCoinsRemain() throws Exception {
         var enrollment=new CurriculumEnrollment(service);int task=central(7);
         assertThrows(CurriculumException.class,()->enrollment.release(other,scope,topic,null,true));
