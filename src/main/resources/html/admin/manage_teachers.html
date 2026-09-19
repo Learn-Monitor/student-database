@@ -1,11 +1,11 @@
-%[site;title=Lehrer verwalten;content=!FOLLOWS]
+%[site;title=Lehrkräfte verwalten;content=!FOLLOWS]
 <section id="teachers">
     <header>
-        <h1>Lehrer verwalten</h1>
+        <h1>Lehrkräfte verwalten</h1>
     </header>
     <main>
         <section id="add-teacher">
-            <h2>Lehrer hinzufügen</h2>
+            <h2>Lehrkraft hinzufügen</h2>
             <form id="add-teacher-form" method="POST" action="/add-teacher">
                 <label for="teacher-first-name">Vorname:</label>
                 <input type="text" id="teacher-first-name" name="firstName" required>
@@ -13,33 +13,31 @@
                 <input type="text" id="teacher-last-name" name="lastName" required>
                 <label for="teacher-email">Loginname:</label>
                 <input type="text" id="teacher-email" name="email" required>
-                <button type="submit">Lehrer hinzufügen</button>
+                <button type="submit">Lehrkraft hinzufügen</button>
             </form>
         </section>
         <section id="add-teachers-csv">
-            <h2>Lehrer aus CSV hinzufügen</h2>
+            <h2>Lehrkräfte aus CSV hinzufügen</h2>
             <form id="add-teachers-csv-form" method="post" action="/add-teachers">
                 <label for="csv-input">CSV-Datei:</label>
                 <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="Vorname,Nachname,Loginname"></textarea>
-                <button type="submit">Lehrer hinzufügen</button>
+                <button type="submit">Lehrkräfte hinzufügen</button>
             </form>
         </section>
         <section id="teacher-list">
-            <h2>Lehrer-Liste</h2>
-            <input id="teacherFilter" placeholder="Name, Fach oder Loginname filtern">
-            <a href="/teachers" download="lehrer.json"><button id="download-teachers">Lehrer herunterladen</button></a>
+            <h2>Lehrkräfte-Liste</h2>
+            <input id="teacherFilter" placeholder="Name oder Loginname filtern">
+            <a href="/teachers" download="lehrer.json"><button id="download-teachers">Lehrkräfte herunterladen</button></a>
             <table id="teacherTable">
                 <thead>
                     <tr>
-                        <th>Vorname</th>
                         <th>Nachname</th>
+                        <th>Vorname</th>
                         <th>Loginname</th>
                         <th>Aktionen</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <!-- Teacher rows will be dynamically inserted here -->
-                </tbody>
+                <tbody id="teacherTableBody"></tbody>
             </table>
         </section>
     </main>
@@ -48,25 +46,116 @@
     </nav>
 </section>
 <script>
-    document.getElementById('add-teachers-csv-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const form = e.target;
-        const csv = form['csv'].value;
-        postDataAndDownload('/add-teachers', csv, 'lehrer.csv');
-    });
-    document.addEventListener('DOMContentLoaded', async function() {
-        document.querySelectorAll('#teacherTable th').forEach((th,index)=>{th.classList.add('sortable');th.addEventListener('click',()=>{const body=document.querySelector('#teacherTable tbody');[...body.rows].sort((a,b)=>a.cells[index].textContent.localeCompare(b.cells[index].textContent,'de')).forEach(r=>body.append(r));});});
-        populateTable('/teachers', 'teacherTable', (newRow, teacher) => {
-            newRow.dataset.search = JSON.stringify(teacher).toLowerCase();
-            newRow.innerHTML = `
-                <td>${teacher.firstName}</td>
-                <td>${teacher.lastName}</td>
-                <td>${teacher.email}</td>
-                <td>
-                    <button class="view-teacher" onclick="viewTeacher(${JSON.stringify(teacher).replaceAll('"', "'")})">Bearbeiten</button>
-                </td>
-            `;
+(() => {
+    let teachers = [];
+    let sortColumn = "lastName";
+
+    function teacherFirstName(teacher) {
+        if (teacher.firstName) return teacher.firstName;
+        const name = teacher.name || "";
+        return name.split(" ").slice(0, -1).join(" ") || name;
+    }
+
+    function teacherLastName(teacher) {
+        if (teacher.lastName) return teacher.lastName;
+        const name = teacher.name || "";
+        return name.split(" ").slice(-1)[0] || "";
+    }
+
+    function teacherLogin(teacher) {
+        return teacher.email || teacher.login || teacher.username || "";
+    }
+
+    function compareText(a, b) {
+        return a.localeCompare(b, "de", {sensitivity: "base"});
+    }
+
+    function compareTeachers(a, b) {
+        const values = {
+            firstName: [teacherFirstName(a), teacherFirstName(b)],
+            lastName: [teacherLastName(a), teacherLastName(b)],
+            login: [teacherLogin(a), teacherLogin(b)]
+        };
+        const selected = values[sortColumn] || values.lastName;
+        const primary = compareText(selected[0], selected[1]);
+        if (primary !== 0) return primary;
+        const last = compareText(teacherLastName(a), teacherLastName(b));
+        if (last !== 0) return last;
+        return compareText(teacherFirstName(a), teacherFirstName(b));
+    }
+
+    function matchesFilter(teacher, query) {
+        if (!query) return true;
+        const haystack = [
+            teacherFirstName(teacher),
+            teacherLastName(teacher),
+            teacherLogin(teacher)
+        ].join(" ").toLocaleLowerCase("de");
+        return haystack.includes(query.toLocaleLowerCase("de"));
+    }
+
+    function appendCell(row, text) {
+        const cell = document.createElement("td");
+        cell.textContent = text;
+        row.appendChild(cell);
+        return cell;
+    }
+
+    function createTeacherRow(teacher) {
+        const row = document.createElement("tr");
+        appendCell(row, teacherLastName(teacher));
+        appendCell(row, teacherFirstName(teacher));
+        appendCell(row, teacherLogin(teacher));
+
+        const actionCell = appendCell(row, "");
+        const editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.className = "view-teacher";
+        editButton.textContent = "Bearbeiten";
+        editButton.addEventListener("click", () => viewTeacher(teacher));
+        actionCell.appendChild(editButton);
+        return row;
+    }
+
+    function renderTeachers() {
+        const query = document.getElementById("teacherFilter").value || "";
+        const rows = teachers
+            .filter(teacher => matchesFilter(teacher, query))
+            .sort(compareTeachers)
+            .map(createTeacherRow);
+        document.getElementById("teacherTableBody").replaceChildren(...rows);
+    }
+
+    async function loadTeachers() {
+        const loaded = await fetchJson("/teachers");
+        teachers = Array.isArray(loaded) ? loaded : [];
+        renderTeachers();
+    }
+
+    function bindCsvImport() {
+        document.getElementById("add-teachers-csv-form").addEventListener("submit", event => {
+            event.preventDefault();
+            postDataAndDownload("/add-teachers", document.getElementById("csv-input").value, "lehrer.csv");
         });
-        document.getElementById('teacherFilter').addEventListener('input',e=>document.querySelectorAll('#teacherTable tbody tr').forEach(r=>r.hidden=!r.dataset.search.includes(e.target.value.toLowerCase())));
+    }
+
+    function bindSorting() {
+        const columns = ["lastName", "firstName", "login", null];
+        document.querySelectorAll("#teacherTable th").forEach((th, index) => {
+            if (!columns[index]) return;
+            th.classList.add("sortable");
+            th.addEventListener("click", () => {
+                sortColumn = columns[index];
+                renderTeachers();
+            });
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        bindCsvImport();
+        bindSorting();
+        document.getElementById("teacherFilter").addEventListener("input", renderTeachers);
+        loadTeachers();
     });
+})();
 </script>

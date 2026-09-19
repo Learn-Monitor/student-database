@@ -17,7 +17,7 @@
     {
         "type": "ADMIN_DASHBOARD",
         "path": "/manage_teachers",
-        "label": "Lehrer verwalten"
+        "label": "Lehrkräfte verwalten"
     },
     {
         "type": "ADMIN_DASHBOARD",
