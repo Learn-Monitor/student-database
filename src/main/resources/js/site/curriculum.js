@@ -242,12 +242,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             function releaseTopic(releases, topic) {
                 return (releases.topics || []).find(item => item.id === topic.id || item.topicId === topic.id);
             }
-            function topicStatus(topic, tasks, releases) {
-                if (!tasks.length) return releaseTopic(releases, topic)?.active ? 'freigegeben' : 'gesperrt';
-                const active = tasks.filter(task => releaseTask(releases, task)?.active === true).length;
+            function flexibleTaskRelease(releases, task) {
+                return (releases.flexibleTasks || []).find(item => item.id === task.id || item.flexibleTaskId === task.id);
+            }
+            function flexibleTopicRelease(releases, topic) {
+                return (releases.flexibleTopics || []).find(item => item.id === topic.id || item.flexibleTopicId === topic.id);
+            }
+            function releaseStatus(topicRelease, tasks, taskRelease) {
+                if (!tasks.length) return topicRelease?.active ? 'freigegeben' : 'gesperrt';
+                const active = tasks.filter(task => taskRelease(task)?.active === true).length;
                 if (active === tasks.length) return 'freigegeben';
                 if (active === 0) return 'gesperrt';
                 return 'teilweise freigegeben';
+            }
+            function topicStatus(topic, tasks, releases) {
+                return releaseStatus(releaseTopic(releases, topic), tasks, task => releaseTask(releases, task));
+            }
+            function flexibleTopicStatus(topic, tasks, releases) {
+                return releaseStatus(flexibleTopicRelease(releases, topic), tasks, task => flexibleTaskRelease(releases, task));
             }
             function appendReleaseButton(parent, label, values) {
                 const b=el('button',label);b.type='button';parent.append(b);b.addEventListener('click',()=>saveRelease(values).catch(showError));return b;
@@ -311,22 +323,33 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
                 for(const topic of flexibleTopics) {
-                    const group=el('details');group.open=true;group.append(el('summary',`${topic.name} · Flexibel`));central.append(group);
+                    const topicTasks=tasks.filter(task=>(task.topicId??null)===topic.id);
+                    const group=el('details');group.open=true;group.append(el('summary',`${topic.name} · Flexibel · ${flexibleTopicStatus(topic, topicTasks, releases)}`));central.append(group);
+                    if(canPublish) {
+                        appendReleaseButton(group,'Alle freigeben',{flexibleTopicId:topic.id,active:true});
+                        appendReleaseButton(group,'Alle sperren',{flexibleTopicId:topic.id,active:false});
+                    }
                     if(manageFlexible) {
                         const form=el('form'),name=field(form,'Themenname',topic.name);button(form,'Flexibles Thema umbenennen');group.append(form);
                         form.addEventListener('submit',async e=>{e.preventDefault();try{await save('/rename-flexible-topic',{topicId:topic.id,name:name.value});}catch(error){showError(error);}});
                     }
-                    for(const task of tasks.filter(task=>(task.topicId??null)===topic.id)) {
+                    for(const task of topicTasks) {
+                        const active=flexibleTaskRelease(releases,task)?.active === true;
+                        const row=el('p',`${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);
+                        group.append(row);
+                        if(canPublish) appendReleaseButton(row,active?'Sperren':'Freigeben',{flexibleTaskId:task.id,active:!active});
                         if(manageFlexible) editTask(group,task,true);
-                        else group.append(el('p',task.name+': '+task.tokens+' Münzen'));
                     }
                 }
                 const unassigned=tasks.filter(task=>(task.topicId??null)===null);
                 if(unassigned.length) {
                     const group=el('details');group.open=true;group.append(el('summary','Ohne Thema · Flexibel'));central.append(group);
                     for(const task of unassigned) {
+                        const active=flexibleTaskRelease(releases,task)?.active === true;
+                        const row=el('p',`${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);
+                        group.append(row);
+                        if(canPublish) appendReleaseButton(row,active?'Sperren':'Freigeben',{flexibleTaskId:task.id,active:!active});
                         if(manageFlexible) editTask(group,task,true);
-                        else group.append(el('p',task.name+': '+task.tokens+' Münzen'));
                     }
                 }
                 if (!manageFlexible) { central.append(el('p','Flexible Inhalte sind nur lesbar.')); return; }
