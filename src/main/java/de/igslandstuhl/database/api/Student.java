@@ -586,7 +586,7 @@ public class Student extends User {
         // Update in memory
         selectedTasks.add(task);
     }
-    public void changeTaskStatus(Task task, int newStatus) throws SQLException {
+    public void applyTaskStatusCache(Task task, int newStatus) {
         if (task == null) {
             throw new IllegalArgumentException("Task cannot be null");
         }
@@ -601,7 +601,7 @@ public class Student extends User {
             selectedTasks.add(task);
         } else if (newStatus == Task.STATUS_NOT_STARTED) {
             selectedTasks.remove(task);
-            lockedTasks.add(task);
+            lockedTasks.remove(task);
             completedTasks.remove(task);
         } else if (newStatus == Task.STATUS_LOCKED) {
             selectedTasks.remove(task);
@@ -610,6 +610,23 @@ public class Student extends User {
         } else {
             throw new IllegalArgumentException("Invalid task status: " + newStatus);
         }
+    }
+    public void selectOnlyTaskForSubject(Task task) {
+        if (task == null) {
+            throw new IllegalArgumentException("Task cannot be null");
+        }
+        Subject subject = task.getTopic().getSubject();
+        selectedTasks.removeIf(selected -> selected.getTopic().getSubject().equals(subject) && !selected.equals(task));
+        applyTaskStatusCache(task, Task.STATUS_IN_PROGRESS);
+    }
+    public void clearSelectedTasksForSubject(Subject subject) {
+        if (subject == null) {
+            throw new IllegalArgumentException("Subject cannot be null");
+        }
+        selectedTasks.removeIf(task -> task.getTopic().getSubject().equals(subject));
+    }
+    public void changeTaskStatus(Task task, int newStatus) throws SQLException {
+        applyTaskStatusCache(task, newStatus);
         // Update in DB
         Server.getInstance().getConnection().executeVoidProcessSecure(
             SQLHelper.getAddObjectProcess("taskstat",

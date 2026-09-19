@@ -170,7 +170,11 @@ public class PostRequestHandler {
         }
         if (newStatus == Task.STATUS_LOCKED && currentStatus == Task.STATUS_COMPLETED)
             return PostResponse.json(Status.CONFLICT, Map.of("error", "confirmed_completion", "message", "Abgeschlossene Leistungen können nicht durch Sperren zurückgesetzt werden."), request);
-        student.changeTaskStatus(task, newStatus);
+        try {
+            new Curriculum(Server.getInstance().getConnection()).changeCentralStageStatus(student.getId(), task.getId(), newStatus);
+        } catch (CurriculumException e) {
+            return curriculumError(e, request);
+        }
         return PostResponse.ok("Task status changed successfully", ContentType.TEXT_PLAIN, request);
     }
     private static PostResponse curriculumError(CurriculumException e, APIPostRequest request) {

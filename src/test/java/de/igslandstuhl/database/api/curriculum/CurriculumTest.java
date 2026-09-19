@@ -49,6 +49,34 @@ class CurriculumTest {
         try(PreparedStatement s=db.getSQLConnection().prepareStatement(sql)) {for(int i=0;i<args.length;i++)s.setObject(i+1,args[i]);try(ResultSet r=s.executeQuery()){assertTrue(r.next());return r.getLong(1);}}
     }
     int central(int tokens)throws SQLException{return service.createCentralTask(topic,"Central",TaskLevel.LEVEL1,tokens);}
+    int centralNamed(String name,int tokens)throws SQLException{return service.createCentralTask(topic,name,TaskLevel.LEVEL1,tokens);}
+    int otherSubjectCentral(String name,int tokens)throws Exception {
+        int otherTopic=id+2;
+        db.writeTransaction(c->{
+            exec(c,"INSERT OR IGNORE INTO teacher_subjects(teacher_id,subject_id) VALUES(?,?)",id,id+1);
+            exec(c,"INSERT INTO topics(id,name,subject,grade,number,semester) VALUES(?,?,?,5,1,?)",otherTopic,"Other topic-"+id,id+1,id);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)",id,id+1,id,id,id);
+            return null;
+        });
+        new CurriculumEnrollment(service).release(teacher,new Curriculum.Scope(id,id+1,id,id),otherTopic,null,true);
+        return service.createCentralTask(otherTopic,name,TaskLevel.LEVEL1,tokens);
+    }
+    void releaseAllCentral() throws Exception {
+        new CurriculumEnrollment(service).release(teacher,scope,topic,null,true);
+    }
+    Map<String,Object> activeRow() throws Exception {
+        try(PreparedStatement s=db.getSQLConnection().prepareStatement("SELECT * FROM student_active_curriculum_stages WHERE student=? AND subject=?")) {
+            s.setInt(1,id);s.setInt(2,id);
+            try(ResultSet r=s.executeQuery()) {
+                assertTrue(r.next());
+                Map<String,Object> row=new java.util.HashMap<>();
+                row.put("central_task",r.getObject("central_task"));
+                row.put("flexible_task",r.getObject("flexible_task"));
+                row.put("semester",r.getObject("semester"));
+                return row;
+            }
+        }
+    }
     @Test void topicRenameKeepsIdAndAllCachedReferences()throws Exception {
         Topic before=Topic.get(topic);Subject subject=before.getSubject();subject.getTopics(5);
         service.renameTopic(admin,topic,"Renamed");
@@ -136,6 +164,117 @@ class CurriculumTest {
     @Test void centralOnlyHardLimit()throws Exception {
         int task=central(105);assertThrows(CurriculumException.class,()->service.editTask(admin,task,"No",106));
         assertThrows(CurriculumException.class,()->service.createCentralTask(topic,"No",TaskLevel.LEVEL2,1));
+    }
+    @Test void activeCentralStageIsUniquePerStudentAndSubject() throws Exception {
+        releaseAllCentral();
+        int first=centralNamed("First active",5),second=centralNamed("Second active",6);
+        service.activateCentralStage(id,first);
+        assertEquals(Task.STATUS_IN_PROGRESS,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,first));
+        assertEquals(Curriculum.ActiveStageType.CENTRAL,service.activeStage(id,id).type());
+        assertEquals(first,service.activeStage(id,id).taskId());
+
+        service.activateCentralStage(id,second);
+        assertEquals(Task.STATUS_NOT_STARTED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,first));
+        assertEquals(Task.STATUS_IN_PROGRESS,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,second));
+        assertEquals(second,service.activeStage(id,id).taskId());
+        assertEquals(1,scalar("SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=?",id,id));
+        assertEquals(Set.of(Task.get(second)),Student.get(id).getSelectedTasks());
+    }
+    @Test void activeStagesForDifferentSubjectsAreIndependent() throws Exception {
+        releaseAllCentral();
+        int math=centralNamed("Math active",5),german=otherSubjectCentral("German active",7);
+        service.activateCentralStage(id,math);
+        service.activateCentralStage(id,german);
+        assertEquals(2,scalar("SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=?",id));
+        assertEquals(math,service.activeStage(id,id).taskId());
+        assertEquals(german,service.activeStage(id,id+1).taskId());
+    }
+    @Test void centralActivationPreservesCompletedAndLockedStages() throws Exception {
+        releaseAllCentral();
+        int completed=centralNamed("Already done",5),locked=centralNamed("Locked stage",6),next=centralNamed("Next active",7);
+        Student.get(id).changeTaskStatus(Task.get(completed),Task.STATUS_COMPLETED);
+        Student.get(id).changeTaskStatus(Task.get(locked),Task.STATUS_LOCKED);
+        service.activateCentralStage(id,next);
+        assertEquals(Task.STATUS_COMPLETED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,completed));
+        assertEquals(Task.STATUS_LOCKED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,locked));
+        assertEquals(Task.STATUS_IN_PROGRESS,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,next));
+    }
+    @Test void centralTerminalChangesClearOnlyMatchingActiveStage() throws Exception {
+        releaseAllCentral();
+        int active=centralNamed("Active",5),otherActive=otherSubjectCentral("Other active",6);
+        service.activateCentralStage(id,active);
+        service.activateCentralStage(id,otherActive);
+        service.changeCentralStageStatus(id,active,Task.STATUS_NOT_STARTED);
+        assertNull(service.activeStage(id,id));
+        assertEquals(Task.STATUS_NOT_STARTED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,active));
+        assertEquals(otherActive,service.activeStage(id,id+1).taskId());
+
+        service.activateCentralStage(id,active);
+        service.changeCentralStageStatus(id,active,Task.STATUS_COMPLETED);
+        assertNull(service.activeStage(id,id));
+        assertEquals(Task.STATUS_COMPLETED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,active));
+
+        service.activateCentralStage(id,active);
+        service.changeCentralStageStatus(id,active,Task.STATUS_LOCKED);
+        assertNull(service.activeStage(id,id));
+        assertEquals(Task.STATUS_LOCKED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,active));
+        assertEquals(otherActive,service.activeStage(id,id+1).taskId());
+    }
+    @Test void notStartedAndLockedUpdateStudentTaskCachesDifferently() throws Exception {
+        int task=centralNamed("Cache task",5);Task cached=Task.get(task);Student student=Student.get(id);
+        student.changeTaskStatus(cached,Task.STATUS_LOCKED);
+        assertTrue(student.getLockedTasks().contains(cached));
+        student.changeTaskStatus(cached,Task.STATUS_NOT_STARTED);
+        assertFalse(student.getLockedTasks().contains(cached));
+        assertFalse(student.getSelectedTasks().contains(cached));
+        assertFalse(student.getCompletedTasks().contains(cached));
+        student.changeTaskStatus(cached,Task.STATUS_LOCKED);
+        assertTrue(student.getLockedTasks().contains(cached));
+    }
+    @Test void flexibleActivationSharesTheSameActiveStageSlot() throws Exception {
+        releaseAllCentral();
+        var enrollment=new CurriculumEnrollment(service);
+        int central=centralNamed("Central active",5);
+        int topicId=service.createFlexibleTopic(teacher,scope,"Practice");
+        var flexible=service.create(teacher,scope,"Flexible active",6,topicId);
+        enrollment.release(teacher,scope,null,null,null,flexible.id(),true);
+
+        service.activateFlexibleStage(id,flexible.id());
+        assertEquals(Curriculum.ActiveStageType.FLEXIBLE,service.activeStage(id,id).type());
+        assertEquals(flexible.id(),service.activeStage(id,id).taskId());
+        service.activateCentralStage(id,central);
+        assertEquals(Curriculum.ActiveStageType.CENTRAL,service.activeStage(id,id).type());
+        assertEquals(central,service.activeStage(id,id).taskId());
+
+        service.activateFlexibleStage(id,flexible.id());
+        assertEquals(Task.STATUS_NOT_STARTED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,central));
+        assertEquals(Curriculum.ActiveStageType.FLEXIBLE,service.activeStage(id,id).type());
+        assertEquals(flexible.id(),service.activeStage(id,id).taskId());
+    }
+    @Test void flexibleActivationDoesNotReplaceOtherSubjects() throws Exception {
+        releaseAllCentral();
+        int math=centralNamed("Math active",5),german=otherSubjectCentral("German active",7);
+        service.activateCentralStage(id,math);
+        service.activateCentralStage(id,german);
+        int topicId=service.createFlexibleTopic(teacher,scope,"Practice");
+        var flexible=service.create(teacher,scope,"Flexible active",6,topicId);
+        new CurriculumEnrollment(service).release(teacher,scope,null,null,null,flexible.id(),true);
+        service.activateFlexibleStage(id,flexible.id());
+        assertEquals(Curriculum.ActiveStageType.FLEXIBLE,service.activeStage(id,id).type());
+        assertEquals(german,service.activeStage(id,id+1).taskId());
+    }
+    @Test void flexibleActivationRequiresReleaseAndMatchingStudentContext() throws Exception {
+        int topicId=service.createFlexibleTopic(teacher,scope,"Practice");
+        var hidden=service.create(teacher,scope,"Hidden",6,topicId);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.activateFlexibleStage(id,hidden.id())).status);
+        new CurriculumEnrollment(service).release(teacher,scope,null,null,null,hidden.id(),true);
+
+        var foreignScope=new Curriculum.Scope(id+1,id,id+1,id);
+        var foreign=service.create(other,foreignScope,"Foreign",6);
+        new CurriculumEnrollment(service).release(other,foreignScope,null,null,null,foreign.id(),true);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.activateFlexibleStage(id,foreign.id())).status);
+        service.activateFlexibleStage(id,hidden.id());
+        assertEquals(hidden.id(),service.activeStage(id,id).taskId());
     }
     @Test void legacyUnscheduledAndIndividualRemainUntouched()throws Exception {
         var legacy=UnscheduledTask.addUnscheduledTask("Legacy-"+id,SchoolClass.get(id),Subject.get(id),6);

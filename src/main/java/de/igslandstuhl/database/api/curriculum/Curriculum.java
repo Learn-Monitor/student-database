@@ -35,6 +35,9 @@ public final class Curriculum {
                                int grade, String name, int tokens) {
         Scope scope() { return new Scope(ownerTeacher, subjectId, classId, semesterId); }
     }
+    public enum ActiveStageType { CENTRAL, FLEXIBLE }
+    public record ActiveStage(ActiveStageType type, int taskId, int subjectId, int semesterId, String name) {}
+    private record CentralTask(int id, int subjectId, int semesterId, int grade, int topicId, String name) {}
     static CurriculumException error(int status, String code, String message) {
         return new CurriculumException(status, code, message);
     }
@@ -386,6 +389,100 @@ public final class Curriculum {
         int grade=integer(assignment,"grade");
         compatibleCompletions(c,studentId,scope,grade);
         return grade;
+    }
+    private static CentralTask centralTask(Connection c,int taskId) throws SQLException {
+        var task=require(c,"SELECT t.id,t.name,p.subject,p.grade,p.semester,p.id AS topic FROM tasks t JOIN topics p ON p.id=t.topic WHERE t.id=?",taskId);
+        if(task.get("semester")==null) throw error(409,"context_unassigned","Task is not assigned to a managed semester.");
+        return new CentralTask(integer(task,"id"),integer(task,"subject"),integer(task,"semester"),integer(task,"grade"),integer(task,"topic"),(String)task.get("name"));
+    }
+    private static void putActiveCentral(Connection c,int studentId,CentralTask task) throws SQLException {
+        write(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task,last_updated) VALUES(?,?,?,?,NULL,CURRENT_TIMESTAMP) "
+                + "ON CONFLICT(student,subject) DO UPDATE SET semester=excluded.semester,central_task=excluded.central_task,flexible_task=NULL,last_updated=CURRENT_TIMESTAMP",
+                studentId,task.subjectId(),task.semesterId(),task.id());
+    }
+    private static void putActiveFlexible(Connection c,int studentId,FlexibleTask task) throws SQLException {
+        write(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task,last_updated) VALUES(?,?,?,NULL,?,CURRENT_TIMESTAMP) "
+                + "ON CONFLICT(student,subject) DO UPDATE SET semester=excluded.semester,central_task=NULL,flexible_task=excluded.flexible_task,last_updated=CURRENT_TIMESTAMP",
+                studentId,task.subjectId(),task.semesterId(),task.id());
+    }
+    private static void clearActiveCentral(Connection c,int studentId,CentralTask task) throws SQLException {
+        write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=? AND central_task=?",studentId,task.subjectId(),task.id());
+    }
+    private static void resetCentralInProgress(Connection c,int studentId,int subjectId) throws SQLException {
+        write(c,"UPDATE taskstats SET status=0,last_updated=CURRENT_TIMESTAMP WHERE student=? AND status=1 AND task IN("
+                + "SELECT t.id FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=?)",studentId,subjectId);
+    }
+    private static void setCentralStatus(Connection c,int studentId,int taskId,int status) throws SQLException {
+        write(c,"INSERT INTO taskstats(student,task,status,last_updated) VALUES(?,?,?,CURRENT_TIMESTAMP) "
+                + "ON CONFLICT(student,task) DO UPDATE SET status=excluded.status,last_updated=CURRENT_TIMESTAMP",studentId,taskId,status);
+    }
+    public ActiveStage activeStage(int studentId,int subjectId) throws SQLException {
+        return transaction(c->{
+            var rows=rows(c,"SELECT a.subject,a.semester,a.central_task,a.flexible_task,ct.name AS centralName,ft.name AS flexibleName "
+                    + "FROM student_active_curriculum_stages a LEFT JOIN tasks ct ON ct.id=a.central_task LEFT JOIN flexible_tasks ft ON ft.id=a.flexible_task "
+                    + "WHERE a.student=? AND a.subject=?",studentId,subjectId);
+            if(rows.isEmpty())return null;
+            var row=rows.get(0);
+            if(row.get("central_task")!=null)return new ActiveStage(ActiveStageType.CENTRAL,integer(row,"central_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("centralName"));
+            return new ActiveStage(ActiveStageType.FLEXIBLE,integer(row,"flexible_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("flexibleName"));
+        });
+    }
+    public void activateCentralStage(int studentId,int taskId) throws SQLException {
+        CentralTask activated=transaction(c->{
+            CentralTask task=centralTask(c,taskId);
+            var assignment=assigned(c,studentId,task.subjectId(),task.semesterId());
+            if(integer(assignment,"grade")!=task.grade()) throw error(403,"forbidden","Task does not belong to the student's assigned curriculum grade.");
+            Scope scope=assignmentScope(assignment,task.subjectId(),task.semesterId());
+            authorize(c,new Actor(false,scope.teacherId()),scope,false);
+            if(!CurriculumEnrollment.released(c,scope,task.id(),task.topicId()))
+                throw error(403,"forbidden","This task has not been released for the student's class.");
+            resetCentralInProgress(c,studentId,task.subjectId());
+            putActiveCentral(c,studentId,task);
+            setCentralStatus(c,studentId,task.id(),Task.STATUS_IN_PROGRESS);
+            return task;
+        });
+        if(activated==null) throw error(404,"not_found","Requested curriculum object does not exist.");
+        Student student=Student.get(studentId);
+        Task cached=Task.get(activated.id());
+        if(student!=null && cached!=null) student.selectOnlyTaskForSubject(cached);
+    }
+    public void activateFlexibleStage(int studentId,int taskId) throws SQLException {
+        FlexibleTask activated=transaction(c->{
+            var row=require(c,"SELECT t.*,p.flexible_topic AS topic FROM flexible_tasks t LEFT JOIN flexible_task_topics p ON p.flexible_task=t.id WHERE t.id=?",taskId);
+            FlexibleTask task=task(row);
+            var student=require(c,"SELECT class FROM students WHERE id=?",studentId);
+            if(integer(student,"class")!=task.classId()) throw error(403,"forbidden","Student does not belong to this task's class.");
+            int grade=requireAssignment(c,studentId,task.scope());
+            if(grade!=task.grade()) throw error(409,"context_conflict","Context contains inconsistent historical grades.");
+            if(!CurriculumEnrollment.flexibleReleased(c,task.scope(),task.id(),row.get("topic")==null?null:integer(row,"topic")))
+                throw error(403,"forbidden","This flexible task has not been released for the student's class.");
+            resetCentralInProgress(c,studentId,task.subjectId());
+            putActiveFlexible(c,studentId,task);
+            return task;
+        });
+        if(activated==null) throw error(404,"not_found","Requested curriculum object does not exist.");
+        Student student=Student.get(studentId);
+        Subject subject=Subject.get(activated.subjectId());
+        if(student!=null && subject!=null) student.clearSelectedTasksForSubject(subject);
+    }
+    public void clearActiveStage(int studentId,int subjectId) throws SQLException {
+        transaction(c->{write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=?",studentId,subjectId);return null;});
+    }
+    public void changeCentralStageStatus(int studentId,int taskId,int newStatus) throws SQLException {
+        if(newStatus==Task.STATUS_IN_PROGRESS) {
+            activateCentralStage(studentId,taskId);
+            return;
+        }
+        CentralTask changed=transaction(c->{
+            CentralTask task=centralTask(c,taskId);
+            setCentralStatus(c,studentId,task.id(),newStatus);
+            clearActiveCentral(c,studentId,task);
+            return task;
+        });
+        if(changed==null) throw error(404,"not_found","Requested curriculum object does not exist.");
+        Student student=Student.get(studentId);
+        Task cached=Task.get(changed.id());
+        if(student!=null && cached!=null) student.applyTaskStatusCache(cached,newStatus);
     }
     /** Minimal class roster for explicit administrative assignment; no credentials. */
     public List<Map<String,Object>> students(Actor actor,Scope scope) throws SQLException {
