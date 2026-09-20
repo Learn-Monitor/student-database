@@ -1,8 +1,12 @@
-const studentData = fetchMyData();
-
 document.addEventListener('DOMContentLoaded', async (_) => {
-    const subjects = await fetchJson('/mysubjects');
+    const subjects = await fetchMyCurriculumSubjects();
     populateSubjectSelect('subjectSelect', subjects);
-    subjectSelect.addEventListener('change', async (e) => populatePartnerSubjectStudentList(e.target.value, await studentData));
-    populatePartnerSubjectStudentList(subjectSelect.value, await studentData);
+    const subjectSelect = document.getElementById('subjectSelect');
+    const studentTable = document.getElementById('studentTableBody');
+    if (subjects.length === 0) {
+        studentTable.innerHTML = '';
+        return;
+    }
+    subjectSelect.addEventListener('change', async (e) => populatePartnerSubjectStudentList(Number(e.target.value)));
+    populatePartnerSubjectStudentList(Number(subjectSelect.value));
 })

@@ -5,6 +5,7 @@ const path=require('node:path');
 const {JSDOM}=require('jsdom');
 
 const script=fs.readFileSync(path.join(__dirname,'../../main/resources/js/site/student-database.js'),'utf8');
+const partnerPageScript=fs.readFileSync(path.join(__dirname,'../../main/resources/js/user/build_partner_search.js'),'utf8');
 
 function setup() {
   const dom=new JSDOM('<!doctype html><html><body><table><tbody id="studentTableBody"></tbody></table></body></html>',{url:'https://school.example.invalid/partner',runScripts:'dangerously'});
@@ -31,6 +32,16 @@ test('partner search sends only subject id',async()=>{
   }
 });
 
+test('canonical subject helper posts an empty scope',async()=>{
+  const {dom,requests}=setup();
+  try {
+    await dom.window.fetchMyCurriculumSubjects();
+    assert.deepEqual(requests,[{url:'/my-curriculum-subjects',body:{}}]);
+  } finally {
+    dom.window.close();
+  }
+});
+
 test('partner list avoids current topic lookup and renders names as text while firing row event',async()=>{
   const {dom,requests}=setup();
   let currentTopicCalls=0;
@@ -45,7 +56,7 @@ test('partner list avoids current topic lookup and renders names as text while f
     assert.equal(event.detail.row.tagName,'TR');
   });
   try {
-    await dom.window.populatePartnerSubjectStudentList(3,{id:99,schoolClass:{id:5}});
+    await dom.window.populatePartnerSubjectStudentList(3);
     const tbody=dom.window.document.getElementById('studentTableBody');
     assert.equal(currentTopicCalls,0);
     assert.deepEqual(requests,[{url:'/search-partner',body:{subjectId:3}}]);
@@ -56,4 +67,57 @@ test('partner list avoids current topic lookup and renders names as text while f
   } finally {
     dom.window.close();
   }
+});
+
+function setupPartnerPage(subjects) {
+  const dom=new JSDOM('<!doctype html><html><body><select id="subjectSelect"></select><table><tbody id="studentTableBody"></tbody></table></body></html>',{url:'https://school.example.invalid/partner',runScripts:'dangerously'});
+  const searches=[];
+  dom.window.fetchMyCurriculumSubjects=async ()=>subjects;
+  dom.window.populateSubjectSelect=(id,values)=>values.forEach(subject=>{
+    const option=dom.window.document.createElement('option');
+    option.value=subject.id;
+    option.textContent=subject.name;
+    dom.window.document.getElementById(id).appendChild(option);
+  });
+  dom.window.populatePartnerSubjectStudentList=async subjectId=>searches.push(subjectId);
+  dom.window.eval(partnerPageScript);
+  return {dom,searches};
+}
+
+test('partner page uses canonical subjects and reloads on numeric subject changes',async()=>{
+  const {dom,searches}=setupPartnerPage([{id:3,name:'Mathematik'},{id:7,name:'WPF Kunst'}]);
+  try {
+    await new Promise(resolve=>setTimeout(resolve,0));
+    const select=dom.window.document.getElementById('subjectSelect');
+    assert.deepEqual([...select.options].map(option=>({id:Number(option.value),name:option.textContent})),[
+      {id:3,name:'Mathematik'},{id:7,name:'WPF Kunst'}
+    ]);
+    assert.deepEqual(searches,[3]);
+    select.value='7';
+    select.dispatchEvent(new dom.window.Event('change'));
+    await new Promise(resolve=>setTimeout(resolve,0));
+    assert.deepEqual(searches,[3,7]);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('partner page does not search when no canonical subjects exist',async()=>{
+  const {dom,searches}=setupPartnerPage([]);
+  try {
+    await new Promise(resolve=>setTimeout(resolve,0));
+    assert.deepEqual(searches,[]);
+    assert.equal(dom.window.document.getElementById('subjectSelect').options.length,0);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('partner page contains no legacy subject or student data source',()=>{
+  assert.equal(partnerPageScript.includes('/mysubjects'),false);
+  assert.equal(partnerPageScript.includes('/mydata'),false);
+  assert.equal(partnerPageScript.includes('fetchMySubjects'),false);
+  assert.equal(partnerPageScript.includes('fetchMyData'),false);
+  assert.equal(partnerPageScript.includes('fetchMyCurrentTopic'),false);
+  assert.equal(partnerPageScript.includes('studentData'),false);
 });

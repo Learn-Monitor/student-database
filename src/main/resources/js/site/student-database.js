@@ -62,6 +62,9 @@ async function fetchMySubjects() {
     const subjects = await fetchJson('/mysubjects');
     return subjects;
 }
+async function fetchMyCurriculumSubjects() {
+    return await getJsonWithPost('/my-curriculum-subjects', {});
+}
 async function fetchStudentSubjects(studentId) {
     const subjects = await getJsonWithPost('/student-subjects', { studentId });
     return subjects;
@@ -241,7 +244,7 @@ async function populateSubjectStudentList(subjectSelectId, classSelectId, studen
       studentTable.appendChild(row);
   });
 }
-async function populatePartnerSubjectStudentList(subjectId, studentData) {
+async function populatePartnerSubjectStudentList(subjectId) {
     const students = await searchPartner(subjectId);
 
     const studentTable = document.getElementById("studentTableBody");
