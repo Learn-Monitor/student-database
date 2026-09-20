@@ -205,6 +205,7 @@ class TaskAndStudentProfileHandlerTest {
         int foreignSubject = id + 99;
         db.writeTransaction(c -> { exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", foreignSubject, "Foreign-" + id); return null; });
         assertEquals(Status.FORBIDDEN, subjectRequest(Student.get(id), "{\"subjectId\":" + foreignSubject + ",\"subjectRequest\":\"hilfe\"}").getStatus());
+        assertEquals(Status.FORBIDDEN, subjectRequest(Student.get(id), "{\"subjectId\":" + foreignSubject + ",\"subjectRequest\":\"hilfe\",\"remove\":true}").getStatus());
         assertEquals(Status.BAD_REQUEST, subjectRequest(Student.get(id), "{\"studentId\":" + (id + 1) + ",\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
         assertEquals(Status.FORBIDDEN, subjectRequest(Teacher.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
         assertEquals(Status.FORBIDDEN, subjectRequest(Admin.create("signal-admin-" + id, "synthetic-test-only"), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());

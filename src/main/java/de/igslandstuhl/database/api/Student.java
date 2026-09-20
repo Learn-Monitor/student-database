@@ -575,6 +575,7 @@ public class Student extends User {
     public void removeSubjectRequest(int subjectId, String type) throws SQLException {
         SubjectRequest request = SubjectRequest.fromGermanTranslation(type);
         int semesterId = currentSemesterId();
+        requireSubjectRequestContext(subjectId, semesterId);
         Server.getInstance().getConnection().writeTransaction(c -> {
             try (var s = c.prepareStatement("DELETE FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type=?")) {
                 s.setInt(1, id);

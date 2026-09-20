@@ -425,8 +425,8 @@ async function buildTeacherDashboard(classes, subjects) {
 
     teacherDashboardLoadEvent();
 }
-function createRequestButton(subject, type, label) {
-    if (teacherPerms) return document.createTextNode('');
+function createRequestButton(subject, type, label, readOnly) {
+    if (readOnly) return document.createTextNode('');
     const btn = document.createElement('button');
     btn.textContent = label;
 
@@ -519,7 +519,7 @@ function createSubjectPanel(subject, studentData, teacherPerms) {
                 gelingensnachweis: 'Schüler ist bereit für den Gelingensnachweis'
             }[type];
 
-            const btn = createRequestButton(subject, type, label);
+            const btn = createRequestButton(subject, type, label, teacherPerms);
             body.appendChild(btn);
         });
     }

@@ -20,10 +20,16 @@ function setup() {
 test('student subject request writes do not send a student identity',async()=>{
   const {dom,requests}=setup();
   try {
+    assert.equal('teacherPerms' in dom.window,false);
+    dom.window.studentData={currentRequests:{}};
+    const button=dom.window.createRequestButton({id:3},'hilfe','Hilfe',false);
+    assert.equal(button.tagName,'BUTTON');
+    button.click();
     await dom.window.addSubjectRequest(3,'hilfe',99);
     await dom.window.removeSubjectRequest(3,'partner',99);
     assert.deepEqual(requests[0],{url:'/subject-request',body:{subjectId:3,subjectRequest:'hilfe'}});
-    assert.deepEqual(requests[1],{url:'/subject-request',body:{subjectId:3,subjectRequest:'partner',remove:true}});
+    assert.deepEqual(requests[1],{url:'/subject-request',body:{subjectId:3,subjectRequest:'hilfe'}});
+    assert.deepEqual(requests[2],{url:'/subject-request',body:{subjectId:3,subjectRequest:'partner',remove:true}});
   } finally {
     dom.window.close();
   }
@@ -32,8 +38,8 @@ test('student subject request writes do not send a student identity',async()=>{
 test('teacher mode does not create writable subject request controls',()=>{
   const {dom,requests}=setup();
   try {
-    dom.window.teacherPerms=true;
-    const node=dom.window.createRequestButton({id:3},'hilfe','Hilfe');
+    assert.equal('teacherPerms' in dom.window,false);
+    const node=dom.window.createRequestButton({id:3},'hilfe','Hilfe',true);
     assert.equal(node.nodeType,dom.window.Node.TEXT_NODE);
     node.dispatchEvent(new dom.window.Event('click'));
     assert.deepEqual(requests,[]);
