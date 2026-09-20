@@ -198,8 +198,29 @@ class CurriculumTest {
         var source=service.create(teacher,scope,"Transition source",5);var target=service.create(other,secondScope(),"Transition target",5);
         service.complete(teacher,source.id(),id);
         service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(source.id(),target.id(),5)));
-        assertEquals(409,assertThrows(CurriculumException.class,()->service.setStageAssessment(admin,id,scope,Curriculum.ActiveStageType.FLEXIBLE,source.id(),Curriculum.AssessmentStatus.PASSED)).status);
+        db.writeTransaction(c->{exec(c,"UPDATE student_curriculum_contexts SET teacher=? WHERE student=? AND subject=? AND semester=?",id,id,id,id);return null;});
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,source.id(),Curriculum.AssessmentStatus.PASSED)).status);
         assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,source.id()));
+    }
+    @Test void adminCannotMutateCentralAssessmentAndReadRemainsAvailable() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        int task=central(5);
+        for(Curriculum.AssessmentStatus status:Curriculum.AssessmentStatus.values())
+            assertEquals(403,assertThrows(CurriculumException.class,()->service.setStageAssessment(admin,id,scope,Curriculum.ActiveStageType.CENTRAL,task,status)).status);
+        assertEquals(0,scalar("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=?",id,task));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_stage_assessments WHERE student=? AND stage_id=?",id,task));
+        var read=service.stageAssessment(admin,id,scope,Curriculum.ActiveStageType.CENTRAL,task);
+        assertNull(read.status());assertFalse(read.earned());
+    }
+    @Test void adminCannotMutateFlexibleAssessmentOrEarnedHistory() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        var task=service.create(teacher,scope,"Admin blocked flexible",5);
+        for(Curriculum.AssessmentStatus status:Curriculum.AssessmentStatus.values())
+            assertEquals(403,assertThrows(CurriculumException.class,()->service.setStageAssessment(admin,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id(),status)).status);
+        assertEquals(0,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,task.id()));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_stage_assessments WHERE student=? AND stage_id=?",id,task.id()));
+        var teacherResult=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id(),Curriculum.AssessmentStatus.FAILED_ONCE);
+        assertEquals(Curriculum.AssessmentStatus.FAILED_ONCE,teacherResult.status());
     }
     void assessment(Connection c,String type,int stageId,String status)throws SQLException {
         exec(c,"INSERT INTO student_curriculum_stage_assessments(student,subject,semester,stage_type,stage_id,status) VALUES(?,?,?,?,?,?)",id,id,id,type,stageId,status);

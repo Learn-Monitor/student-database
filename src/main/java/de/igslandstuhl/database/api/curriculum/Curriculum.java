@@ -492,6 +492,7 @@ public final class Curriculum {
     public StageAssessment setStageAssessment(Actor actor, int studentId, Scope scope,
                                               ActiveStageType stageType, int stageId,
                                               AssessmentStatus status) throws SQLException {
+        if(actor==null || actor.admin()) throw error(403,"forbidden","Teacher required for student assessment.");
         if(status==null) throw error(400,"invalid_input","Assessment status is required.");
         transaction(c -> {
             if(stageType==ActiveStageType.FLEXIBLE && status==AssessmentStatus.PASSED) {
