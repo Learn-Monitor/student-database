@@ -113,6 +113,16 @@
     },
     {
         "type": "TEACHER_DASHBOARD",
+        "path": "/dashboard#overview",
+        "label": "Übersicht"
+    },
+    {
+        "type": "TEACHER_DASHBOARD",
+        "path": "/dashboard#curriculum",
+        "label": "Themen & Etappen"
+    },
+    {
+        "type": "TEACHER_DASHBOARD",
         "path": "/dashboard#student-progress",
         "label": "Schülerfortschritt"
     },
