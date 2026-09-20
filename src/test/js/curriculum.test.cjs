@@ -51,6 +51,7 @@ async function setup(admin, options={}){
   {type:'FLEXIBLE',stageId:100,topicId:null,topicName:null,name:'Locked flexible',tokens:8,status:'LOCKED',earned:true,inProgress:false},
   {type:'FLEXIBLE',stageId:101,topicId:null,topicName:null,name:'Unassessed flexible',tokens:9,status:null,earned:false,inProgress:false}
  ]};
+ let progressDetail=options.detail ?? defaultProgressDetail;
  dom.window.fetch=async(url,requestOptions)=>{
   const data=JSON.parse(requestOptions.body);requests.push({url,data});let body;let ok=true;
   if(options.response?.url===url)return {ok:false,status:options.response.status,text:async()=>options.response.body};
@@ -72,7 +73,15 @@ async function setup(admin, options={}){
   }
   else if(url==='/curriculum-catalog')body=catalog;
   else if(url==='/curriculum-teacher-roster')body=options.rosterHandler?await options.rosterHandler(data):(options.roster ?? defaultRoster);
-  else if(url==='/curriculum-student-progress-detail')body=options.detailHandler?await options.detailHandler(data):(options.detail ?? {...defaultProgressDetail,studentId:data.studentId});
+  else if(url==='/curriculum-student-progress-detail')body=options.detailHandler?await options.detailHandler(data):{...progressDetail,studentId:data.studentId};
+  else if(url==='/set-curriculum-stage-assessment'){
+   if(options.assessmentHandler)body=await options.assessmentHandler(data);
+   else {
+    progressDetail={...progressDetail,stages:progressDetail.stages.map(stage=>stage.type===data.stageType&&stage.stageId===data.stageId?{...stage,status:data.status,earned:data.status==='PASSED'?true:stage.earned,inProgress:data.status==='PASSED'?false:stage.inProgress}:stage)};
+    if(data.status==='PASSED'){const student=defaultRoster.find(row=>row.id===data.studentId);if(student?.activeStage?.type===data.stageType&&student.activeStage.taskId===data.stageId)student.activeStage=null;}
+    const changed=progressDetail.stages.find(stage=>stage.type===data.stageType&&stage.stageId===data.stageId);body={status:changed.status,earned:changed.earned};
+   }
+  }
   else if(url==='/curriculum-structure')body={centralTokens,topics:options.centralTopics||[{id:2,name:topicName,number:1}],tasks:options.centralTasks||[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1,stageNumber:1}]};
   else if(url==='/central-curriculum-overview')body={subjects:[{subjectId:1,subjectName:'Math',centralTokens,remainingRegular:100-centralTokens,remainingHard:105-centralTokens,warning:centralTokens>100}],rows:[{subjectId:1,subjectName:'Math',topicNumber:1,topicName,stageNumber:1,stageName:centralName,tokens:centralTokens}]};
   else if(url==='/preview-central-curriculum-import'){
@@ -285,6 +294,61 @@ test('student progress detail ignores stale responses after context changes',asy
   resolveDetail({studentId:50,studentName:'Stale Detail',subjectId:1,semesterId:20,stages:[]});await tick();
   assert.doesNotMatch(progress.textContent,/Stale Detail/);
  }finally{dom.window.close();}
+});
+test('assessment controls are permission gated and revocation blocks mutation',async()=>{
+ let pm={...grants(),curriculum_assess_students:false};let env=await setup(false,{progress:true,pm});
+ try{
+  const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
+  assert.equal(progress.querySelectorAll('.assessment-control').length,0);
+ }finally{env.dom.window.close();}
+ pm={...grants(),curriculum_assess_students:true};env=await setup(false,{progress:true,pm});
+ try{
+  const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
+  const control=progress.querySelector('.assessment-control'),save=progress.querySelector('.assessment-save');assert.ok(control);control.value='PASSED';pm.curriculum_assess_students=false;save.click();await tick();
+  assert.equal(env.requests.some(r=>r.url==='/set-curriculum-stage-assessment'),false);assert.match(progress.textContent,/Berechtigung/);
+ }finally{env.dom.window.close();}
+});
+test('assessment controls send exact payloads for all four explicit states',async()=>{
+ for(const status of ['PASSED','FAILED_ONCE','FAILED_TWICE','LOCKED']){
+  const detail={studentId:50,studentName:'Ada Alpha',subjectId:1,semesterId:20,stages:[{type:status==='LOCKED'?'FLEXIBLE':'CENTRAL',stageId:77,topicId:null,topicName:null,name:'Stage',tokens:5,status:null,earned:false,inProgress:true}]};
+  const env=await setup(false,{progress:true,detail,pm:{...grants(),curriculum_assess_students:true}});
+  try{
+   const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
+   const control=progress.querySelector('.assessment-control');control.value=status;progress.querySelector('.assessment-save').click();await tick();await tick();
+   const request=env.requests.find(r=>r.url==='/set-curriculum-stage-assessment');
+   assert.deepEqual(request.data,{studentId:50,subjectId:1,classId:10,semesterId:20,stageType:status==='LOCKED'?'FLEXIBLE':'CENTRAL',stageId:77,status});
+   assert.equal(Object.hasOwn(request.data,'teacherId'),false);assert.equal(Object.hasOwn(request.data,'earned'),false);assert.equal(Object.hasOwn(request.data,'tokens'),false);
+  }finally{env.dom.window.close();}
+ }
+});
+test('successful assessment reloads roster and selected detail while preserving earned separately',async()=>{
+ const pm={...grants(),curriculum_assess_students:true};const{dom,requests}=await setup(false,{progress:true,pm});
+ try{
+  const progress=dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
+  const detailBefore=requests.filter(r=>r.url==='/curriculum-student-progress-detail').length,rosterBefore=requests.filter(r=>r.url==='/curriculum-teacher-roster').length;
+  const control=[...progress.querySelectorAll('.assessment-control')].find(node=>node.dataset.stageType==='CENTRAL'&&node.dataset.stageId==='3');control.value='PASSED';control.parentElement.querySelector('.assessment-save').click();await tick();await tick();
+  assert.equal(requests.filter(r=>r.url==='/curriculum-teacher-roster').length,rosterBefore+1);
+  assert.equal(requests.filter(r=>r.url==='/curriculum-student-progress-detail').length,detailBefore+1);
+  assert.doesNotMatch([...progress.querySelectorAll('table')][0].textContent,/Central · Zentral/);
+  assert.match(progress.textContent,/Bestanden/);assert.match(progress.textContent,/Ja/);
+  const locked=[...progress.querySelectorAll('tr')].find(row=>row.textContent.includes('Locked flexible'));assert.match(locked.textContent,/Gesperrt/);assert.match(locked.textContent,/Ja/);
+ }finally{dom.window.close();}
+});
+test('assessment double click sends once and unsafe server errors stay text only',async()=>{
+ let resolveAssessment;const assessmentHandler=()=>new Promise(resolve=>{resolveAssessment=resolve;});
+ let env=await setup(false,{progress:true,pm:{...grants(),curriculum_assess_students:true},assessmentHandler});
+ try{
+  const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
+  const control=progress.querySelector('.assessment-control'),save=progress.querySelector('.assessment-save');control.value='PASSED';save.click();save.click();await tick();
+  assert.equal(env.requests.filter(r=>r.url==='/set-curriculum-stage-assessment').length,1);assert.equal(save.disabled,true);
+  resolveAssessment({status:'PASSED',earned:true});await tick();await tick();
+ }finally{env.dom.window.close();}
+ env=await setup(false,{progress:true,pm:{...grants(),curriculum_assess_students:true},response:{url:'/set-curriculum-stage-assessment',status:500,body:'<script>alert(1)</script> stacktrace'}});
+ try{
+  const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
+  const control=progress.querySelector('.assessment-control');control.value='LOCKED';progress.querySelector('.assessment-save').click();await tick();
+  assert.equal(progress.querySelectorAll('script').length,0);assert.doesNotMatch(progress.textContent,/stacktrace|alert\(1\)/);assert.match(progress.textContent,/Anfrage fehlgeschlagen/);
+ }finally{env.dom.window.close();}
 });
 test('admin curriculum filters keep subject semester class teacher and grade selects',async()=>{
  const{dom,root}=await setup(true);

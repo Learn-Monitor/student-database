@@ -109,9 +109,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             detailGeneration++;
             detailArea.replaceChildren();
         }
-        function renderDetail(detail) {
+        const assessmentOptions = [
+            ['PASSED','Bestanden'], ['FAILED_ONCE','1× nicht bestanden'],
+            ['FAILED_TWICE','2× nicht bestanden'], ['LOCKED','Gesperrt']
+        ];
+        const assessmentWrites = new Set();
+        function renderDetail(detail, canAssess) {
             detailArea.replaceChildren();
-            detailArea.append(el('h3', detail.studentName || 'Schülerdetail'));
+            const detailStatus = el('p'); detailStatus.setAttribute('role','status');
+            detailArea.append(el('h3', detail.studentName || 'Schülerdetail'),detailStatus);
             const table = document.createElement('table'), head = table.insertRow();
             ['Thema','Etappe','Typ','Münzen','Bewertung','Verdient','In Bearbeitung']
                 .forEach(text => head.append(el('th', text)));
@@ -121,7 +127,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tr.insertCell().textContent = stage.name || '';
                 tr.insertCell().textContent = stage.type === 'CENTRAL' ? 'Zentral' : stage.type === 'FLEXIBLE' ? 'Flexibel' : '';
                 tr.insertCell().textContent = String(stage.tokens ?? 0);
-                tr.insertCell().textContent = assessmentText(stage.status);
+                const assessmentCell=tr.insertCell();assessmentCell.append(el('span',assessmentText(stage.status)));
+                if(canAssess && (stage.type==='CENTRAL'||stage.type==='FLEXIBLE')) {
+                    const control=el('select');control.className='assessment-control';control.dataset.stageType=stage.type;control.dataset.stageId=stage.stageId;
+                    const placeholder=el('option','Bewertung wählen');placeholder.value='';placeholder.disabled=true;control.append(placeholder);
+                    for(const [value,label] of assessmentOptions){const option=el('option',label);option.value=value;control.append(option);}
+                    control.value=stage.status||'';
+                    const save=el('button','Speichern');save.type='button';save.className='assessment-save';
+                    save.addEventListener('click',async()=>{
+                        const key=`${stage.type}:${stage.stageId}`;
+                        if(assessmentWrites.has(key)||!control.value)return;
+                        assessmentWrites.add(key);control.disabled=true;save.disabled=true;detailStatus.textContent='Bewertung wird gespeichert.';
+                        try {
+                            if(!await allowed('curriculum_assess_students'))throw Error(permissionDenied);
+                            const context=selectedContext();
+                            if(!context||selectedStudentId!==detail.studentId)throw Error('Die Auswahl wurde geändert. Bitte Details neu öffnen.');
+                            await post('/set-curriculum-stage-assessment',{
+                                studentId:detail.studentId,subjectId:context.subjectId,classId:context.classId,semesterId:context.semesterId,
+                                stageType:stage.type,stageId:stage.stageId,status:control.value
+                            });
+                            detailStatus.textContent='Bewertung gespeichert.';
+                            await loadRoster();
+                        } catch(error) {
+                            detailStatus.textContent=error.message;detailStatus.style.color='darkred';
+                        } finally {
+                            assessmentWrites.delete(key);control.disabled=false;save.disabled=false;
+                        }
+                    });
+                    assessmentCell.append(document.createElement('br'),control,save);
+                }
                 tr.insertCell().textContent = stage.earned === true ? 'Ja' : '—';
                 tr.insertCell().textContent = stage.inProgress === true ? 'In Bearbeitung' : '—';
             }
@@ -144,7 +178,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const selected = selectedContext();
                 const latest = selected ? `${selected.classId}:${selected.subjectId}:${selected.semesterId}:${selectedStudentId}` : '';
                 if (current !== detailGeneration || snapshot !== latest) return;
-                renderDetail(detail);
+                const canAssess=await allowed('curriculum_assess_students');
+                if(current!==detailGeneration)return;
+                renderDetail(detail,canAssess);
             } catch (error) {
                 if (current !== detailGeneration) return;
                 detailArea.replaceChildren(el('p', error.message));
