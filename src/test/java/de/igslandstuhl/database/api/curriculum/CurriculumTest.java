@@ -381,6 +381,84 @@ class CurriculumTest {
         assertEquals(true,signals.get("experiment"));
         assertEquals(true,signals.get("exam"));
     }
+    @Test void teacherRosterHttpSerializesCanonicalRegularRosterWithNullStagesAndSignals() throws Exception {
+        int unassigned=id+2;
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'No','Context',?,'unused',?,1)",unassigned,"roster-http"+id+"@example.invalid",id);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'HELP')",id,id,id);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'PARTNER')",id,id,id);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'EXPERIMENT')",id,id+1,id);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'EXAM')",id,id,id+1);
+            return null;
+        });
+
+        var response=request(Teacher.get(id),"/curriculum-teacher-roster",rosterBody());
+        assertEquals(Status.OK,response.getStatus());
+        String body=responseBody(response).split("\r\n\r\n",2)[1];
+        assertTrue(body.contains("\"activeStage\":null"));
+        assertFalse(body.contains("email"));
+        assertFalse(body.contains("password"));
+        assertFalse(body.contains("passwordHash"));
+        var roster=com.google.gson.JsonParser.parseString(body).getAsJsonArray();
+        assertEquals(1,roster.size());
+        var row=byId(roster,id);
+        assertFalse(row.has("email"));
+        assertFalse(row.has("password"));
+        assertFalse(row.has("passwordHash"));
+        assertTrue(row.get("activeStage").isJsonNull());
+        var signals=row.getAsJsonObject("signals");
+        assertEquals(Set.of("help","partner","experiment","exam"),signals.keySet());
+        assertTrue(signals.get("help").getAsBoolean());
+        assertTrue(signals.get("partner").getAsBoolean());
+        assertFalse(signals.get("experiment").getAsBoolean());
+        assertFalse(signals.get("exam").getAsBoolean());
+        assertThrows(AssertionError.class,()->byId(roster,unassigned));
+    }
+    @Test void teacherRosterHttpSerializesCentralAndFlexibleActiveStages() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        int central=centralNamed("Roster central",5);
+        releaseAllCentral();
+        service.activateCentralStage(id,central);
+        var centralStage=byId(jsonArrayResponse(Teacher.get(id),"/curriculum-teacher-roster",rosterBody()),id).getAsJsonObject("activeStage");
+        assertEquals("CENTRAL",centralStage.get("type").getAsString());
+        assertEquals(central,centralStage.get("taskId").getAsInt());
+        assertEquals("Roster central",centralStage.get("name").getAsString());
+
+        var flexible=service.create(teacher,scope,"Roster flexible",6);
+        new CurriculumEnrollment(service).release(teacher,scope,null,null,null,flexible.id(),true);
+        service.activateFlexibleStage(id,flexible.id());
+        var flexibleStage=byId(jsonArrayResponse(Teacher.get(id),"/curriculum-teacher-roster",rosterBody()),id).getAsJsonObject("activeStage");
+        assertEquals("FLEXIBLE",flexibleStage.get("type").getAsString());
+        assertEquals(flexible.id(),flexibleStage.get("taskId").getAsInt());
+        assertEquals("Roster flexible",flexibleStage.get("name").getAsString());
+    }
+    @Test void teacherRosterHttpRejectsForeignTeacherAndLegacyOnlyContexts() throws Exception {
+        assertEquals(Status.FORBIDDEN,request(Teacher.get(id),"/curriculum-teacher-roster",rosterBody()).getStatus());
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        assertEquals(Status.FORBIDDEN,request(Teacher.get(id),"/curriculum-teacher-roster",rosterBody().replace("\"teacherId\":"+id,"\"teacherId\":"+(id+1))).getStatus());
+    }
+    @Test void teacherRosterHttpSupportsIndividualAndEmptyContexts() throws Exception {
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id+1,id,id);
+            return null;
+        });
+        assertEquals(0,jsonArrayResponse(Teacher.get(id),"/curriculum-teacher-roster",rosterBody().replace("\"classId\":"+id,"\"classId\":"+(id+1))).size());
+
+        int subject=id+2,visible=id+3,hidden=id+4;
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",subject,"Individual HTTP-"+id);
+            exec(c,"INSERT INTO curriculum_subject_types(subject,wpf,mode,assignment_group) VALUES(?,1,'INDIVIDUAL','WPF')",subject);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Visible','Student',?,'unused',?,1)",visible,"visible-http"+id+"@example.invalid",id);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Hidden','Student',?,'unused',?,1)",hidden,"hidden-http"+id+"@example.invalid",id);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)",visible,subject,id,id,id);
+            return null;
+        });
+        var roster=jsonArrayResponse(Teacher.get(id),"/curriculum-teacher-roster",rosterBody().replace("\"subjectId\":"+id,"\"subjectId\":"+subject));
+        assertEquals(1,roster.size());
+        assertEquals(visible,roster.get(0).getAsJsonObject().get("id").getAsInt());
+        assertThrows(AssertionError.class,()->byId(roster,hidden));
+    }
     @Test void legacyUnscheduledAndIndividualRemainUntouched()throws Exception {
         var legacy=UnscheduledTask.addUnscheduledTask("Legacy-"+id,SchoolClass.get(id),Subject.get(id),6);
         db.writeTransaction(c->{exec(c,"INSERT INTO completed_unscheduled_tasks(student,unscheduled_task) VALUES(?,?)",id,legacy.getId());return null;});
@@ -535,6 +613,7 @@ class CurriculumTest {
     }
     String body() {return "{\"subjectId\":"+id+",\"semesterId\":"+id+"}";}
     String assignmentBody() {return "{\"studentId\":"+id+",\"teacherId\":"+id+",\"subjectId\":"+id+",\"classId\":"+id+",\"semesterId\":"+id+"}";}
+    String rosterBody() {return "{\"teacherId\":"+id+",\"subjectId\":"+id+",\"classId\":"+id+",\"semesterId\":"+id+"}";}
     String responseBody(de.igslandstuhl.database.server.webserver.responses.PostResponse response) {
         var output=new java.io.ByteArrayOutputStream();response.respond(new java.io.PrintStream(output));return output.toString();
     }
@@ -869,6 +948,10 @@ class CurriculumTest {
     com.google.gson.JsonObject jsonResponse(User user,String path,String payload) {
         var response=request(user,path,payload);assertEquals(Status.OK,response.getStatus());
         return com.google.gson.JsonParser.parseString(responseBody(response).split("\r\n\r\n",2)[1]).getAsJsonObject();
+    }
+    com.google.gson.JsonArray jsonArrayResponse(User user,String path,String payload) {
+        var response=request(user,path,payload);assertEquals(Status.OK,response.getStatus());
+        return com.google.gson.JsonParser.parseString(responseBody(response).split("\r\n\r\n",2)[1]).getAsJsonArray();
     }
     @Test void bothHttpResponsesExposeSameAdditiveTypedContractWithoutPersonalData() throws Exception {
         int task=central(6);Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);

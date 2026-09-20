@@ -369,6 +369,12 @@
         "namespaces": [],
         "access_level": "teacher"
     },
+    "/curriculum-teacher-roster": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
     "/my-curriculum-progress": {
         "type": "POST",
         "handler_type": "PostRequestHandler",

@@ -16,7 +16,8 @@ public final class CurriculumRequestHandler {
     public static void registerHandlers() {
         for(String path:List.of("/curriculum-catalog","/curriculum-structure","/curriculum-budget","/curriculum-progress",
                 "/flexible-tasks","/add-flexible-task","/edit-flexible-task","/complete-flexible-task",
-                "/flexible-curriculum-structure","/add-flexible-topic","/rename-flexible-topic","/curriculum-releases","/set-curriculum-release"))
+                "/flexible-curriculum-structure","/add-flexible-topic","/rename-flexible-topic","/curriculum-releases","/set-curriculum-release",
+                "/curriculum-teacher-roster"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task",
                 "/central-curriculum-overview","/preview-central-curriculum-import","/import-central-curriculum",
@@ -109,6 +110,7 @@ public final class CurriculumRequestHandler {
             Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
             CurriculumEnrollment enrollment=new CurriculumEnrollment(service);
             Object result;
+            boolean includeNulls=false;
             switch(rq.getPath()) {
                 case "/curriculum-enrollment-catalog" -> result=enrollment.catalog(actor);
                 case "/create-curriculum-semester" -> result=enrollment.createNextSemester(actor);
@@ -163,6 +165,7 @@ public final class CurriculumRequestHandler {
                     service.transfer(actor,integer(rq,"studentId"),source,target,transfers);result=Map.of("ok",true);
                 }
                 case "/curriculum-students" -> result=service.students(actor,scope(rq,actor));
+                case "/curriculum-teacher-roster" -> {result=service.teacherRoster(actor,scope(rq,actor));includeNulls=true;}
                 case "/assign-curriculum-context" -> {service.assign(actor,integer(rq,"studentId"),scope(rq,actor));result=Map.of("ok",true);}
                 case "/curriculum-catalog" -> result=service.catalog(actor);
                 case "/curriculum-structure" -> result=service.centralStructure(actor,integer(rq,"subjectId"),integer(rq,"grade"),integer(rq,"semesterId"));
@@ -189,7 +192,7 @@ public final class CurriculumRequestHandler {
                 }
                 default -> throw new CurriculumException(404,"not_found","Unknown curriculum operation.");
             }
-            return PostResponse.json(result,rq);
+            return includeNulls ? PostResponse.jsonWithNulls(result,rq) : PostResponse.json(result,rq);
         } catch(CurriculumException e) {
             Map<String,Object> body=new LinkedHashMap<>();body.put("error",e.code);body.put("message",e.getMessage());
             if(!e.affectedContexts.isEmpty()) body.put("affectedContexts",e.affectedContexts);
