@@ -83,6 +83,72 @@ class CurriculumTest {
         assertSame(before,Topic.get(topic));assertEquals(topic,before.getId());assertEquals("Renamed",before.getName());
         assertEquals("Renamed",subject.getTopics(5).stream().filter(t->t.getId()==topic).findFirst().orElseThrow().getName());
     }
+    @Test void assessmentSchemaStoresOnlyAllowedOverridesAndSeparatesStageTypes() throws Exception {
+        int centralTask=900000;
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO tasks(id,topic,name,niveau,stage_number,tokens) VALUES(?,?,?,1,1,1)",centralTask,topic,"Same id");
+            exec(c,"INSERT INTO flexible_tasks(id,owner_teacher,subject,class,semester,grade,name,tokens) VALUES(?,?,?,?,?,5,'Same id',1)",centralTask,id,id,id,id);
+            exec(c,"INSERT INTO student_curriculum_stage_assessments(student,subject,semester,stage_type,stage_id,status) VALUES(?,?,?,?,?,?)",id,id,id,"CENTRAL",centralTask,"FAILED_ONCE");
+            exec(c,"INSERT INTO student_curriculum_stage_assessments(student,subject,semester,stage_type,stage_id,status) VALUES(?,?,?,?,?,?)",id,id,id,"FLEXIBLE",centralTask,"FAILED_TWICE");
+            return null;
+        });
+        assertEquals(2,scalar("SELECT COUNT(*) FROM student_curriculum_stage_assessments WHERE student=?",id));
+        for(String status:List.of("PASSED","UNKNOWN"))
+            assertThrows(SQLException.class,()->db.writeTransaction(c->{exec(c,"INSERT INTO student_curriculum_stage_assessments(student,subject,semester,stage_type,stage_id,status) VALUES(?,?,?,?,?,?)",id,id,id,"CENTRAL",centralTask,status);return null;}));
+        assertThrows(SQLException.class,()->db.writeTransaction(c->{exec(c,"INSERT INTO student_curriculum_stage_assessments(student,subject,semester,stage_type,stage_id,status) VALUES(?,?,?,?,?,?)",id,id,id,"OTHER",centralTask,"LOCKED");return null;}));
+        assertThrows(SQLException.class,()->db.writeTransaction(c->{exec(c,"INSERT INTO student_curriculum_stage_assessments(student,subject,semester,stage_type,stage_id,status) VALUES(?,?,?,?,?,?)",id,id,id,"CENTRAL",centralTask,"LOCKED");return null;}));
+    }
+    @Test void centralAssessmentSeparatesEarnedHistoryFromCurrentOverride() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        int task=central(5);
+        var none=service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task);
+        assertNull(none.status());assertFalse(none.earned());
+        db.writeTransaction(c->{assessment(c,"CENTRAL",task,"FAILED_ONCE");return null;});
+        assertEquals(Curriculum.AssessmentStatus.FAILED_ONCE,service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task).status());
+        assertFalse(service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task).earned());
+        Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);
+        assertEquals(Curriculum.AssessmentStatus.FAILED_ONCE,service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task).status());
+        assertTrue(service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task).earned());
+        for(String status:List.of("FAILED_TWICE","LOCKED")) {
+            db.writeTransaction(c->{exec(c,"UPDATE student_curriculum_stage_assessments SET status=? WHERE student=? AND subject=? AND semester=? AND stage_type=? AND stage_id=?",status,id,id,id,"CENTRAL",task);return null;});
+            assertEquals(Curriculum.AssessmentStatus.valueOf(status),service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task).status());
+            assertTrue(service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task).earned());
+        }
+    }
+    @Test void flexibleAssessmentUsesActiveCompletionAndScopeAuthorization() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        var task=service.create(teacher,scope,"Assessment flexible",5);
+        assertNull(service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id()).status());
+        db.writeTransaction(c->{assessment(c,"FLEXIBLE",task.id(),"FAILED_TWICE");return null;});
+        assertEquals(Curriculum.AssessmentStatus.FAILED_TWICE,service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id()).status());
+        assertFalse(service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id()).earned());
+        service.complete(teacher,task.id(),id);
+        assertTrue(service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id()).earned());
+        var plain=service.create(teacher,scope,"Assessment passed",5);
+        service.complete(teacher,plain.id(),id);
+        var passed=service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,plain.id());
+        assertEquals(Curriculum.AssessmentStatus.PASSED,passed.status());assertTrue(passed.earned());
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.stageAssessment(other,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id())).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.stageAssessment(teacher,id,new Curriculum.Scope(id,id+1,id,id),Curriculum.ActiveStageType.FLEXIBLE,task.id())).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.stageAssessment(teacher,id,new Curriculum.Scope(id,id,id,id+1),Curriculum.ActiveStageType.FLEXIBLE,task.id())).status);
+        db.writeTransaction(c->{exec(c,"DELETE FROM curriculum_class_teachers WHERE semester=? AND class=? AND subject=?",id,id,id);return null;});
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id())).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.stageAssessment(teacher,id,secondScope(),Curriculum.ActiveStageType.FLEXIBLE,task.id())).status);
+        unassign();
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id())).status);
+    }
+    @Test void transferredFlexibleSourceCompletionIsNotEarnedForSourceRead() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        var source=service.create(teacher,scope,"Source",5);var target=service.create(other,secondScope(),"Target",5);
+        service.complete(teacher,source.id(),id);
+        service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(source.id(),target.id(),5)));
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,source.id())).status);
+        db.writeTransaction(c->{exec(c,"UPDATE student_curriculum_contexts SET teacher=? WHERE student=? AND subject=? AND semester=?",id,id,id,id);return null;});
+        assertFalse(service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,source.id()).earned());
+    }
+    void assessment(Connection c,String type,int stageId,String status)throws SQLException {
+        exec(c,"INSERT INTO student_curriculum_stage_assessments(student,subject,semester,stage_type,stage_id,status) VALUES(?,?,?,?,?,?)",id,id,id,type,stageId,status);
+    }
     @Test void centralEditProtectsCompletedTokenValue()throws Exception {
         int taskId=central(6);Task task=Task.get(taskId);Topic.get(topic).getTasks();
         Student student=Student.get(id);student.changeTaskStatus(task,Task.STATUS_COMPLETED);

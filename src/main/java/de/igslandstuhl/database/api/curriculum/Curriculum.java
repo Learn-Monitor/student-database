@@ -36,9 +36,11 @@ public final class Curriculum {
         Scope scope() { return new Scope(ownerTeacher, subjectId, classId, semesterId); }
     }
     public enum ActiveStageType { CENTRAL, FLEXIBLE }
+    public enum AssessmentStatus { PASSED, FAILED_ONCE, FAILED_TWICE, LOCKED }
     public record ActiveStage(ActiveStageType type, int taskId, int subjectId, int semesterId, String name) {}
     public record PartnerCandidate(int id, String name) {}
     public record StudentSubject(int id, String name) {}
+    public record StageAssessment(AssessmentStatus status, boolean earned) {}
     private record CentralTask(int id, int subjectId, int semesterId, int grade, int topicId, String name) {}
     static CurriculumException error(int status, String code, String message) {
         return new CurriculumException(status, code, message);
@@ -434,6 +436,46 @@ public final class Curriculum {
                     + "ORDER BY s.last_name,s.first_name,s.id",
                     subjectId,semester,studentId,grade,taskId).stream()
                     .map(r->new PartnerCandidate(integer(r,"id"),(String)r.get("name"))).toList();
+        });
+    }
+    private static int authorizeAssessmentRead(Connection c, Actor actor, int studentId, Scope scope) throws SQLException {
+        if(!actor.admin() && actor.teacherId()!=scope.teacherId())
+            throw error(403,"forbidden","This context belongs to another teacher.");
+        require(c,"SELECT id FROM teachers WHERE id=?",scope.teacherId());
+        require(c,"SELECT id FROM subjects WHERE id=?",scope.subjectId());
+        require(c,"SELECT id FROM semesters WHERE id=?",scope.semesterId());
+        int grade=integer(require(c,"SELECT grade FROM classes WHERE id=?",scope.classId()),"grade");
+        if(!managedTeacher(c,scope,grade))
+            throw error(403,"forbidden","Teacher must be assigned to this managed curriculum context.");
+        var context=rows(c,"SELECT teacher,class,grade FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",
+                studentId,scope.subjectId(),scope.semesterId());
+        if(context.isEmpty() || integer(context.get(0),"teacher")!=scope.teacherId()
+                || integer(context.get(0),"class")!=scope.classId() || integer(context.get(0),"grade")!=grade)
+            throw error(403,"forbidden","Student is not assigned to this curriculum context.");
+        return grade;
+    }
+    public StageAssessment stageAssessment(Actor actor, int studentId, Scope scope,
+                                           ActiveStageType stageType, int stageId) throws SQLException {
+        return transaction(c -> {
+            int grade=authorizeAssessmentRead(c,actor,studentId,scope);
+            if(stageType==null || stageId<1) throw error(400,"invalid_input","Assessment stage is invalid.");
+            if(stageType==ActiveStageType.CENTRAL) {
+                require(c,"SELECT t.id FROM tasks t JOIN topics p ON p.id=t.topic WHERE t.id=? AND p.subject=? AND p.semester=? AND p.grade=?",
+                        stageId,scope.subjectId(),scope.semesterId(),grade);
+            } else {
+                require(c,"SELECT id FROM flexible_tasks WHERE id=? AND owner_teacher=? AND subject=? AND class=? AND semester=? AND grade=?",
+                        stageId,scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade);
+            }
+            var override=rows(c,"SELECT status FROM student_curriculum_stage_assessments WHERE student=? AND subject=? AND semester=? AND stage_type=? AND stage_id=?",
+                    studentId,scope.subjectId(),scope.semesterId(),stageType.name(),stageId);
+            boolean earned=stageType==ActiveStageType.CENTRAL
+                    ? number(c,"SELECT COUNT(*) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE x.student=? AND x.task=? AND x.status=? AND p.subject=? AND p.semester=? AND p.grade=?",
+                            studentId,stageId,Task.STATUS_COMPLETED,scope.subjectId(),scope.semesterId(),grade)>0
+                    : number(c,"SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task WHERE x.student=? AND x.flexible_task=? AND t.owner_teacher=? AND t.subject=? AND t.class=? AND t.semester=? AND t.grade=? AND " + ACTIVE_COMPLETION,
+                            studentId,stageId,scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade)>0;
+            AssessmentStatus status=override.isEmpty() ? (earned?AssessmentStatus.PASSED:null)
+                    : AssessmentStatus.valueOf(String.valueOf(override.get(0).get("status")));
+            return new StageAssessment(status,earned);
         });
     }
     private static void putActiveCentral(Connection c,int studentId,CentralTask task) throws SQLException {
