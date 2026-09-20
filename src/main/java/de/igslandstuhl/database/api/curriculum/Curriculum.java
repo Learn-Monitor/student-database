@@ -41,6 +41,11 @@ public final class Curriculum {
     public record PartnerCandidate(int id, String name) {}
     public record StudentSubject(int id, String name) {}
     public record StageAssessment(AssessmentStatus status, boolean earned) {}
+    public record StudentStageProgress(ActiveStageType type, int stageId, Integer topicId, String topicName,
+                                      String name, int tokens, AssessmentStatus status, boolean earned,
+                                      boolean inProgress) {}
+    public record StudentProgressDetail(int studentId, String studentName, int subjectId, int semesterId,
+                                        List<StudentStageProgress> stages) {}
     private record CentralTask(int id, int subjectId, int semesterId, int grade, int topicId, String name) {}
     static CurriculumException error(int status, String code, String message) {
         return new CurriculumException(status, code, message);
@@ -487,6 +492,57 @@ public final class Curriculum {
             AssessmentStatus status=assessmentOverride(c,studentId,scope,stageType,stageId);
             if(status==null && earned) status=AssessmentStatus.PASSED;
             return new StageAssessment(status,earned);
+        });
+    }
+    private static StageAssessment stageAssessment(Connection c, int studentId, Scope scope,
+                                                  ActiveStageType stageType, int stageId, int grade) throws SQLException {
+        boolean earned=earned(c,studentId,scope,stageType,stageId,grade);
+        AssessmentStatus status=assessmentOverride(c,studentId,scope,stageType,stageId);
+        if(status==null && earned) status=AssessmentStatus.PASSED;
+        return new StageAssessment(status,earned);
+    }
+    /** Canonical teacher read model for every central and flexible stage in one exact context. */
+    public StudentProgressDetail studentProgressDetail(Actor actor, int studentId, Scope scope) throws SQLException {
+        return transaction(c -> {
+            int grade=authorizeAssessmentRead(c,actor,studentId,scope);
+            var student=require(c,"SELECT first_name,last_name FROM students WHERE id=?",studentId);
+            String studentName=student.get("first_name")+" "+student.get("last_name");
+            var activeRows=rows(c,"SELECT central_task,flexible_task FROM student_active_curriculum_stages "
+                    + "WHERE student=? AND subject=? AND semester=?",studentId,scope.subjectId(),scope.semesterId());
+            ActiveStageType activeType=null; int activeId=0;
+            if(!activeRows.isEmpty()) {
+                var active=activeRows.get(0);
+                if(active.get("central_task")!=null) {
+                    activeType=ActiveStageType.CENTRAL; activeId=integer(active,"central_task");
+                } else if(active.get("flexible_task")!=null) {
+                    activeType=ActiveStageType.FLEXIBLE; activeId=integer(active,"flexible_task");
+                }
+            }
+            List<StudentStageProgress> stages=new ArrayList<>();
+            for(var row:rows(c,"SELECT t.id,t.name,t.tokens,p.id AS topicId,p.name AS topicName "
+                    + "FROM tasks t JOIN topics p ON p.id=t.topic "
+                    + "WHERE p.subject=? AND p.grade=? AND p.semester=? "
+                    + "ORDER BY p.number,t.stage_number,t.id",scope.subjectId(),grade,scope.semesterId())) {
+                int stageId=integer(row,"id");
+                StageAssessment assessment=stageAssessment(c,studentId,scope,ActiveStageType.CENTRAL,stageId,grade);
+                stages.add(new StudentStageProgress(ActiveStageType.CENTRAL,stageId,integer(row,"topicId"),
+                        (String)row.get("topicName"),(String)row.get("name"),integer(row,"tokens"),
+                        assessment.status(),assessment.earned(),activeType==ActiveStageType.CENTRAL && activeId==stageId));
+            }
+            for(var row:rows(c,"SELECT t.id,t.name,t.tokens,p.id AS topicId,p.name AS topicName "
+                    + "FROM flexible_tasks t LEFT JOIN flexible_task_topics m ON m.flexible_task=t.id "
+                    + "LEFT JOIN flexible_topics p ON p.id=m.flexible_topic AND p.owner_teacher=t.owner_teacher "
+                    + "AND p.subject=t.subject AND p.class=t.class AND p.semester=t.semester AND p.grade=t.grade "
+                    + "WHERE t.owner_teacher=? AND t.subject=? AND t.class=? AND t.semester=? AND t.grade=? "
+                    + "ORDER BY p.id IS NULL,p.id,t.id",scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade)) {
+                int stageId=integer(row,"id");
+                StageAssessment assessment=stageAssessment(c,studentId,scope,ActiveStageType.FLEXIBLE,stageId,grade);
+                Integer topicId=row.get("topicId")==null?null:integer(row,"topicId");
+                stages.add(new StudentStageProgress(ActiveStageType.FLEXIBLE,stageId,topicId,(String)row.get("topicName"),
+                        (String)row.get("name"),integer(row,"tokens"),assessment.status(),assessment.earned(),
+                        activeType==ActiveStageType.FLEXIBLE && activeId==stageId));
+            }
+            return new StudentProgressDetail(studentId,studentName,scope.subjectId(),scope.semesterId(),List.copyOf(stages));
         });
     }
     public StageAssessment setStageAssessment(Actor actor, int studentId, Scope scope,

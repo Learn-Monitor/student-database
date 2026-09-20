@@ -137,6 +137,49 @@ class CurriculumTest {
         unassign();
         assertEquals(403,assertThrows(CurriculumException.class,()->service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id())).status);
     }
+    @Test void studentProgressDetailCombinesCanonicalStagesAssessmentsEarnedAndActivity() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        int completed=centralNamed("Completed central",6);
+        int failed=centralNamed("Failed central",7);
+        Student.get(id).changeTaskStatus(Task.get(completed),Task.STATUS_COMPLETED);
+        db.writeTransaction(c->{assessment(c,"CENTRAL",completed,"LOCKED");
+            exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?, ?,NULL)",id,id,id,failed);return null;});
+        int flexibleTopic=service.createFlexibleTopic(teacher,scope,"Practice");
+        var withTopic=service.create(teacher,scope,"Flexible with topic",8,flexibleTopic);
+        var withoutTopic=service.create(teacher,scope,"Flexible without topic",9);
+        service.complete(teacher,withTopic.id(),id);
+        db.writeTransaction(c->{assessment(c,"FLEXIBLE",withTopic.id(),"FAILED_ONCE");return null;});
+
+        var detail=service.studentProgressDetail(teacher,id,scope);
+        assertEquals(id,detail.studentId());assertEquals("Synthetic Student",detail.studentName());
+        assertEquals(id,detail.subjectId());assertEquals(id,detail.semesterId());
+        assertEquals(4,detail.stages().size());
+        assertTrue(detail.stages().subList(0,2).stream().allMatch(s->s.type()==Curriculum.ActiveStageType.CENTRAL));
+        assertTrue(detail.stages().subList(2,4).stream().allMatch(s->s.type()==Curriculum.ActiveStageType.FLEXIBLE));
+
+        var completedStage=detail.stages().stream().filter(s->s.stageId()==completed).findFirst().orElseThrow();
+        assertEquals(Curriculum.AssessmentStatus.LOCKED,completedStage.status());assertTrue(completedStage.earned());
+        assertEquals(6,completedStage.tokens());assertEquals(topic,completedStage.topicId());
+        assertEquals("Topic-"+id,completedStage.topicName());assertFalse(completedStage.inProgress());
+        var failedStage=detail.stages().stream().filter(s->s.stageId()==failed).findFirst().orElseThrow();
+        assertNull(failedStage.status());assertFalse(failedStage.earned());assertTrue(failedStage.inProgress());
+        assertEquals(7,failedStage.tokens());
+        var flexibleStage=detail.stages().stream().filter(s->s.type()==Curriculum.ActiveStageType.FLEXIBLE && s.stageId()==withTopic.id()).findFirst().orElseThrow();
+        assertEquals(Curriculum.AssessmentStatus.FAILED_ONCE,flexibleStage.status());assertTrue(flexibleStage.earned());
+        assertEquals(flexibleTopic,flexibleStage.topicId());assertEquals("Practice",flexibleStage.topicName());
+        var unassigned=detail.stages().stream().filter(s->s.type()==Curriculum.ActiveStageType.FLEXIBLE && s.stageId()==withoutTopic.id()).findFirst().orElseThrow();
+        assertNull(unassigned.topicId());assertNull(unassigned.topicName());assertNull(unassigned.status());assertFalse(unassigned.earned());
+
+        db.writeTransaction(c->{exec(c,"UPDATE student_active_curriculum_stages SET semester=? WHERE student=? AND subject=?",id+1,id,id);return null;});
+        assertTrue(service.studentProgressDetail(teacher,id,scope).stages().stream().noneMatch(Curriculum.StudentStageProgress::inProgress));
+    }
+    @Test void studentProgressDetailRequiresExactCanonicalTeacherContext() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.studentProgressDetail(other,id,scope)).status);
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.studentProgressDetail(teacher,id,new Curriculum.Scope(id,id+1,id,id))).status);
+        db.writeTransaction(c->{exec(c,"DELETE FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",id,id,id);return null;});
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.studentProgressDetail(teacher,id,scope)).status);
+    }
     @Test void transferredFlexibleSourceCompletionIsNotEarnedForSourceRead() throws Exception {
         db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
         var source=service.create(teacher,scope,"Source",5);var target=service.create(other,secondScope(),"Target",5);
