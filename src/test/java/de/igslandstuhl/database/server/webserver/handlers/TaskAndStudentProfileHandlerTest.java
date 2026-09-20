@@ -360,8 +360,56 @@ class TaskAndStudentProfileHandlerTest {
             assertEquals(Status.BAD_REQUEST,post("/set-curriculum-stage-assessment",body.replace("\""+field+"\":"+(field.equals("stageId")?task:id),"\""+field+"\":\"bad\""),sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
     }
 
+    @Test
+    void curriculumStudentProgressDetailHttpReturnsCanonicalStagesAndExplicitNulls() throws Exception {
+        Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);
+        int failed=curriculum.createCentralTask(topic,"HTTP unassessed",TaskLevel.LEVEL1,6,5);
+        var flexible=curriculum.create(teacher,scope,"HTTP flexible without topic",7);
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?, ?,NULL)",id,id,id,failed);
+            exec(c,"INSERT INTO student_curriculum_stage_assessments(student,subject,semester,stage_type,stage_id,status) VALUES(?,?,?,?,?,?)",id,id,id,"CENTRAL",task,"LOCKED");
+            return null;
+        });
+        assertEquals(Status.OK,post("/set-curriculum-stage-assessment",assessmentBody(failed,"CENTRAL","FAILED_ONCE"),sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
+        var response=post("/curriculum-student-progress-detail",progressBody(),sessionCookieFor(Teacher.get(id).getUsername()));
+        assertEquals(Status.OK,response.getStatus());
+        var json=com.google.gson.JsonParser.parseString(responseBody(response).split("\\r\\n\\r\\n",2)[1]).getAsJsonObject();
+        assertEquals(Set.of("studentId","studentName","subjectId","semesterId","stages"),json.keySet());
+        assertEquals(id,json.get("studentId").getAsInt());assertEquals("Synthetic Student",json.get("studentName").getAsString());
+        assertEquals(id,json.get("subjectId").getAsInt());assertEquals(id,json.get("semesterId").getAsInt());
+        var stages=json.getAsJsonArray("stages");assertTrue(stages.size()>=3);
+        assertEquals("CENTRAL",stages.get(0).getAsJsonObject().get("type").getAsString());
+        assertEquals(Set.of("type","stageId","topicId","topicName","name","tokens","status","earned","inProgress"),stages.get(0).getAsJsonObject().keySet());
+        var centralLocked=stages.asList().stream().map(e->e.getAsJsonObject()).filter(e->e.get("stageId").getAsInt()==task).findFirst().orElseThrow();
+        assertEquals("LOCKED",centralLocked.get("status").getAsString());assertTrue(centralLocked.get("earned").getAsBoolean());
+        var centralFailed=stages.asList().stream().map(e->e.getAsJsonObject()).filter(e->e.get("stageId").getAsInt()==failed).findFirst().orElseThrow();
+        assertEquals("FAILED_ONCE",centralFailed.get("status").getAsString());assertFalse(centralFailed.get("earned").getAsBoolean());assertTrue(centralFailed.get("inProgress").getAsBoolean());
+        var flexibleJson=stages.asList().stream().map(e->e.getAsJsonObject()).filter(e->e.get("type").getAsString().equals("FLEXIBLE") && e.get("stageId").getAsInt()==flexible.id()).findFirst().orElseThrow();
+        assertEquals(Set.of("type","stageId","topicId","topicName","name","tokens","status","earned","inProgress"),flexibleJson.keySet());
+        assertTrue(flexibleJson.get("topicId").isJsonNull());assertTrue(flexibleJson.get("topicName").isJsonNull());
+        assertTrue(flexibleJson.get("status").isJsonNull());assertFalse(flexibleJson.get("earned").getAsBoolean());assertFalse(flexibleJson.get("inProgress").getAsBoolean());
+    }
+
+    @Test
+    void curriculumStudentProgressDetailHttpIsTeacherOnlyAndRejectsNonExactPayloads() throws Exception {
+        String body=progressBody();
+        assertEquals(Status.FORBIDDEN,post("/curriculum-student-progress-detail",body,sessionCookieFor(Student.get(id).getUsername())).getStatus());
+        assertEquals(Status.FORBIDDEN,post("/curriculum-student-progress-detail",body,sessionCookieFor(Admin.create("progress-admin-"+id,"synthetic-test-only").getUsername())).getStatus());
+        assertEquals(Status.FORBIDDEN,post("/curriculum-student-progress-detail",body,sessionCookieFor(Teacher.get(id+1).getUsername())).getStatus());
+        for(String field:List.of("teacherId","grade","stageId","stageType","status","earned","tokens","unknownField"))
+            assertEquals(Status.BAD_REQUEST,post("/curriculum-student-progress-detail",body.substring(0,body.length()-1)+",\""+field+"\":1}",sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
+        for(String field:List.of("studentId","subjectId","classId","semesterId")) {
+            String missing=body.replace(field.equals("studentId")?"\"studentId\":"+id:",\""+field+"\":"+id,"");
+            assertEquals(Status.BAD_REQUEST,post("/curriculum-student-progress-detail",missing,sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
+            assertEquals(Status.BAD_REQUEST,post("/curriculum-student-progress-detail",body.replace("\""+field+"\":"+id,"\""+field+"\":\"bad\""),sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
+        }
+    }
+
     private String assessmentBody(int stageId,String stageType,String status) {
         return "{\"studentId\":"+id+",\"subjectId\":"+id+",\"classId\":"+id+",\"semesterId\":"+id+",\"stageType\":\""+stageType+"\",\"stageId\":"+stageId+",\"status\":\""+status+"\"}";
+    }
+    private String progressBody() {
+        return "{\"studentId\":"+id+",\"subjectId\":"+id+",\"classId\":"+id+",\"semesterId\":"+id+"}";
     }
     private com.google.gson.JsonObject assessmentResponse(int stageId,String stageType,String status) throws Exception {
         HttpResponse response=post("/set-curriculum-stage-assessment",assessmentBody(stageId,stageType,status),sessionCookieFor(Teacher.get(id).getUsername()));
