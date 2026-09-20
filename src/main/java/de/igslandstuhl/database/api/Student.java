@@ -625,6 +625,12 @@ public class Student extends User {
         }
         selectedTasks.removeIf(task -> task.getTopic().getSubject().equals(subject));
     }
+    public void clearSelectedTask(Task task) {
+        if (task == null) {
+            throw new IllegalArgumentException("Task cannot be null");
+        }
+        selectedTasks.remove(task);
+    }
     public void changeTaskStatus(Task task, int newStatus) throws SQLException {
         applyTaskStatusCache(task, newStatus);
         // Update in DB

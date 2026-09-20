@@ -1294,6 +1294,157 @@ class CurriculumTest {
         enrollment.release(teacher,scope,null,null,null,loose.id(),true);
         assertTrue((Boolean)byId(rows(enrollment.releases(teacher,scope),"flexibleTasks"),loose.id()).get("active"));
     }
+    @Test void centralTaskLockStopsOnlyMatchingActiveStageAndResetsInProgress() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int active=centralNamed("Active",5),otherTask=centralNamed("Other",6);
+        enrollment.release(teacher,scope,topic,null,true);
+        service.activateCentralStage(id,active);
+
+        enrollment.release(teacher,scope,null,active,false);
+        assertNull(service.activeStage(id,id));
+        assertEquals(Task.STATUS_NOT_STARTED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,active));
+        assertNotEquals(Task.STATUS_LOCKED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,active));
+
+        enrollment.release(teacher,scope,null,active,true);
+        service.activateCentralStage(id,active);
+        enrollment.release(teacher,scope,null,otherTask,false);
+        assertEquals(active,service.activeStage(id,id).taskId());
+        assertEquals(Task.STATUS_IN_PROGRESS,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,active));
+    }
+    @Test void centralTopicLockStopsOnlyActiveStagesInThatTopic() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int topicA=topic, activeA=centralNamed("Topic A active",5);
+        int topicB=id+2;
+        db.writeTransaction(c->{exec(c,"INSERT INTO topics(id,name,subject,grade,number,semester) VALUES(?,?,?,5,2,?)",topicB,"Topic B-"+id,id,id);return null;});
+        int activeB=service.createCentralTask(topicB,"Topic B active",TaskLevel.LEVEL1,6);
+        enrollment.release(teacher,scope,topicA,null,true);
+        enrollment.release(teacher,scope,topicB,null,true);
+
+        service.activateCentralStage(id,activeA);
+        enrollment.release(teacher,scope,topicA,null,false);
+        assertNull(service.activeStage(id,id));
+        assertEquals(Task.STATUS_NOT_STARTED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,activeA));
+
+        service.activateCentralStage(id,activeB);
+        enrollment.release(teacher,scope,topicA,null,false);
+        assertEquals(activeB,service.activeStage(id,id).taskId());
+        assertEquals(Task.STATUS_IN_PROGRESS,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,activeB));
+    }
+    @Test void centralReleaseLocksUseExactCurriculumContextScope() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int active=centralNamed("Shared central",5);
+        enrollment.release(teacher,scope,topic,null,true);
+        service.activateCentralStage(id,active);
+
+        enrollment.release(teacher,new Curriculum.Scope(id,id,id+1,id),null,active,false);
+        assertEquals(active,service.activeStage(id,id).taskId());
+        enrollment.release(other,new Curriculum.Scope(id+1,id,id,id),null,active,false);
+        assertEquals(active,service.activeStage(id,id).taskId());
+
+        int futureTopic=id+2;
+        db.writeTransaction(c->{exec(c,"INSERT INTO topics(id,name,subject,grade,number,semester) VALUES(?,?,?,5,1,?)",futureTopic,"Future-"+id,id,id+1);return null;});
+        int futureTask=service.createCentralTask(futureTopic,"Future central",TaskLevel.LEVEL1,7);
+        enrollment.release(teacher,new Curriculum.Scope(id,id,id,id+1),null,futureTask,false);
+        assertEquals(active,service.activeStage(id,id).taskId());
+        assertEquals(Task.STATUS_IN_PROGRESS,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,active));
+    }
+    @Test void centralGroupLockPreservesCompletionsAndCacheSets() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int active=centralNamed("Active cache",5),done=centralNamed("Done cache",6),locked=centralNamed("Locked cache",7);
+        enrollment.release(teacher,scope,topic,null,true);
+        Student student=Student.get(id);
+        student.changeTaskStatus(Task.get(done),Task.STATUS_COMPLETED);
+        student.changeTaskStatus(Task.get(locked),Task.STATUS_LOCKED);
+        service.activateCentralStage(id,active);
+
+        enrollment.release(teacher,scope,null,active,false);
+        assertNull(service.activeStage(id,id));
+        assertEquals(Task.STATUS_NOT_STARTED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,active));
+        assertEquals(Task.STATUS_COMPLETED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,done));
+        assertEquals(Task.STATUS_LOCKED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,locked));
+        assertFalse(student.getSelectedTasks().contains(Task.get(active)));
+        assertTrue(student.getCompletedTasks().contains(Task.get(done)));
+        assertTrue(student.getLockedTasks().contains(Task.get(locked)));
+    }
+    @Test void centralLockAndReReleaseDoesNotRestartStudentActivity() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int active=centralNamed("Restart central",5);
+        enrollment.release(teacher,scope,topic,null,true);
+        service.activateCentralStage(id,active);
+        enrollment.release(teacher,scope,null,active,false);
+        enrollment.release(teacher,scope,null,active,true);
+        assertNull(service.activeStage(id,id));
+
+        service.activateCentralStage(id,active);
+        enrollment.release(teacher,scope,topic,null,false);
+        enrollment.release(teacher,scope,topic,null,true);
+        assertNull(service.activeStage(id,id));
+    }
+    @Test void centralGroupLockLeavesOtherSubjectsActiveAndStopsAllMatchingStudents() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int active=centralNamed("Multi student",5),otherSubject=otherSubjectCentral("Other subject active",6),secondStudent=id+3;
+        db.writeTransaction(c->{exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Second','Student',?,'unused',?,1)",secondStudent,"second"+id+"@example.invalid",id);return null;});
+        service.assign(admin,secondStudent,scope);
+        enrollment.release(teacher,scope,topic,null,true);
+        service.activateCentralStage(id,active);
+        service.activateCentralStage(id,otherSubject);
+        service.activateCentralStage(secondStudent,active);
+
+        enrollment.release(teacher,scope,null,active,false);
+        assertNull(service.activeStage(id,id));
+        assertNull(service.activeStage(secondStudent,id));
+        assertEquals(otherSubject,service.activeStage(id,id+1).taskId());
+        assertEquals(Task.STATUS_NOT_STARTED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,active));
+        assertEquals(Task.STATUS_NOT_STARTED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",secondStudent,active));
+    }
+    @Test void flexibleTaskAndTopicLocksStopOnlyMatchingActiveFlexibleStages() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int topicA=service.createFlexibleTopic(teacher,scope,"Flexible A"),topicB=service.createFlexibleTopic(teacher,scope,"Flexible B");
+        var taskA=service.create(teacher,scope,"Task A",5,topicA);
+        var taskB=service.create(teacher,scope,"Task B",6,topicB);
+        var loose=service.create(teacher,scope,"Loose",7);
+        enrollment.release(teacher,scope,null,null,topicA,null,true);
+        enrollment.release(teacher,scope,null,null,topicB,null,true);
+        enrollment.release(teacher,scope,null,null,null,loose.id(),true);
+
+        service.activateFlexibleStage(id,taskA.id());
+        enrollment.release(teacher,scope,null,null,null,taskA.id(),false);
+        assertNull(service.activeStage(id,id));
+
+        service.activateFlexibleStage(id,taskB.id());
+        enrollment.release(teacher,scope,null,null,topicA,null,false);
+        assertEquals(taskB.id(),service.activeStage(id,id).taskId());
+
+        enrollment.release(teacher,scope,null,null,topicA,null,true);
+        service.activateFlexibleStage(id,taskA.id());
+        enrollment.release(teacher,scope,null,null,topicA,null,false);
+        assertNull(service.activeStage(id,id));
+
+        service.activateFlexibleStage(id,loose.id());
+        enrollment.release(teacher,scope,null,null,topicA,null,false);
+        assertEquals(loose.id(),service.activeStage(id,id).taskId());
+    }
+    @Test void flexibleLocksPreserveCompletionsAndReReleaseDoesNotRestart() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int topicId=service.createFlexibleTopic(teacher,scope,"Flexible completion");
+        var active=service.create(teacher,scope,"Flexible active",5,topicId);
+        var completed=service.create(teacher,scope,"Flexible done",6,topicId);
+        enrollment.release(teacher,scope,null,null,topicId,null,true);
+        service.complete(teacher,completed.id(),id);
+        service.activateFlexibleStage(id,active.id());
+
+        enrollment.release(teacher,scope,null,null,null,active.id(),false);
+        assertNull(service.activeStage(id,id));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,completed.id()));
+        enrollment.release(teacher,scope,null,null,null,active.id(),true);
+        assertNull(service.activeStage(id,id));
+
+        service.activateFlexibleStage(id,active.id());
+        enrollment.release(teacher,scope,null,null,topicId,null,false);
+        enrollment.release(teacher,scope,null,null,topicId,null,true);
+        assertNull(service.activeStage(id,id));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,completed.id()));
+    }
     @Test void flexiblePublicationRejectsForeignActorScopeAndInvalidIdentityMix() throws Exception {
         var enrollment=new CurriculumEnrollment(service);
         int topicId=service.createFlexibleTopic(teacher,scope,"Practice");

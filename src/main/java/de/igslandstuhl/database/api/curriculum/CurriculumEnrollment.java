@@ -12,6 +12,7 @@ public final class CurriculumEnrollment {
     private final Curriculum curriculum;
     public CurriculumEnrollment(Curriculum curriculum) { this.curriculum=curriculum; }
     public record Teaching(int classId,int subjectId,int teacherId) {}
+    private record CentralCacheUpdate(int studentId,int taskId) {}
 
     /** Creates the next semester in chronological school-year order. */
     public Map<String,Object> createNextSemester(Actor actor) throws SQLException {
@@ -282,14 +283,14 @@ public final class CurriculumEnrollment {
     public void release(Actor actor,Scope scope,Integer topic,Integer task,Integer flexibleTopic,Integer flexibleTask,boolean active) throws SQLException {
         int selected=0;for(Integer value:new Integer[]{topic,task,flexibleTopic,flexibleTask})if(value!=null)selected++;
         if(selected!=1)throw error(400,"invalid_input","Select exactly one topic or task.");
-        curriculum.transaction(c->{int grade=authorize(c,new Actor(false,scope.teacherId()),scope,false);authorize(c,actor,scope,false);
+        List<CentralCacheUpdate> cacheUpdates=curriculum.transaction(c->{int grade=authorize(c,new Actor(false,scope.teacherId()),scope,false);authorize(c,actor,scope,false);
             if(topic!=null || task!=null) {
                 int topicId=topic!=null?topic:integer(require(c,"SELECT topic FROM tasks WHERE id=?",task),"topic");
                 require(c,"SELECT id FROM topics WHERE id=? AND subject=? AND grade=? AND semester=?",topicId,scope.subjectId(),grade,scope.semesterId());
                 String table=topic!=null?"curriculum_topic_releases":"curriculum_task_releases",column=topic!=null?"topic":"task";
                 write(c,"INSERT INTO "+table+"(teacher,class,subject,semester,"+column+",active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,"+column+") DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic!=null?topic:task,active?1:0);
                 if(topic!=null)write(c,"DELETE FROM curriculum_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND task IN(SELECT id FROM tasks WHERE topic=?)",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic);
-                return null;
+                return active?List.of():stopActiveCentralStages(c,scope,topic,task);
             }
             if(flexibleTopic!=null) {
                 var row=require(c,"SELECT * FROM flexible_topics WHERE id=?",flexibleTopic);
@@ -297,14 +298,53 @@ public final class CurriculumEnrollment {
                     throw error(403,"forbidden","Flexible topic does not belong to this context.");
                 write(c,"INSERT INTO flexible_topic_releases(teacher,class,subject,semester,flexible_topic,active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,flexible_topic) DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),flexibleTopic,active?1:0);
                 write(c,"DELETE FROM flexible_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND flexible_task IN(SELECT flexible_task FROM flexible_task_topics WHERE flexible_topic=?)",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),flexibleTopic);
-                return null;
+                if(!active)stopActiveFlexibleStages(c,scope,flexibleTopic,null);
+                return List.of();
             }
             var row=require(c,"SELECT t.*,p.flexible_topic AS topic FROM flexible_tasks t LEFT JOIN flexible_task_topics p ON p.flexible_task=t.id WHERE t.id=?",flexibleTask);
             if(integer(row,"owner_teacher")!=scope.teacherId() || integer(row,"class")!=scope.classId() || integer(row,"subject")!=scope.subjectId() || integer(row,"semester")!=scope.semesterId() || integer(row,"grade")!=grade)
                 throw error(403,"forbidden","Flexible task does not belong to this context.");
             write(c,"INSERT INTO flexible_task_releases(teacher,class,subject,semester,flexible_task,active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,flexible_task) DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),integer(row,"id"),active?1:0);
-            return null;
+            if(!active)stopActiveFlexibleStages(c,scope,null,flexibleTask);
+            return List.of();
         });
+        for(var update:cacheUpdates) {
+            Student student=Student.get(update.studentId());
+            Task cached=Task.get(update.taskId());
+            if(student!=null && cached!=null) student.clearSelectedTask(cached);
+        }
+    }
+    private static List<CentralCacheUpdate> stopActiveCentralStages(Connection c,Scope scope,Integer topic,Integer task) throws SQLException {
+        String predicate=task!=null ? "a.central_task=?" : "t.topic=?";
+        int id=task!=null ? task : topic;
+        var active=rows(c,"SELECT a.student,a.central_task FROM student_active_curriculum_stages a "
+                + "JOIN student_curriculum_contexts x ON x.student=a.student AND x.subject=a.subject AND x.semester=a.semester "
+                + "JOIN tasks t ON t.id=a.central_task JOIN topics p ON p.id=t.topic "
+                + "WHERE x.teacher=? AND x.class=? AND x.subject=? AND x.semester=? AND x.grade=p.grade "
+                + "AND a.subject=? AND a.semester=? AND p.subject=? AND p.semester=? AND "+predicate,
+                scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),id);
+        List<CentralCacheUpdate> cache=new ArrayList<>();
+        for(var row:active) {
+            int student=integer(row,"student"), centralTask=integer(row,"central_task");
+            write(c,"UPDATE taskstats SET status=0,last_updated=CURRENT_TIMESTAMP WHERE student=? AND task=? AND status=1",student,centralTask);
+            write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=? AND semester=? AND central_task=?",student,scope.subjectId(),scope.semesterId(),centralTask);
+            cache.add(new CentralCacheUpdate(student,centralTask));
+        }
+        return cache;
+    }
+    private static void stopActiveFlexibleStages(Connection c,Scope scope,Integer flexibleTopic,Integer flexibleTask) throws SQLException {
+        String join=flexibleTopic!=null ? "JOIN flexible_task_topics m ON m.flexible_task=a.flexible_task " : "";
+        String predicate=flexibleTopic!=null ? "m.flexible_topic=?" : "a.flexible_task=?";
+        int id=flexibleTopic!=null ? flexibleTopic : flexibleTask;
+        var active=rows(c,"SELECT a.student,a.flexible_task FROM student_active_curriculum_stages a "
+                + "JOIN student_curriculum_contexts x ON x.student=a.student AND x.subject=a.subject AND x.semester=a.semester "
+                + "JOIN flexible_tasks t ON t.id=a.flexible_task "+join
+                + "WHERE x.teacher=? AND x.class=? AND x.subject=? AND x.semester=? AND x.grade=t.grade "
+                + "AND a.subject=? AND a.semester=? AND t.owner_teacher=? AND t.class=? AND t.subject=? AND t.semester=? AND "+predicate,
+                scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),id);
+        for(var row:active)
+            write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=? AND semester=? AND flexible_task=?",
+                    integer(row,"student"),scope.subjectId(),scope.semesterId(),integer(row,"flexible_task"));
     }
     public boolean canAccessTask(int student,int task,boolean includeCompleted) throws SQLException {
         return curriculum.transaction(c->{
