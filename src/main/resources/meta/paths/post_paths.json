@@ -161,6 +161,12 @@
         "namespaces": [],
         "access_level": "student"
     },
+    "/my-curriculum-subjects": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "student"
+    },
     "/delete-subject": {
         "type": "POST",
         "handler_type": "PostRequestHandler",

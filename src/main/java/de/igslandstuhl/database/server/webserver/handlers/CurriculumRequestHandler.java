@@ -25,6 +25,7 @@ public final class CurriculumRequestHandler {
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-progress",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-catalog",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
+        HttpHandler.registerPostRequestHandler("/my-curriculum-subjects",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/begin-flexible-task",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/cancel-flexible-task",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
     }
@@ -82,6 +83,13 @@ public final class CurriculumRequestHandler {
             if (rq.getJson() == null) throw new CurriculumException(400,"invalid_input","JSON object required.");
             Curriculum service=Curriculum.current();
             CentralCurriculumImport centralImport=new CentralCurriculumImport(service);
+            if(rq.getPath().equals("/my-curriculum-subjects")) {
+                if(!rq.getJson().isEmpty()) throw new CurriculumException(400,"invalid_input","No client scope is accepted.");
+                if(rq.getUser()==null || rq.getUser()==de.igslandstuhl.database.api.User.ANONYMOUS)
+                    throw new CurriculumException(401,"unauthorized","Please sign in.");
+                if(!rq.getUser().isStudent()) throw new CurriculumException(403,"forbidden","Student session required.");
+                return PostResponse.json(service.studentCurrentSubjects(rq.getUser().asStudent().getId()),rq);
+            }
             if(rq.getPath().equals("/begin-flexible-task") || rq.getPath().equals("/cancel-flexible-task")) {
                 if(rq.getJson().keySet().stream().anyMatch(key -> !key.equals("taskId")))
                     throw new CurriculumException(400,"invalid_input","Only taskId is accepted.");

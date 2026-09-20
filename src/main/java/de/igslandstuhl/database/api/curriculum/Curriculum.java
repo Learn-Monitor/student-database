@@ -38,6 +38,7 @@ public final class Curriculum {
     public enum ActiveStageType { CENTRAL, FLEXIBLE }
     public record ActiveStage(ActiveStageType type, int taskId, int subjectId, int semesterId, String name) {}
     public record PartnerCandidate(int id, String name) {}
+    public record StudentSubject(int id, String name) {}
     private record CentralTask(int id, int subjectId, int semesterId, int grade, int topicId, String name) {}
     static CurriculumException error(int status, String code, String message) {
         return new CurriculumException(status, code, message);
@@ -402,6 +403,15 @@ public final class Curriculum {
                 + "AND y.current_semester IS NOT NULL ORDER BY y.id DESC LIMIT 1");
         if(found.isEmpty()) throw error(409,"current_semester_unavailable","No current semester is configured.");
         return integer(found.get(0),"current_semester");
+    }
+    public List<StudentSubject> studentCurrentSubjects(int studentId) throws SQLException {
+        return transaction(c -> {
+            int semester = currentSemester(c);
+            return rows(c,"SELECT DISTINCT s.id,s.name FROM student_curriculum_contexts x "
+                    + "JOIN subjects s ON s.id=x.subject WHERE x.student=? AND x.semester=? "
+                    + "ORDER BY s.name,s.id",studentId,semester).stream()
+                    .map(r -> new StudentSubject(integer(r,"id"),(String) r.get("name"))).toList();
+        });
     }
     public List<PartnerCandidate> partnerCandidates(int studentId,int subjectId) throws SQLException {
         return transaction(c->{

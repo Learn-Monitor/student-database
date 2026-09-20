@@ -296,6 +296,33 @@ class TaskAndStudentProfileHandlerTest {
         assertEquals(Status.FORBIDDEN, searchPartner(Admin.create("partner-admin-" + id, "synthetic-test-only"), "{\"subjectId\":" + id + "}").getStatus());
     }
 
+    @Test
+    void myCurriculumSubjectsUsesOnlyCurrentSessionContexts() throws Exception {
+        int first = id + 2, second = id + 3, old = id + 4;
+        db.writeTransaction(c -> {
+            exec(c, "DELETE FROM student_curriculum_contexts WHERE student=?", id);
+            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", first, "Alpha");
+            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", second, "Zulu");
+            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", old, "Old");
+            exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, first, id, id, id);
+            exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, second, id, id, id);
+            exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, old, id + 1, id, id);
+            return null;
+        });
+        var response = post("/my-curriculum-subjects", "{}", sessionCookieFor(Student.get(id).getUsername()));
+        assertEquals(Status.OK, response.getStatus());
+        var json = com.google.gson.JsonParser.parseString(responseBody(response).split("\\r\\n\\r\\n", 2)[1]).getAsJsonArray();
+        assertEquals(2, json.size());
+        assertEquals(first, json.get(0).getAsJsonObject().get("id").getAsInt());
+        assertEquals("Alpha", json.get(0).getAsJsonObject().get("name").getAsString());
+        assertEquals(Set.of("id", "name"), json.get(0).getAsJsonObject().keySet());
+        assertEquals(Set.of("id", "name"), json.get(1).getAsJsonObject().keySet());
+        for (String field : List.of("studentId", "teacherId", "classId", "subjectId", "semesterId", "grade"))
+            assertEquals(Status.BAD_REQUEST, post("/my-curriculum-subjects", "{\"" + field + "\":1}", sessionCookieFor(Student.get(id).getUsername())).getStatus());
+        assertEquals(Status.FORBIDDEN, post("/my-curriculum-subjects", "{}", sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
+        assertEquals(Status.FORBIDDEN, post("/my-curriculum-subjects", "{}", sessionCookieFor(Admin.create("subjects-admin-" + id, "synthetic-test-only").getUsername())).getStatus());
+    }
+
     private PostResponse taskChange(User user, int status) throws Exception {
         return PostRequestHandler.handleTaskChange(apiRequest(user, "{\"studentId\":" + id + ",\"taskId\":" + task + "}"), status);
     }
