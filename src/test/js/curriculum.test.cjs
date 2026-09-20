@@ -44,6 +44,13 @@ async function setup(admin, options={}){
   {id:51,name:'Ben Beta',firstName:'Ben',lastName:'Beta',activeStage:{type:'FLEXIBLE',taskId:100,name:'Own task'},signals:{help:false,partner:false,experiment:true,exam:true}},
   {id:52,name:'Cara Gamma',firstName:'Cara',lastName:'Gamma',activeStage:null,signals:{help:false,partner:false,experiment:false,exam:false}}
  ];
+ const defaultProgressDetail={studentId:50,studentName:'Ada Alpha',subjectId:1,semesterId:20,stages:[
+  {type:'CENTRAL',stageId:3,topicId:2,topicName:'Topic',name:'Passed central',tokens:5,status:'PASSED',earned:true,inProgress:true},
+  {type:'CENTRAL',stageId:4,topicId:2,topicName:'Topic',name:'Failed once',tokens:6,status:'FAILED_ONCE',earned:false,inProgress:false},
+  {type:'CENTRAL',stageId:5,topicId:2,topicName:'Topic',name:'Failed twice',tokens:7,status:'FAILED_TWICE',earned:false,inProgress:false},
+  {type:'FLEXIBLE',stageId:100,topicId:null,topicName:null,name:'Locked flexible',tokens:8,status:'LOCKED',earned:true,inProgress:false},
+  {type:'FLEXIBLE',stageId:101,topicId:null,topicName:null,name:'Unassessed flexible',tokens:9,status:null,earned:false,inProgress:false}
+ ]};
  dom.window.fetch=async(url,requestOptions)=>{
   const data=JSON.parse(requestOptions.body);requests.push({url,data});let body;let ok=true;
   if(options.response?.url===url)return {ok:false,status:options.response.status,text:async()=>options.response.body};
@@ -65,6 +72,7 @@ async function setup(admin, options={}){
   }
   else if(url==='/curriculum-catalog')body=catalog;
   else if(url==='/curriculum-teacher-roster')body=options.rosterHandler?await options.rosterHandler(data):(options.roster ?? defaultRoster);
+  else if(url==='/curriculum-student-progress-detail')body=options.detailHandler?await options.detailHandler(data):(options.detail ?? {...defaultProgressDetail,studentId:data.studentId});
   else if(url==='/curriculum-structure')body={centralTokens,topics:options.centralTopics||[{id:2,name:topicName,number:1}],tasks:options.centralTasks||[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1,stageNumber:1}]};
   else if(url==='/central-curriculum-overview')body={subjects:[{subjectId:1,subjectName:'Math',centralTokens,remainingRegular:100-centralTokens,remainingHard:105-centralTokens,warning:centralTokens>100}],rows:[{subjectId:1,subjectName:'Math',topicNumber:1,topicName,stageNumber:1,stageName:centralName,tokens:centralTokens}]};
   else if(url==='/preview-central-curriculum-import'){
@@ -207,12 +215,12 @@ test('student progress renders active stages and signals read only',async()=>{
   assert.match(progress.textContent,/Own task · Flexibel/);
   assert.match(progress.textContent,/Keine Etappe in Bearbeitung/);
   const rows=[...progress.querySelectorAll('table tr')].slice(1).map(row=>[...row.cells].map(cell=>cell.textContent));
-  assert.deepEqual(rows[0],['Ada Alpha','Central · Zentral','Ja','Ja','—','—']);
-  assert.deepEqual(rows[1],['Ben Beta','Own task · Flexibel','—','—','Ja','Ja']);
-  assert.deepEqual(rows[2],['Cara Gamma','Keine Etappe in Bearbeitung','—','—','—','—']);
+  assert.deepEqual(rows[0],['Ada Alpha','Central · Zentral','Ja','Ja','—','—','Details']);
+  assert.deepEqual(rows[1],['Ben Beta','Own task · Flexibel','—','—','Ja','Ja','Details']);
+  assert.deepEqual(rows[2],['Cara Gamma','Keine Etappe in Bearbeitung','—','—','—','—','Details']);
   assert.equal(progress.querySelectorAll('form').length,0);
   assert.equal(progress.querySelectorAll('input[type=checkbox]').length,0);
-  assert.equal([...progress.querySelectorAll('button')].filter(button=>button.textContent!=='Aktualisieren').length,0);
+  assert.equal([...progress.querySelectorAll('button')].filter(button=>button.textContent==='Details').length,3);
   assert.equal(requests.some(r=>['/subject-request','/complete-task','/lock-task','/reopen-task','/complete-flexible-task'].includes(r.url)),false);
  }finally{dom.window.close();}
 });
@@ -240,6 +248,42 @@ test('student progress blocks stale roster responses',async()=>{
   pending.get(10)([{id:10,name:'Stale Class',activeStage:null,signals:{help:false,partner:false,experiment:false,exam:false}}]);await tick();
   assert.match(progress.textContent,/Fresh Class/);
   assert.doesNotMatch(progress.textContent,/Stale Class/);
+ }finally{dom.window.close();}
+});
+test('student progress detail uses exact scope and renders all canonical states safely',async()=>{
+ const detail={studentId:50,studentName:'<img src=x onerror=alert(1)>',subjectId:1,semesterId:20,stages:[
+  {type:'CENTRAL',stageId:3,topicId:2,topicName:'<script>alert(1)</script>',name:'Passed',tokens:5,status:'PASSED',earned:true,inProgress:true},
+  {type:'CENTRAL',stageId:4,topicId:2,topicName:'Topic',name:'Once',tokens:6,status:'FAILED_ONCE',earned:false,inProgress:false},
+  {type:'CENTRAL',stageId:5,topicId:2,topicName:'Topic',name:'Twice',tokens:7,status:'FAILED_TWICE',earned:false,inProgress:false},
+  {type:'FLEXIBLE',stageId:100,topicId:null,topicName:null,name:'Locked',tokens:8,status:'LOCKED',earned:true,inProgress:false},
+  {type:'FLEXIBLE',stageId:101,topicId:null,topicName:null,name:'Open',tokens:9,status:null,earned:false,inProgress:false}
+ ]};
+ const{dom,requests}=await setup(false,{progress:true,detail});
+ try{
+  const progress=dom.window.document.querySelector('#student-progress');
+  progress.querySelector('tbody button, table tr:nth-child(2) button').click();await tick();
+  const request=requests.find(r=>r.url==='/curriculum-student-progress-detail');
+  assert.deepEqual(request.data,{studentId:50,subjectId:1,classId:10,semesterId:20});
+  assert.equal(Object.hasOwn(request.data,'teacherId'),false);
+  assert.match(progress.textContent,/Zentral/);assert.match(progress.textContent,/Flexibel/);
+  assert.match(progress.textContent,/5/);assert.match(progress.textContent,/Bestanden/);
+  assert.match(progress.textContent,/1× nicht bestanden/);assert.match(progress.textContent,/2× nicht bestanden/);
+  assert.match(progress.textContent,/Gesperrt/);assert.match(progress.textContent,/Noch nicht bewertet/);
+  assert.match(progress.textContent,/Ohne Thema/);assert.match(progress.textContent,/In Bearbeitung/);
+  assert.equal(progress.querySelectorAll('img,script').length,0);
+  assert.match(progress.textContent,/<img src=x onerror=alert\(1\)>/);
+  assert.match(progress.textContent,/<script>alert\(1\)<\/script>/);
+ }finally{dom.window.close();}
+});
+test('student progress detail ignores stale responses after context changes',async()=>{
+ let resolveDetail;const detailHandler=()=>new Promise(resolve=>{resolveDetail=resolve;});
+ const{dom}=await setup(false,{progress:true,detailHandler});
+ try{
+  const progress=dom.window.document.querySelector('#student-progress');
+  [...progress.querySelectorAll('button')].find(button=>button.textContent==='Details').click();await tick();
+  const classSelect=progress.querySelector('[name=classId]');classSelect.value='11';classSelect.dispatchEvent(new dom.window.Event('change'));await tick();
+  resolveDetail({studentId:50,studentName:'Stale Detail',subjectId:1,semesterId:20,stages:[]});await tick();
+  assert.doesNotMatch(progress.textContent,/Stale Detail/);
  }finally{dom.window.close();}
 });
 test('admin curriculum filters keep subject semester class teacher and grade selects',async()=>{

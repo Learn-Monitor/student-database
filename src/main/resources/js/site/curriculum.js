@@ -66,9 +66,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     async function mountStudentProgress(catalog, activeContexts) {
         if (!progressRoot || catalog.admin === true) return;
-        const panel = el('div'), status = el('p'), rosterArea = el('div');
+        const panel = el('div'), status = el('p'), rosterArea = el('div'), detailArea = el('div');
         status.setAttribute('role', 'status');
-        progressRoot.append(panel, status, rosterArea);
+        progressRoot.append(panel, status, rosterArea, detailArea);
         const classes = uniqueBy(activeContexts, context => context.classId).map(context => ({id:context.classId,name:context.classLabel}));
         if (!classes.length) {
             status.textContent = 'Für das aktive Halbjahr sind keine Lerngruppen oder Fächer zugewiesen.';
@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const classSelect = progressSelect('Klasse/Lerngruppe', classes, 'classId');
         const subjectSelect = progressSelect('Fach', [], 'subjectId');
         const reload = el('button', 'Aktualisieren'); reload.type = 'button'; panel.append(reload);
-        let generation = 0;
+        let generation = 0, detailGeneration = 0, selectedStudentId = null;
         function contextsForClass() {
             return activeContexts.filter(context => context.classId === Number(classSelect.value));
         }
@@ -101,6 +101,55 @@ document.addEventListener('DOMContentLoaded', async () => {
             return stage.name || 'Unbekannte Etappe';
         }
         function signalText(value) { return value === true ? 'Ja' : '—'; }
+        const assessmentText = status => ({
+            PASSED:'Bestanden', FAILED_ONCE:'1× nicht bestanden', FAILED_TWICE:'2× nicht bestanden', LOCKED:'Gesperrt'
+        })[status] || 'Noch nicht bewertet';
+        function resetDetail() {
+            selectedStudentId = null;
+            detailGeneration++;
+            detailArea.replaceChildren();
+        }
+        function renderDetail(detail) {
+            detailArea.replaceChildren();
+            detailArea.append(el('h3', detail.studentName || 'Schülerdetail'));
+            const table = document.createElement('table'), head = table.insertRow();
+            ['Thema','Etappe','Typ','Münzen','Bewertung','Verdient','In Bearbeitung']
+                .forEach(text => head.append(el('th', text)));
+            for (const stage of Array.isArray(detail.stages) ? detail.stages : []) {
+                const tr = table.insertRow();
+                tr.insertCell().textContent = stage.topicName || 'Ohne Thema';
+                tr.insertCell().textContent = stage.name || '';
+                tr.insertCell().textContent = stage.type === 'CENTRAL' ? 'Zentral' : stage.type === 'FLEXIBLE' ? 'Flexibel' : '';
+                tr.insertCell().textContent = String(stage.tokens ?? 0);
+                tr.insertCell().textContent = assessmentText(stage.status);
+                tr.insertCell().textContent = stage.earned === true ? 'Ja' : '—';
+                tr.insertCell().textContent = stage.inProgress === true ? 'In Bearbeitung' : '—';
+            }
+            detailArea.append(table);
+        }
+        async function loadDetail(studentId) {
+            const context = selectedContext();
+            if (!context) return;
+            selectedStudentId = studentId;
+            const current = ++detailGeneration;
+            const snapshot = `${context.classId}:${context.subjectId}:${context.semesterId}:${studentId}`;
+            detailArea.replaceChildren(el('p', 'Details werden geladen.'));
+            try {
+                const detail = await post('/curriculum-student-progress-detail', {
+                    studentId,
+                    subjectId: context.subjectId,
+                    classId: context.classId,
+                    semesterId: context.semesterId
+                });
+                const selected = selectedContext();
+                const latest = selected ? `${selected.classId}:${selected.subjectId}:${selected.semesterId}:${selectedStudentId}` : '';
+                if (current !== detailGeneration || snapshot !== latest) return;
+                renderDetail(detail);
+            } catch (error) {
+                if (current !== detailGeneration) return;
+                detailArea.replaceChildren(el('p', error.message));
+            }
+        }
         function renderRoster(rows) {
             rosterArea.replaceChildren();
             if (!Array.isArray(rows) || !rows.length) {
@@ -108,7 +157,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             const table = document.createElement('table'), head = table.insertRow();
-            ['Schüler','In Bearbeitung','Braucht Hilfe','Sucht Partner','Will experimentieren','Bereit für Gelingensnachweis']
+            ['Schüler','In Bearbeitung','Braucht Hilfe','Sucht Partner','Will experimentieren','Bereit für Gelingensnachweis','Details']
                 .forEach(text => head.append(el('th', text)));
             for (const row of rows) {
                 const tr = table.insertRow(), signals = row.signals || {};
@@ -118,6 +167,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tr.insertCell().textContent = signalText(signals.partner);
                 tr.insertCell().textContent = signalText(signals.experiment);
                 tr.insertCell().textContent = signalText(signals.exam);
+                const detailButton = el('button', 'Details'); detailButton.type = 'button';
+                detailButton.addEventListener('click', () => loadDetail(row.id));
+                tr.insertCell().append(detailButton);
             }
             rosterArea.append(table);
         }
@@ -137,6 +189,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 if (current !== generation) return;
                 renderRoster(rows);
+                if (selectedStudentId != null && rows.some(row => row.id === selectedStudentId)) await loadDetail(selectedStudentId);
+                else if (selectedStudentId != null) resetDetail();
             } catch (error) {
                 if (current !== generation) return;
                 rosterArea.replaceChildren();
@@ -144,8 +198,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 status.style.color = 'darkred';
             }
         }
-        classSelect.addEventListener('change', () => { rebuildSubjects(); loadRoster(); });
-        subjectSelect.addEventListener('change', loadRoster);
+        classSelect.addEventListener('change', () => { resetDetail(); rebuildSubjects(); loadRoster(); });
+        subjectSelect.addEventListener('change', () => { resetDetail(); loadRoster(); });
         reload.addEventListener('click', loadRoster);
         rebuildSubjects();
         await loadRoster();
