@@ -454,29 +454,79 @@ public final class Curriculum {
             throw error(403,"forbidden","Student is not assigned to this curriculum context.");
         return grade;
     }
+    private static int validateAssessmentStage(Connection c, Actor actor, int studentId, Scope scope,
+                                               ActiveStageType stageType, int stageId) throws SQLException {
+        int grade=authorizeAssessmentRead(c,actor,studentId,scope);
+        if(stageType==null || stageId<1) throw error(400,"invalid_input","Assessment stage is invalid.");
+        if(stageType==ActiveStageType.CENTRAL) {
+            require(c,"SELECT t.id FROM tasks t JOIN topics p ON p.id=t.topic WHERE t.id=? AND p.subject=? AND p.semester=? AND p.grade=?",
+                    stageId,scope.subjectId(),scope.semesterId(),grade);
+        } else {
+            require(c,"SELECT id FROM flexible_tasks WHERE id=? AND owner_teacher=? AND subject=? AND class=? AND semester=? AND grade=?",
+                    stageId,scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade);
+        }
+        return grade;
+    }
+    private static boolean earned(Connection c,int studentId,Scope scope,ActiveStageType stageType,int stageId,int grade) throws SQLException {
+        return stageType==ActiveStageType.CENTRAL
+                ? number(c,"SELECT COUNT(*) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE x.student=? AND x.task=? AND x.status=? AND p.subject=? AND p.semester=? AND p.grade=?",
+                        studentId,stageId,Task.STATUS_COMPLETED,scope.subjectId(),scope.semesterId(),grade)>0
+                : number(c,"SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task WHERE x.student=? AND x.flexible_task=? AND t.owner_teacher=? AND t.subject=? AND t.class=? AND t.semester=? AND t.grade=? AND " + ACTIVE_COMPLETION,
+                        studentId,stageId,scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade)>0;
+    }
+    private static AssessmentStatus assessmentOverride(Connection c,int studentId,Scope scope,ActiveStageType stageType,int stageId) throws SQLException {
+        var override=rows(c,"SELECT status FROM student_curriculum_stage_assessments WHERE student=? AND subject=? AND semester=? AND stage_type=? AND stage_id=?",
+                studentId,scope.subjectId(),scope.semesterId(),stageType.name(),stageId);
+        return override.isEmpty()?null:AssessmentStatus.valueOf(String.valueOf(override.get(0).get("status")));
+    }
     public StageAssessment stageAssessment(Actor actor, int studentId, Scope scope,
                                            ActiveStageType stageType, int stageId) throws SQLException {
         return transaction(c -> {
-            int grade=authorizeAssessmentRead(c,actor,studentId,scope);
-            if(stageType==null || stageId<1) throw error(400,"invalid_input","Assessment stage is invalid.");
-            if(stageType==ActiveStageType.CENTRAL) {
-                require(c,"SELECT t.id FROM tasks t JOIN topics p ON p.id=t.topic WHERE t.id=? AND p.subject=? AND p.semester=? AND p.grade=?",
-                        stageId,scope.subjectId(),scope.semesterId(),grade);
-            } else {
-                require(c,"SELECT id FROM flexible_tasks WHERE id=? AND owner_teacher=? AND subject=? AND class=? AND semester=? AND grade=?",
-                        stageId,scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade);
-            }
-            var override=rows(c,"SELECT status FROM student_curriculum_stage_assessments WHERE student=? AND subject=? AND semester=? AND stage_type=? AND stage_id=?",
-                    studentId,scope.subjectId(),scope.semesterId(),stageType.name(),stageId);
-            boolean earned=stageType==ActiveStageType.CENTRAL
-                    ? number(c,"SELECT COUNT(*) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE x.student=? AND x.task=? AND x.status=? AND p.subject=? AND p.semester=? AND p.grade=?",
-                            studentId,stageId,Task.STATUS_COMPLETED,scope.subjectId(),scope.semesterId(),grade)>0
-                    : number(c,"SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task WHERE x.student=? AND x.flexible_task=? AND t.owner_teacher=? AND t.subject=? AND t.class=? AND t.semester=? AND t.grade=? AND " + ACTIVE_COMPLETION,
-                            studentId,stageId,scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade)>0;
-            AssessmentStatus status=override.isEmpty() ? (earned?AssessmentStatus.PASSED:null)
-                    : AssessmentStatus.valueOf(String.valueOf(override.get(0).get("status")));
+            int grade=validateAssessmentStage(c,actor,studentId,scope,stageType,stageId);
+            boolean earned=earned(c,studentId,scope,stageType,stageId,grade);
+            AssessmentStatus status=assessmentOverride(c,studentId,scope,stageType,stageId);
+            if(status==null && earned) status=AssessmentStatus.PASSED;
             return new StageAssessment(status,earned);
         });
+    }
+    public StageAssessment setStageAssessment(Actor actor, int studentId, Scope scope,
+                                              ActiveStageType stageType, int stageId,
+                                              AssessmentStatus status) throws SQLException {
+        if(status==null) throw error(400,"invalid_input","Assessment status is required.");
+        transaction(c -> {
+            if(stageType==ActiveStageType.FLEXIBLE && status==AssessmentStatus.PASSED) {
+                if(!actor.admin() && actor.teacherId()!=scope.teacherId())
+                    throw error(403,"forbidden","This context belongs to another teacher.");
+                if(number(c,"SELECT COUNT(*) FROM curriculum_completion_transfers WHERE student=? AND source_task=?",studentId,stageId)>0)
+                    throw error(409,"context_conflict","Transferred flexible completion cannot be reactivated.");
+            }
+            int grade=validateAssessmentStage(c,actor,studentId,scope,stageType,stageId);
+            if(status==AssessmentStatus.PASSED) {
+                if(stageType==ActiveStageType.CENTRAL) {
+                    setCentralStatus(c,studentId,stageId,Task.STATUS_COMPLETED);
+                    write(c,"DELETE FROM student_curriculum_stage_assessments WHERE student=? AND subject=? AND semester=? AND stage_type=? AND stage_id=?",
+                            studentId,scope.subjectId(),scope.semesterId(),stageType.name(),stageId);
+                    write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=? AND semester=? AND central_task=?",
+                            studentId,scope.subjectId(),scope.semesterId(),stageId);
+                } else {
+                    write(c,"INSERT INTO completed_flexible_tasks(student,flexible_task) VALUES(?,?) ON CONFLICT(student,flexible_task) DO NOTHING",studentId,stageId);
+                    write(c,"DELETE FROM student_curriculum_stage_assessments WHERE student=? AND subject=? AND semester=? AND stage_type=? AND stage_id=?",
+                            studentId,scope.subjectId(),scope.semesterId(),stageType.name(),stageId);
+                    write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=? AND semester=? AND flexible_task=?",
+                            studentId,scope.subjectId(),scope.semesterId(),stageId);
+                }
+            } else {
+                write(c,"INSERT INTO student_curriculum_stage_assessments(student,subject,semester,stage_type,stage_id,status,last_updated) VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP) "
+                        + "ON CONFLICT(student,subject,semester,stage_type,stage_id) DO UPDATE SET status=excluded.status,last_updated=CURRENT_TIMESTAMP",
+                        studentId,scope.subjectId(),scope.semesterId(),stageType.name(),stageId,status.name());
+            }
+            return null;
+        });
+        if(stageType==ActiveStageType.CENTRAL && status==AssessmentStatus.PASSED) {
+            Student student=Student.get(studentId);Task task=Task.get(stageId);
+            if(student!=null && task!=null) student.applyTaskStatusCache(task,Task.STATUS_COMPLETED);
+        }
+        return stageAssessment(actor,studentId,scope,stageType,stageId);
     }
     private static void putActiveCentral(Connection c,int studentId,CentralTask task) throws SQLException {
         write(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task,last_updated) VALUES(?,?,?,?,NULL,CURRENT_TIMESTAMP) "

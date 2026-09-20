@@ -146,6 +146,61 @@ class CurriculumTest {
         db.writeTransaction(c->{exec(c,"UPDATE student_curriculum_contexts SET teacher=? WHERE student=? AND subject=? AND semester=?",id,id,id,id);return null;});
         assertFalse(service.stageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,source.id()).earned());
     }
+    @Test void centralAssessmentTransitionsAreAtomicIdempotentAndPreserveEarnedHistory() throws Exception {
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);
+            exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?,?,NULL)",id,id,id,topic);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'PARTNER')",id,id,id);
+            return null;
+        });
+        int task=central(5);
+        db.writeTransaction(c->{exec(c,"UPDATE student_active_curriculum_stages SET central_task=? WHERE student=? AND subject=?",task,id,id);return null;});
+        for(Curriculum.AssessmentStatus status:List.of(Curriculum.AssessmentStatus.FAILED_ONCE,Curriculum.AssessmentStatus.FAILED_TWICE,Curriculum.AssessmentStatus.LOCKED)) {
+            var result=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task,status);
+            assertEquals(status,result.status());assertFalse(result.earned());
+            assertEquals(1,scalar("SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=? AND central_task=?",id,id,task));
+            assertEquals(0,scalar("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=? AND status=2",id,task));
+        }
+        var passed=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task,Curriculum.AssessmentStatus.PASSED);
+        assertEquals(Curriculum.AssessmentStatus.PASSED,passed.status());assertTrue(passed.earned());
+        assertEquals(1,scalar("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=? AND status=2",id,task));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_stage_assessments WHERE student=? AND stage_id=?",id,task));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=? AND central_task=?",id,id,task));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND request_type='PARTNER'",id,id));
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task,Curriculum.AssessmentStatus.PASSED);
+        assertEquals(1,scalar("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=?",id,task));
+        for(Curriculum.AssessmentStatus status:List.of(Curriculum.AssessmentStatus.FAILED_ONCE,Curriculum.AssessmentStatus.FAILED_TWICE,Curriculum.AssessmentStatus.LOCKED)) {
+            var result=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task,status);
+            assertEquals(status,result.status());assertTrue(result.earned());
+            assertEquals(1,scalar("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=? AND status=2",id,task));
+        }
+    }
+    @Test void flexibleAssessmentTransitionsPreserveCompletionAndActiveStageSemantics() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        var task=service.create(teacher,scope,"Transition flexible",5);
+        db.writeTransaction(c->{exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?,NULL,?)",id,id,id,task.id());return null;});
+        var failed=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id(),Curriculum.AssessmentStatus.FAILED_ONCE);
+        assertEquals(Curriculum.AssessmentStatus.FAILED_ONCE,failed.status());assertFalse(failed.earned());
+        assertEquals(1,scalar("SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=? AND flexible_task=?",id,id,task.id()));
+        var passed=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id(),Curriculum.AssessmentStatus.PASSED);
+        assertEquals(Curriculum.AssessmentStatus.PASSED,passed.status());assertTrue(passed.earned());
+        assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,task.id()));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_stage_assessments WHERE student=? AND stage_id=?",id,task.id()));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=? AND flexible_task=?",id,id,task.id()));
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id(),Curriculum.AssessmentStatus.PASSED);
+        assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,task.id()));
+        var locked=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id(),Curriculum.AssessmentStatus.LOCKED);
+        assertEquals(Curriculum.AssessmentStatus.LOCKED,locked.status());assertTrue(locked.earned());
+        assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,task.id()));
+    }
+    @Test void passedCannotReactivateTransferredFlexibleSourceCompletion() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        var source=service.create(teacher,scope,"Transition source",5);var target=service.create(other,secondScope(),"Transition target",5);
+        service.complete(teacher,source.id(),id);
+        service.transfer(admin,id,scope,secondScope(),List.of(new Curriculum.Transfer(source.id(),target.id(),5)));
+        assertEquals(409,assertThrows(CurriculumException.class,()->service.setStageAssessment(admin,id,scope,Curriculum.ActiveStageType.FLEXIBLE,source.id(),Curriculum.AssessmentStatus.PASSED)).status);
+        assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,source.id()));
+    }
     void assessment(Connection c,String type,int stageId,String status)throws SQLException {
         exec(c,"INSERT INTO student_curriculum_stage_assessments(student,subject,semester,stage_type,stage_id,status) VALUES(?,?,?,?,?,?)",id,id,id,type,stageId,status);
     }
