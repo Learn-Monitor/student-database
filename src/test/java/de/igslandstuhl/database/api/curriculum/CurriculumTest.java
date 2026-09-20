@@ -276,6 +276,111 @@ class CurriculumTest {
         service.activateFlexibleStage(id,hidden.id());
         assertEquals(hidden.id(),service.activeStage(id,id).taskId());
     }
+    @Test void teacherRosterUsesCanonicalRegularContextAndStudentContextsOnly() throws Exception {
+        int first=id+2,second=id+3,unassigned=id+4,inactive=id+5;
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Bob','Zeile',?,'unused',?,1)",first,"roster"+first+"@example.invalid",id);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Ada','Alpha',?,'unused',?,1)",second,"roster"+second+"@example.invalid",id);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'No','Context',?,'unused',?,1)",unassigned,"roster"+unassigned+"@example.invalid",id);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level,active) VALUES(?,'Inactive','Hidden',?,'unused',?,1,0)",inactive,"roster"+inactive+"@example.invalid",id);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)",first,id,id,id,id);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)",second,id,id,id,id);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)",inactive,id,id,id,id);
+            return null;
+        });
+        var roster=service.teacherRoster(teacher,scope);
+        assertEquals(List.of(second,id,first),roster.stream().map(r->((Number)r.get("id")).intValue()).toList());
+        assertTrue(roster.stream().noneMatch(r->((Number)r.get("id")).intValue()==unassigned));
+        assertTrue(roster.stream().noneMatch(r->((Number)r.get("id")).intValue()==inactive));
+        assertEquals("Synthetic Student",byId(roster,id).get("name"));
+        assertNull(byId(roster,id).get("activeStage"));
+        assertFalse(byId(roster,id).containsKey("email"));
+        assertFalse(byId(roster,id).containsKey("password"));
+        assertFalse(byId(roster,id).containsKey("passwordHash"));
+        assertEquals(List.of(id),roster.stream().filter(r->((Number)r.get("id")).intValue()==id).map(r->((Number)r.get("id")).intValue()).toList());
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.teacherRoster(other,scope)).status);
+
+        db.writeTransaction(c->{exec(c,"DELETE FROM curriculum_class_teachers WHERE semester=? AND class=? AND subject=? AND teacher=?",id,id,id,id);return null;});
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.teacherRoster(teacher,scope)).status);
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);exec(c,"DELETE FROM student_curriculum_contexts WHERE teacher=? AND class=? AND subject=? AND semester=?",id,id,id,id);return null;});
+        assertTrue(service.teacherRoster(teacher,scope).isEmpty());
+    }
+    @Test void teacherRosterSupportsIndividualContexts() throws Exception {
+        int visible=id+2,alsoVisible=id+3,hidden=id+4;
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",id+2,"Individual-"+id);
+            exec(c,"INSERT INTO curriculum_subject_types(subject,wpf,mode,assignment_group) VALUES(?,1,'INDIVIDUAL','WPF')",id+2);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Visible','One',?,'unused',?,1)",visible,"visible"+id+"@example.invalid",id);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Visible','Two',?,'unused',?,1)",alsoVisible,"also"+id+"@example.invalid",id);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Hidden','NoContext',?,'unused',?,1)",hidden,"hidden"+id+"@example.invalid",id);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)",visible,id+2,id,id,id);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)",alsoVisible,id+2,id,id,id);
+            return null;
+        });
+        var individualScope=new Curriculum.Scope(id,id+2,id,id);
+        var roster=service.teacherRoster(teacher,individualScope);
+        assertEquals(Set.of(visible,alsoVisible),Set.copyOf(roster.stream().map(r->((Number)r.get("id")).intValue()).toList()));
+        assertTrue(roster.stream().noneMatch(r->((Number)r.get("id")).intValue()==hidden));
+    }
+    @SuppressWarnings("unchecked")
+    @Test void teacherRosterReadsAuthoritativeActiveStagesAndSignals() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        int central=centralNamed("Central roster",5);
+        releaseAllCentral();
+        service.activateCentralStage(id,central);
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'HELP')",id,id,id);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'PARTNER')",id,id,id);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'EXPERIMENT')",id,id+1,id);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'EXAM')",id,id,id+1);
+            return null;
+        });
+        var row=byId(service.teacherRoster(teacher,scope),id);
+        var active=(Map<String,Object>)row.get("activeStage");
+        assertEquals("CENTRAL",active.get("type"));
+        assertEquals(central,((Number)active.get("taskId")).intValue());
+        assertEquals("Central roster",active.get("name"));
+        var signals=(Map<String,Object>)row.get("signals");
+        assertEquals(true,signals.get("help"));
+        assertEquals(true,signals.get("partner"));
+        assertEquals(false,signals.get("experiment"));
+        assertEquals(false,signals.get("exam"));
+
+        int otherSubjectTask=otherSubjectCentral("Other subject active",6);
+        service.activateCentralStage(id,otherSubjectTask);
+        db.writeTransaction(c->{exec(c,"UPDATE student_active_curriculum_stages SET semester=? WHERE student=? AND subject=?",id+1,id,id);return null;});
+        assertNull(byId(service.teacherRoster(teacher,scope),id).get("activeStage"));
+
+        var flexible=service.create(teacher,scope,"Flexible roster",5);
+        new CurriculumEnrollment(service).release(teacher,scope,null,null,null,flexible.id(),true);
+        service.activateFlexibleStage(id,flexible.id());
+        row=byId(service.teacherRoster(teacher,scope),id);
+        active=(Map<String,Object>)row.get("activeStage");
+        assertEquals("FLEXIBLE",active.get("type"));
+        assertEquals(flexible.id(),((Number)active.get("taskId")).intValue());
+        assertEquals("Flexible roster",active.get("name"));
+        service.deactivateFlexibleStage(id,flexible.id());
+        row=byId(service.teacherRoster(teacher,scope),id);
+        assertNull(row.get("activeStage"));
+        signals=(Map<String,Object>)row.get("signals");
+        assertEquals(true,signals.get("help"));
+        assertEquals(true,signals.get("partner"));
+    }
+    @SuppressWarnings("unchecked")
+    @Test void teacherRosterMapsExperimentAndExamTogether() throws Exception {
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'EXPERIMENT')",id,id,id);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'EXAM')",id,id,id);
+            return null;
+        });
+        var signals=(Map<String,Object>)byId(service.teacherRoster(teacher,scope),id).get("signals");
+        assertEquals(false,signals.get("help"));
+        assertEquals(false,signals.get("partner"));
+        assertEquals(true,signals.get("experiment"));
+        assertEquals(true,signals.get("exam"));
+    }
     @Test void legacyUnscheduledAndIndividualRemainUntouched()throws Exception {
         var legacy=UnscheduledTask.addUnscheduledTask("Legacy-"+id,SchoolClass.get(id),Subject.get(id),6);
         db.writeTransaction(c->{exec(c,"INSERT INTO completed_unscheduled_tasks(student,unscheduled_task) VALUES(?,?)",id,legacy.getId());return null;});

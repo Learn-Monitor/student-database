@@ -504,6 +504,73 @@ public final class Curriculum {
                     + "LEFT JOIN student_curriculum_contexts a ON a.student=s.id AND a.subject=? AND a.semester=? "
                     + "WHERE s.class=? ORDER BY s.last_name,s.first_name,s.id",scope.subjectId(),scope.semesterId(),scope.classId());});
     }
+    /** Canonical teacher read model for one managed curriculum context; no legacy teacher fallbacks. */
+    public List<Map<String,Object>> teacherRoster(Actor actor,Scope scope) throws SQLException {
+        return transaction(c->{
+            int grade=authorizeTeacherRoster(c,actor,scope);
+            var roster=rows(c,"SELECT DISTINCT s.id,s.first_name AS firstName,s.last_name AS lastName "
+                    + "FROM student_curriculum_contexts x JOIN students s ON s.id=x.student "
+                    + "WHERE x.teacher=? AND x.class=? AND x.subject=? AND x.semester=? AND x.grade=? AND s.active=1 "
+                    + "ORDER BY s.last_name,s.first_name,s.id",
+                    scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),grade);
+            for(var student:roster) {
+                int studentId=integer(student,"id");
+                student.put("name",student.get("firstName")+" "+student.get("lastName"));
+                student.put("activeStage",teacherRosterActiveStage(c,studentId,scope));
+                student.put("signals",teacherRosterSignals(c,studentId,scope));
+            }
+            return roster;
+        });
+    }
+    private static int authorizeTeacherRoster(Connection c,Actor actor,Scope scope) throws SQLException {
+        if(!actor.admin() && actor.teacherId()!=scope.teacherId()) throw error(403,"forbidden","This context belongs to another teacher.");
+        require(c,"SELECT id FROM teachers WHERE id=?",scope.teacherId());
+        require(c,"SELECT id FROM subjects WHERE id=?",scope.subjectId());
+        require(c,"SELECT id FROM semesters WHERE id=?",scope.semesterId());
+        var classRow=require(c,"SELECT grade,COALESCE(active,1) AS active FROM classes WHERE id=?",scope.classId());
+        if(scope.classId()==SchoolClass.UNASSIGNED_CLASS_ID || integer(classRow,"grade")==0 || integer(classRow,"active")==0)
+            throw error(409,"context_unassigned","This class is not available for a current curriculum context.");
+        int grade=integer(classRow,"grade");
+        if(individualSubject(c,scope.subjectId())) {
+            if(number(c,"SELECT COUNT(*) FROM student_curriculum_contexts WHERE teacher=? AND class=? AND subject=? AND semester=? AND grade=?",
+                    scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),grade)==0)
+                throw error(403,"forbidden","Teacher must be assigned to this canonical curriculum context.");
+        } else if(number(c,"SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=? AND class=? AND subject=? AND teacher=?",
+                scope.semesterId(),scope.classId(),scope.subjectId(),scope.teacherId())==0) {
+            throw error(403,"forbidden","Teacher must be assigned to this canonical curriculum context.");
+        }
+        return grade;
+    }
+    private static Map<String,Object> teacherRosterActiveStage(Connection c,int studentId,Scope scope) throws SQLException {
+        var stages=rows(c,"SELECT a.central_task,a.flexible_task,ct.name AS centralName,ft.name AS flexibleName "
+                + "FROM student_active_curriculum_stages a LEFT JOIN tasks ct ON ct.id=a.central_task LEFT JOIN flexible_tasks ft ON ft.id=a.flexible_task "
+                + "WHERE a.student=? AND a.subject=? AND a.semester=?",
+                studentId,scope.subjectId(),scope.semesterId());
+        if(stages.isEmpty()) return null;
+        var stage=stages.get(0);
+        Map<String,Object> out=new LinkedHashMap<>();
+        if(stage.get("central_task")!=null) {
+            out.put("type",ActiveStageType.CENTRAL.name());
+            out.put("taskId",integer(stage,"central_task"));
+            out.put("name",stage.get("centralName"));
+        } else {
+            out.put("type",ActiveStageType.FLEXIBLE.name());
+            out.put("taskId",integer(stage,"flexible_task"));
+            out.put("name",stage.get("flexibleName"));
+        }
+        return out;
+    }
+    private static Map<String,Object> teacherRosterSignals(Connection c,int studentId,Scope scope) throws SQLException {
+        Set<String> requests=new HashSet<>();
+        for(var row:rows(c,"SELECT request_type FROM student_subject_requests WHERE student=? AND subject=? AND semester=?",
+                studentId,scope.subjectId(),scope.semesterId())) requests.add(String.valueOf(row.get("request_type")));
+        Map<String,Object> signals=new LinkedHashMap<>();
+        signals.put("help",requests.contains("HELP"));
+        signals.put("partner",requests.contains("PARTNER"));
+        signals.put("experiment",requests.contains("EXPERIMENT"));
+        signals.put("exam",requests.contains("EXAM"));
+        return signals;
+    }
     /** Completions store identity only. The definition's current tokens always apply. */
     public void complete(Actor actor,int taskId,int studentId) throws SQLException {
         transaction(c->{FlexibleTask task=task(require(c,"SELECT * FROM flexible_tasks WHERE id=?",taskId));
