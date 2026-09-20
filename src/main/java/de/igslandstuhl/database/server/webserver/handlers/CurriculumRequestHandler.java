@@ -23,6 +23,7 @@ public final class CurriculumRequestHandler {
                 "/central-curriculum-overview","/preview-central-curriculum-import","/import-central-curriculum",
                 "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
+        HttpHandler.registerPostRequestHandler("/set-curriculum-stage-assessment",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-progress",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-catalog",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-subjects",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
@@ -114,6 +115,17 @@ public final class CurriculumRequestHandler {
                 if(rq.getPath().equals("/my-curriculum-catalog"))
                     return PostResponse.jsonWithNulls(service.studentCatalog(rq.getUser(),subject,semester),rq);
                 return PostResponse.json(service.studentProgress(rq.getUser(),subject,semester),rq);
+            }
+            if(rq.getPath().equals("/set-curriculum-stage-assessment")) {
+                Set<String> allowed=Set.of("studentId","subjectId","classId","semesterId","stageType","stageId","status");
+                if(!allowed.containsAll(rq.getJson().keySet()) || rq.getJson().size()!=allowed.size())
+                    throw new CurriculumException(400,"invalid_input","Assessment payload contains unexpected or missing fields.");
+                Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
+                if(actor.admin()) throw new CurriculumException(403,"forbidden","Teacher required for student assessment.");
+                Curriculum.StageAssessment assessment=service.setStageAssessment(actor,integer(rq,"studentId"),scope(rq,actor),
+                        Curriculum.ActiveStageType.valueOf(string(rq,"stageType")),integer(rq,"stageId"),
+                        Curriculum.AssessmentStatus.valueOf(string(rq,"status")));
+                return PostResponse.json(Map.of("status",assessment.status().name(),"earned",assessment.earned()),rq);
             }
             Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
             CurriculumEnrollment enrollment=new CurriculumEnrollment(service);

@@ -323,6 +323,52 @@ class TaskAndStudentProfileHandlerTest {
         assertEquals(Status.FORBIDDEN, post("/my-curriculum-subjects", "{}", sessionCookieFor(Admin.create("subjects-admin-" + id, "synthetic-test-only").getUsername())).getStatus());
     }
 
+    @Test
+    void curriculumStageAssessmentHttpDelegatesCanonicalTransitionsSafely() throws Exception {
+        HttpResponse passed=post("/set-curriculum-stage-assessment",assessmentBody(task,"CENTRAL","PASSED"),sessionCookieFor(Teacher.get(id).getUsername()));
+        assertEquals(Status.OK,passed.getStatus());
+        var passedJson=com.google.gson.JsonParser.parseString(responseBody(passed).split("\\r\\n\\r\\n",2)[1]).getAsJsonObject();
+        assertEquals(Set.of("status","earned"),passedJson.keySet());
+        assertEquals("PASSED",passedJson.get("status").getAsString());assertTrue(passedJson.get("earned").getAsBoolean());
+        assertEquals(Task.STATUS_COMPLETED,scalar("SELECT status FROM taskstats WHERE student=? AND task=?",id,task));
+
+        int failedTask=curriculum.createCentralTask(topic,"HTTP failed",TaskLevel.LEVEL1,6,5);
+        assertEquals("FAILED_ONCE",assessmentResponse(failedTask,"CENTRAL","FAILED_ONCE").get("status").getAsString());
+        assertEquals("FAILED_TWICE",assessmentResponse(failedTask,"CENTRAL","FAILED_TWICE").get("status").getAsString());
+        assertNotEquals("LOCKED",assessmentResponse(failedTask,"CENTRAL","FAILED_TWICE").get("status").getAsString());
+
+        var flexible=curriculum.create(teacher,scope,"HTTP flexible",5);
+        assertEquals("LOCKED",assessmentResponse(flexible.id(),"FLEXIBLE","LOCKED").get("status").getAsString());
+        var flexiblePassed=assessmentResponse(flexible.id(),"FLEXIBLE","PASSED");
+        assertEquals("PASSED",flexiblePassed.get("status").getAsString());assertTrue(flexiblePassed.get("earned").getAsBoolean());
+        assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,flexible.id()));
+    }
+
+    @Test
+    void curriculumStageAssessmentHttpRejectsWrongActorsAndPayloads() throws Exception {
+        String body=assessmentBody(task,"CENTRAL","PASSED");
+        assertEquals(Status.FORBIDDEN,post("/set-curriculum-stage-assessment",body,sessionCookieFor(Student.get(id).getUsername())).getStatus());
+        assertEquals(Status.FORBIDDEN,post("/set-curriculum-stage-assessment",body,sessionCookieFor(Admin.create("assessment-admin-"+id,"synthetic-test-only").getUsername())).getStatus());
+        assertEquals(Status.FORBIDDEN,post("/set-curriculum-stage-assessment",body,sessionCookieFor(Teacher.get(id+1).getUsername())).getStatus());
+        for(String field:List.of("teacherId","grade","tokens","earned","topicId","flexibleTaskId","unknownField"))
+            assertEquals(Status.BAD_REQUEST,post("/set-curriculum-stage-assessment",body.substring(0,body.length()-1)+",\""+field+"\":1}",sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
+        assertEquals(Status.BAD_REQUEST,post("/set-curriculum-stage-assessment",body.replace("\"stageType\":\"CENTRAL\"","\"stageType\":\"OTHER\""),sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
+        assertEquals(Status.BAD_REQUEST,post("/set-curriculum-stage-assessment",body.replace("\"status\":\"PASSED\"","\"status\":\"UNKNOWN\""),sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
+        for(String field:List.of("stageType","status"))
+            assertEquals(Status.BAD_REQUEST,post("/set-curriculum-stage-assessment",body.replace(",\""+field+"\":\""+(field.equals("stageType")?"CENTRAL":"PASSED")+"\"",""),sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
+        for(String field:List.of("stageId","studentId","subjectId","classId","semesterId"))
+            assertEquals(Status.BAD_REQUEST,post("/set-curriculum-stage-assessment",body.replace("\""+field+"\":"+(field.equals("stageId")?task:id),"\""+field+"\":\"bad\""),sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
+    }
+
+    private String assessmentBody(int stageId,String stageType,String status) {
+        return "{\"studentId\":"+id+",\"subjectId\":"+id+",\"classId\":"+id+",\"semesterId\":"+id+",\"stageType\":\""+stageType+"\",\"stageId\":"+stageId+",\"status\":\""+status+"\"}";
+    }
+    private com.google.gson.JsonObject assessmentResponse(int stageId,String stageType,String status) throws Exception {
+        HttpResponse response=post("/set-curriculum-stage-assessment",assessmentBody(stageId,stageType,status),sessionCookieFor(Teacher.get(id).getUsername()));
+        assertEquals(Status.OK,response.getStatus());
+        return com.google.gson.JsonParser.parseString(responseBody(response).split("\\r\\n\\r\\n",2)[1]).getAsJsonObject();
+    }
+
     private PostResponse taskChange(User user, int status) throws Exception {
         return PostRequestHandler.handleTaskChange(apiRequest(user, "{\"studentId\":" + id + ",\"taskId\":" + task + "}"), status);
     }

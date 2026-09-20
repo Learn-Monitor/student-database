@@ -375,6 +375,12 @@
         "namespaces": [],
         "access_level": "teacher"
     },
+    "/set-curriculum-stage-assessment": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
     "/curriculum-teacher-roster": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
