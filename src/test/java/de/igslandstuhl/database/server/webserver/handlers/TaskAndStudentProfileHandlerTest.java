@@ -6,16 +6,20 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import de.igslandstuhl.database.api.GraduationLevel;
+import de.igslandstuhl.database.api.Admin;
 import de.igslandstuhl.database.api.SchoolClass;
 import de.igslandstuhl.database.api.Student;
 import de.igslandstuhl.database.api.Subject;
+import de.igslandstuhl.database.api.SubjectRequest;
 import de.igslandstuhl.database.api.Task;
 import de.igslandstuhl.database.api.TaskLevel;
 import de.igslandstuhl.database.api.Teacher;
@@ -49,8 +53,9 @@ class TaskAndStudentProfileHandlerTest {
         topic = id;
         db.writeTransaction(c -> {
             exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", id, "Subject-" + id);
-            exec(c, "INSERT INTO school_years(id,label,week_count,current_week) VALUES(?,?,39,1)", id, "Year-" + id);
+            exec(c, "INSERT INTO school_years(id,label,week_count,current_week,start_date,end_date,current_semester) VALUES(?,?,39,1,'2020-01-01','2099-12-31',?)", id, "Year-" + id, id);
             exec(c, "INSERT INTO semesters(id,label,position,school_year) VALUES(?,?,1,?)", id, "Semester-" + id, id);
+            exec(c, "INSERT INTO semesters(id,label,position,school_year) VALUES(?,?,2,?)", id + 1, "Semester-" + (id + 1), id);
             exec(c, "INSERT INTO classes(id,label,grade,active) VALUES(?,?,5,1)", id, "Class-" + id);
             exec(c, "INSERT INTO classes(id,label,grade,active) VALUES(?,?,5,1)", id + 1, "Other-" + id);
             exec(c, "INSERT INTO teachers(id,first_name,last_name,email,password) VALUES(?,'Managed','Teacher',?,'unused')", id, "teacher" + id + "@example.invalid");
@@ -155,6 +160,83 @@ class TaskAndStudentProfileHandlerTest {
         assertEquals(2, scalar("SELECT graduation_level FROM students WHERE id=?", id));
     }
 
+    @Test
+    void subjectRequestsPersistMultipleTypesAndRemoveOnlyMatchingSignal() throws Exception {
+        assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
+        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
+
+        assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"partner\"}").getStatus());
+        assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
+        assertEquals(2, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=?", id, id, id));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
+
+        int otherSubject = id + 1;
+        db.writeTransaction(c -> {
+            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", otherSubject, "Other-" + id);
+            exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, otherSubject, id, id, id);
+            return null;
+        });
+        assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + otherSubject + ",\"subjectRequest\":\"betreuung\"}").getStatus());
+        assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\",\"remove\":true}").getStatus());
+        assertEquals(0, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='PARTNER'", id, id, id));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='EXPERIMENT'", id, otherSubject, id));
+        assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\",\"remove\":true}").getStatus());
+    }
+
+    @Test
+    void allSubjectRequestTypesSurviveReloadAndRenderGermanJsonValues() throws Exception {
+        for (String type : List.of("hilfe", "partner", "betreuung", "gelingensnachweis"))
+            assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"" + type + "\"}").getStatus());
+        assertEquals(4, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=?", id, id, id));
+
+        Student reloaded = Student.get(id);
+        assertEquals(Set.of(SubjectRequest.HELP, SubjectRequest.PARTNER, SubjectRequest.EXPERIMENT, SubjectRequest.EXAM), reloaded.getCurrentRequests(Subject.get(id)));
+        String json = reloaded.toJSON();
+        assertTrue(json.contains("\"hilfe\""));
+        assertTrue(json.contains("\"partner\""));
+        assertTrue(json.contains("\"betreuung\""));
+        assertTrue(json.contains("\"gelingensnachweis\""));
+    }
+
+    @Test
+    void subjectRequestEndpointRejectsInvalidActorsPayloadsAndContexts() throws Exception {
+        assertEquals(Status.BAD_REQUEST, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"unbekannt\"}").getStatus());
+        int foreignSubject = id + 99;
+        db.writeTransaction(c -> { exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", foreignSubject, "Foreign-" + id); return null; });
+        assertEquals(Status.FORBIDDEN, subjectRequest(Student.get(id), "{\"subjectId\":" + foreignSubject + ",\"subjectRequest\":\"hilfe\"}").getStatus());
+        assertEquals(Status.BAD_REQUEST, subjectRequest(Student.get(id), "{\"studentId\":" + (id + 1) + ",\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
+        assertEquals(Status.FORBIDDEN, subjectRequest(Teacher.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
+        assertEquals(Status.FORBIDDEN, subjectRequest(Admin.create("signal-admin-" + id, "synthetic-test-only"), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
+        db.writeTransaction(c -> { exec(c, "UPDATE school_years SET current_semester=NULL"); return null; });
+        assertEquals(Status.CONFLICT, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
+    }
+
+    @Test
+    void subjectRequestsAreIsolatedBySemesterAndNotChangedByStageTransitions() throws Exception {
+        assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
+        assertTrue(Student.get(id).getCurrentRequests(Subject.get(id)).contains(SubjectRequest.HELP));
+
+        db.writeTransaction(c -> {
+            exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, id, id + 1, id, id);
+            exec(c, "UPDATE school_years SET current_semester=? WHERE id=?", id + 1, id);
+            return null;
+        });
+        assertFalse(Student.get(id).getCurrentRequests(Subject.get(id)).contains(SubjectRequest.HELP));
+        assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"partner\"}").getStatus());
+        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='PARTNER'", id, id, id + 1));
+
+        db.writeTransaction(c -> { exec(c, "UPDATE school_years SET current_semester=? WHERE id=?", id, id); return null; });
+        var flexible = curriculum.create(teacher, scope, "Flexible signal", 5);
+        new CurriculumEnrollment(curriculum).release(teacher, scope, null, null, null, flexible.id(), true);
+        assertEquals(Status.OK, taskChange(Student.get(id), Task.STATUS_IN_PROGRESS).getStatus());
+        assertEquals(Status.OK, flexibleChange(Student.get(id), "/begin-flexible-task", flexible.id()).getStatus());
+        assertEquals(Status.OK, flexibleChange(Student.get(id), "/cancel-flexible-task", flexible.id()).getStatus());
+        new CurriculumEnrollment(curriculum).release(teacher, scope, null, task, false);
+        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
+    }
+
     private PostResponse taskChange(User user, int status) throws Exception {
         return PostRequestHandler.handleTaskChange(apiRequest(user, "{\"studentId\":" + id + ",\"taskId\":" + task + "}"), status);
     }
@@ -175,6 +257,12 @@ class TaskAndStudentProfileHandlerTest {
 
     private APIPostRequest profileRequest(String body) {
         return new APIPostRequest(new HttpHeader("POST /edit-student-profile HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: " + body.length() + "\r\n"), body, "127.0.0.1", true);
+    }
+
+    private PostResponse subjectRequest(User user, String body) throws Exception {
+        return PostRequestHandler.handleSubjectRequest(new APIPostRequest(new HttpHeader("POST /subject-request HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: " + body.length() + "\r\n"), body, "127.0.0.1", true) {
+            @Override public User getUser() { return user; }
+        });
     }
 
     private String profilePayload(Map<String, String> overrides) {

@@ -389,22 +389,7 @@ public class PostRequestHandler {
             Application.getInstance().readFile(file);
             return PostResponse.ok("File data stored", ContentType.TEXT_PLAIN, rq);
         });
-        HttpHandler.registerPostRequestHandler("/subject-request", AccessLevel.USER, (rq) -> {
-            Student student = rq.getCurrentStudent();
-            Subject subject = rq.getSubject();
-            SubjectRequest subjectRequest = rq.getSubjectRequest();
-            if (student != null) {
-                if (rq.getBoolean("remove")) {
-                    student.removeSubjectRequest(subject, subjectRequest);
-                    return PostResponse.ok("Removed request", ContentType.TEXT_PLAIN, rq);
-                } else {
-                    student.addSubjectRequest(subject, subjectRequest);
-                    return PostResponse.ok("Added request", ContentType.TEXT_PLAIN, rq);
-                }
-            } else {
-                return PostResponse.unauthorized(rq);
-            }
-        });
+        HttpHandler.registerPostRequestHandler("/subject-request", AccessLevel.STUDENT, PostRequestHandler::handleSubjectRequest);
         HttpHandler.registerPostRequestHandler("/current-topic", AccessLevel.USER, (rq) -> {
             Student student = rq.getCurrentStudent();
             Subject subject = rq.getSubject();
@@ -599,6 +584,33 @@ public class PostRequestHandler {
             Server.getInstance().getWebServer().getSessionManager().logout(rq);
             return PostResponse.redirect("/login", rq);
         });
+    }
+    static PostResponse handleSubjectRequest(APIPostRequest rq) throws SQLException {
+        User user = rq.getUser();
+        if (user == null || user == User.ANONYMOUS) return PostResponse.unauthorized(rq);
+        if (!user.isStudent()) return PostResponse.forbidden("Student session required.", rq);
+        Student student = user.asStudent();
+        if (rq.containsKey("studentId") && rq.getInt("studentId") != student.getId())
+            return PostResponse.badRequest("studentId does not match the session student.", rq);
+        Subject subject = rq.getSubject();
+        if (subject == null) return PostResponse.badRequest("subjectId is required.", rq);
+        SubjectRequest subjectRequest;
+        try {
+            subjectRequest = rq.getSubjectRequest();
+        } catch (IllegalArgumentException e) {
+            return PostResponse.json(Status.BAD_REQUEST, Map.of("error", "invalid_input", "message", "Invalid subjectRequest."), rq);
+        }
+        try {
+            if (rq.getBoolean("remove")) {
+                student.removeSubjectRequest(subject, subjectRequest);
+                return PostResponse.ok("Removed request", ContentType.TEXT_PLAIN, rq);
+            }
+            student.addSubjectRequest(subject, subjectRequest);
+            return PostResponse.ok("Added request", ContentType.TEXT_PLAIN, rq);
+        } catch (CurriculumException e) {
+            Status status = e.status == 403 ? Status.FORBIDDEN : e.status == 409 ? Status.CONFLICT : Status.BAD_REQUEST;
+            return PostResponse.json(status, Map.of("error", e.code, "message", e.getMessage()), rq);
+        }
     }
 
     /** Validates the optional post-login target and prevents open redirects. */

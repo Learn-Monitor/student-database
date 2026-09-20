@@ -107,11 +107,11 @@ async function getStudentsBySubject(classId, subjectId) {
 async function searchPartner(subjectId, topicId, classId, studentId) {
     return await getJsonWithPost('/search-partner', { subjectId, topicId, classId, studentId});
 }
-async function addSubjectRequest(subjectId, subjectRequest, studentId) {
-    return await post('/subject-request', { subjectId, subjectRequest, studentId });
+async function addSubjectRequest(subjectId, subjectRequest) {
+    return await post('/subject-request', { subjectId, subjectRequest });
 }
-async function removeSubjectRequest(subjectId, subjectRequest, studentId) {
-    return await post('/subject-request', { subjectId, subjectRequest, studentId, remove: true });
+async function removeSubjectRequest(subjectId, subjectRequest) {
+    return await post('/subject-request', { subjectId, subjectRequest, remove: true });
 }
 function viewStudent(studentId) {
     // Add studentId to session storage
@@ -426,6 +426,7 @@ async function buildTeacherDashboard(classes, subjects) {
     teacherDashboardLoadEvent();
 }
 function createRequestButton(subject, type, label) {
+    if (teacherPerms) return document.createTextNode('');
     const btn = document.createElement('button');
     btn.textContent = label;
 
@@ -450,7 +451,7 @@ function createRequestButton(subject, type, label) {
 
     btn.addEventListener('click', async () => {
         if (isActive()) {
-            await removeSubjectRequest(subject.id, type, studentData.id);
+            await removeSubjectRequest(subject.id, type);
             // Update local state
             if (studentData.currentRequests[subject.id]) {
                 studentData.currentRequests[subject.id] = studentData.currentRequests[subject.id].filter(t => t !== type);
@@ -459,7 +460,7 @@ function createRequestButton(subject, type, label) {
                 }
             }
         } else {
-            await addSubjectRequest(subject.id, type, studentData.id);
+            await addSubjectRequest(subject.id, type);
             // Update local state
             if (!studentData.currentRequests[subject.id]) {
                 studentData.currentRequests[subject.id] = [];

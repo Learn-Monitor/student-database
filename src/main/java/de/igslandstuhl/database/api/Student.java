@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import de.igslandstuhl.database.Application;
+import de.igslandstuhl.database.api.curriculum.CurriculumException;
 import de.igslandstuhl.database.api.results.StudentGenerationResult;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
@@ -88,6 +89,7 @@ public class Student extends User {
      * The current requests of the student, mapped by subject ID.
      */
     private final Map<Integer, Set<SubjectRequest>> currentRequests = new ConcurrentHashMap<>();
+    private Integer currentRequestsSemesterId;
 
     /**
      * The current topics of the student, mapped by subject.
@@ -411,9 +413,13 @@ public class Student extends User {
      * Returns the current requests.
      * @return current requests
      */
-    public Map<Integer, Set<SubjectRequest>> getCurrentRequests() { return currentRequests; }
+    public Map<Integer, Set<SubjectRequest>> getCurrentRequests() {
+        ensureCurrentRequestsLoaded();
+        return currentRequests;
+    }
 
     public Set<SubjectRequest> getCurrentRequests(Subject subject) {
+        ensureCurrentRequestsLoaded();
         Set<SubjectRequest> subjectRequests = currentRequests.get(subject.getId());
         return subjectRequests == null ? Set.of() : subjectRequests;
     }
@@ -534,19 +540,29 @@ public class Student extends User {
      * @deprecated Use addSubjectRequest(Subject, SubjectRequest) instead
      */
     @Deprecated
-    public void addSubjectRequest(int subjectId, String type) {
-        currentRequests.computeIfPresent(subjectId, (key, value) -> {
-            value.add(SubjectRequest.fromGermanTranslation(type));
-            return value;
+    public void addSubjectRequest(int subjectId, String type) throws SQLException {
+        SubjectRequest request = SubjectRequest.fromGermanTranslation(type);
+        int semesterId = currentSemesterId();
+        requireSubjectRequestContext(subjectId, semesterId);
+        Server.getInstance().getConnection().writeTransaction(c -> {
+            try (var s = c.prepareStatement("INSERT INTO student_subject_requests(student,subject,semester,request_type,last_updated) VALUES(?,?,?,?,CURRENT_TIMESTAMP) "
+                    + "ON CONFLICT(student,subject,semester,request_type) DO UPDATE SET last_updated=CURRENT_TIMESTAMP")) {
+                s.setInt(1, id);
+                s.setInt(2, subjectId);
+                s.setInt(3, semesterId);
+                s.setString(4, request.name());
+                s.executeUpdate();
+            }
+            return null;
         });
-        currentRequests.computeIfAbsent(subjectId, key -> new HashSet<>()).add(SubjectRequest.fromGermanTranslation(type));
+        loadCurrentRequests(semesterId);
     }
     /**
      * Adds a subject request for this student.
      * @param subject the corresponding subject
      * @param subjectRequest the request
      */
-    public void addSubjectRequest(Subject subject, SubjectRequest subjectRequest) {
+    public void addSubjectRequest(Subject subject, SubjectRequest subjectRequest) throws SQLException {
         addSubjectRequest(subject.getId(), subjectRequest.getGermanTranslation());
     }
     /**
@@ -556,19 +572,89 @@ public class Student extends User {
      * @deprecated Use removeSubjectRequest(Subject, SubjectRequest) instead
      */
     @Deprecated
-    public void removeSubjectRequest(int subjectId, String type) {
-        currentRequests.computeIfPresent(subjectId, (key, value) -> {
-            value.remove(SubjectRequest.fromGermanTranslation(type));
-            return value;
+    public void removeSubjectRequest(int subjectId, String type) throws SQLException {
+        SubjectRequest request = SubjectRequest.fromGermanTranslation(type);
+        int semesterId = currentSemesterId();
+        Server.getInstance().getConnection().writeTransaction(c -> {
+            try (var s = c.prepareStatement("DELETE FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type=?")) {
+                s.setInt(1, id);
+                s.setInt(2, subjectId);
+                s.setInt(3, semesterId);
+                s.setString(4, request.name());
+                s.executeUpdate();
+            }
+            return null;
         });
+        loadCurrentRequests(semesterId);
     }
     /**
      * Removes a subject request from this student.
      * @param subject the corresponding subject
      * @param subjectRequest the request
      */
-    public void removeSubjectRequest(Subject subject, SubjectRequest subjectRequest) {
+    public void removeSubjectRequest(Subject subject, SubjectRequest subjectRequest) throws SQLException {
         removeSubjectRequest(subject.getId(), subjectRequest.getGermanTranslation());
+    }
+
+    private static int currentSemesterId() {
+        Integer semesterId = currentSemesterIdOrNull();
+        if (semesterId == null) throw new CurriculumException(409, "current_semester_unavailable", "No current semester is configured.");
+        return semesterId;
+    }
+    private static Integer currentSemesterIdOrNull() {
+        try (var s = Server.getInstance().getConnection().getSQLConnection().prepareStatement(
+                "SELECT current_semester FROM school_years WHERE current_semester IS NOT NULL "
+                + "AND start_date IS NOT NULL AND end_date IS NOT NULL AND date('now') BETWEEN date(start_date) AND date(end_date) "
+                + "ORDER BY id DESC LIMIT 1")) {
+            try (var r = s.executeQuery()) {
+                return r.next() ? r.getInt("current_semester") : null;
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not resolve current semester", e);
+        }
+    }
+    private void requireSubjectRequestContext(int subjectId, int semesterId) throws SQLException {
+        try (var s = Server.getInstance().getConnection().getSQLConnection().prepareStatement(
+                "SELECT COUNT(*) FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=? AND class=?")) {
+            s.setInt(1, id);
+            s.setInt(2, subjectId);
+            s.setInt(3, semesterId);
+            s.setInt(4, schoolClass.getId());
+            try (var r = s.executeQuery()) {
+                if (!r.next() || r.getLong(1) == 0) throw new CurriculumException(403, "forbidden", "Subject is not assigned to this student.");
+            }
+        }
+    }
+    private synchronized void ensureCurrentRequestsLoaded() {
+        Integer semesterId = currentSemesterIdOrNull();
+        if (semesterId == null) {
+            currentRequests.clear();
+            currentRequestsSemesterId = null;
+            return;
+        }
+        if (Objects.equals(currentRequestsSemesterId, semesterId)) return;
+        try {
+            loadCurrentRequests(semesterId);
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not load subject requests", e);
+        }
+    }
+    private synchronized void loadCurrentRequests(int semesterId) throws SQLException {
+        Map<Integer, Set<SubjectRequest>> loaded = new HashMap<>();
+        try (var s = Server.getInstance().getConnection().getSQLConnection().prepareStatement(
+                "SELECT subject,request_type FROM student_subject_requests WHERE student=? AND semester=? ORDER BY subject,request_type")) {
+            s.setInt(1, id);
+            s.setInt(2, semesterId);
+            try (var r = s.executeQuery()) {
+                while (r.next()) {
+                    int subjectId = r.getInt("subject");
+                    loaded.computeIfAbsent(subjectId, key -> ConcurrentHashMap.newKeySet()).add(SubjectRequest.valueOf(r.getString("request_type")));
+                }
+            }
+        }
+        currentRequests.clear();
+        currentRequests.putAll(loaded);
+        currentRequestsSemesterId = semesterId;
     }
 
     public void beginTask(Task task) throws SQLException {
@@ -699,6 +785,7 @@ public class Student extends User {
 
     @Override
     public String toJSON() {
+        ensureCurrentRequestsLoaded();
         StringBuilder builder = new StringBuilder();
         builder.append("{\n")
         .append("\"id\": ").append(id).append(",\n")
@@ -899,6 +986,7 @@ public class Student extends User {
         return teacher != null && schoolClass != null && teacher.getClassIds().contains(schoolClass.getId());
     }
     public boolean isActionRequired() {
+        ensureCurrentRequestsLoaded();
         return currentRequests.entrySet().stream().anyMatch((set) -> !set.getValue().isEmpty());
     }
 

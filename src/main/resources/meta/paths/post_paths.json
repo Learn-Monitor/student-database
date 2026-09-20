@@ -57,7 +57,7 @@
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "user"
+        "access_level": "student"
     },
     "/current-topic": {
         "type": "POST",
