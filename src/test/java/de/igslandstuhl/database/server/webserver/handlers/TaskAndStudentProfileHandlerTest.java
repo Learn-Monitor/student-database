@@ -2,6 +2,9 @@ package de.igslandstuhl.database.server.webserver.handlers;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -11,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -29,10 +33,15 @@ import de.igslandstuhl.database.api.curriculum.Curriculum;
 import de.igslandstuhl.database.api.curriculum.CurriculumEnrollment;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLiteConnection;
+import de.igslandstuhl.database.server.webserver.Cookie;
 import de.igslandstuhl.database.server.webserver.Status;
+import de.igslandstuhl.database.server.webserver.WebPath;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
 import de.igslandstuhl.database.server.webserver.requests.HttpHeader;
+import de.igslandstuhl.database.server.webserver.requests.PostRequest;
+import de.igslandstuhl.database.server.webserver.responses.HttpResponse;
 import de.igslandstuhl.database.server.webserver.responses.PostResponse;
+import de.igslandstuhl.database.server.webserver.sessions.Session;
 
 class TaskAndStudentProfileHandlerTest {
     private static final AtomicInteger SEQUENCE = new AtomicInteger(60000);
@@ -43,6 +52,12 @@ class TaskAndStudentProfileHandlerTest {
     private int task;
     private Curriculum.Scope scope;
     private Curriculum.Actor teacher;
+
+    @BeforeAll
+    static void registerHandlers() throws Exception {
+        PostRequestHandler.registerHandlers();
+        WebPath.registerPaths();
+    }
 
     @BeforeEach
     void setup() throws Exception {
@@ -238,8 +253,74 @@ class TaskAndStudentProfileHandlerTest {
         assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
     }
 
+    @Test
+    void searchPartnerUsesSessionStudentAndRejectsClientControlledScope() throws Exception {
+        int partnerId = id + 2;
+        db.writeTransaction(c -> {
+            exec(c, "INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Partner','Candidate',?,'unused',?,1)", partnerId, "partner" + id + "@example.invalid", id + 1);
+            exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", partnerId, id, id, id, id + 1);
+            exec(c, "INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?,?,NULL)", id, id, id, task);
+            exec(c, "INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?,?,NULL)", partnerId, id, id, task);
+            exec(c, "INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'PARTNER')", partnerId, id, id);
+            return null;
+        });
+
+        HttpResponse response = searchPartner(Student.get(id), "{\"subjectId\":" + id + "}");
+        assertEquals(Status.OK, response.getStatus());
+        var json = com.google.gson.JsonParser.parseString(responseBody(response).split("\r\n\r\n", 2)[1]).getAsJsonArray();
+        assertEquals(1, json.size());
+        assertEquals(partnerId, json.get(0).getAsJsonObject().get("id").getAsInt());
+        assertEquals("Partner Candidate", json.get(0).getAsJsonObject().get("name").getAsString());
+        assertEquals(Set.of("id", "name"), json.get(0).getAsJsonObject().keySet());
+
+        db.writeTransaction(c -> { exec(c, "DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=?", id, id); return null; });
+        assertEquals(0, com.google.gson.JsonParser.parseString(responseBody(searchPartner(Student.get(id), "{\"subjectId\":" + id + "}")).split("\r\n\r\n", 2)[1]).getAsJsonArray().size());
+
+        for (String field : List.of("studentId", "classId", "topicId", "semesterId", "taskId"))
+            assertEquals(Status.BAD_REQUEST, searchPartner(Student.get(id), "{\"subjectId\":" + id + ",\"" + field + "\":1}").getStatus());
+    }
+
+    @Test
+    void searchPartnerBlocksForeignSubjectMissingCurrentSemesterAndNonStudents() throws Exception {
+        int foreignSubject = id + 50;
+        db.writeTransaction(c -> { exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", foreignSubject, "Foreign-" + id); return null; });
+        assertEquals(Status.FORBIDDEN, searchPartner(Student.get(id), "{\"subjectId\":" + foreignSubject + "}").getStatus());
+
+        db.writeTransaction(c -> { exec(c, "UPDATE school_years SET current_semester=NULL"); return null; });
+        HttpResponse noSemester = searchPartner(Student.get(id), "{\"subjectId\":" + id + "}");
+        assertEquals(Status.CONFLICT, noSemester.getStatus());
+        assertTrue(responseBody(noSemester).contains("current_semester_unavailable"));
+        db.writeTransaction(c -> { exec(c, "UPDATE school_years SET current_semester=? WHERE id=?", id, id); return null; });
+
+        assertEquals(Status.FORBIDDEN, searchPartner(Teacher.get(id), "{\"subjectId\":" + id + "}").getStatus());
+        assertEquals(Status.FORBIDDEN, searchPartner(Admin.create("partner-admin-" + id, "synthetic-test-only"), "{\"subjectId\":" + id + "}").getStatus());
+    }
+
     private PostResponse taskChange(User user, int status) throws Exception {
         return PostRequestHandler.handleTaskChange(apiRequest(user, "{\"studentId\":" + id + ",\"taskId\":" + task + "}"), status);
+    }
+
+    private HttpResponse searchPartner(User user, String body) throws Exception {
+        return post("/search-partner", body, sessionCookieFor(user.getUsername()));
+    }
+
+    private Cookie sessionCookieFor(String username) {
+        PostRequest request = new PostRequest("POST /login HTTP/1.1", "", "127.0.0.1", true);
+        Session session = Server.getInstance().getWebServer().getSessionManager().getSession(request);
+        Server.getInstance().getWebServer().getSessionManager().addSessionUser(session, username);
+        return session.createSessionCookie();
+    }
+
+    private HttpResponse post(String path, String body, Cookie cookie) throws Exception {
+        String header = "POST " + path + " HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: " + body.getBytes(StandardCharsets.UTF_8).length + "\r\n";
+        if (cookie != null) header += "Cookie: " + cookie + "\r\n";
+        return PostRequestHandler.getInstance().handlePostRequest(new PostRequest(header, body, "127.0.0.1", true));
+    }
+
+    private String responseBody(HttpResponse response) {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        response.respond(new PrintStream(buffer, true, StandardCharsets.UTF_8));
+        return buffer.toString(StandardCharsets.UTF_8);
     }
 
     private PostResponse flexibleChange(User user, String path, int taskId) {

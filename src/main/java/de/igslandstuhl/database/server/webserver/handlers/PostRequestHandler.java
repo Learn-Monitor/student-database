@@ -467,23 +467,24 @@ public class PostRequestHandler {
                 builder.addProperty("id", subject.getId()).addProperty("name", subject.getName());
             }), ContentType.JSON, rq);
         });
-        HttpHandler.registerPostRequestHandler("/search-partner", AccessLevel.USER, (rq) -> {
-            SchoolClass schoolClass = rq.getSchoolClass();
-            Subject subject = rq.getSubject();
-            Topic topic = rq.getTopic();
-            Student student = rq.getCurrentStudent();
-
-            List<Student> students = Student.getAll().stream()
-                                        .filter((s) -> s.getId() != student.getId())
-                                        .filter((s) -> s.getSchoolClass() != null && s.getSchoolClass().getGrade() == schoolClass.getGrade())
-                                        .filter((s) -> topic != null && topic.equals(s.getCurrentTopic(subject))
-                                            && s.getSelectedTasks().stream().filter((t) -> topic.equals(t.getTopic())).anyMatch((t) -> student.getSelectedTasks().contains(t))
-                                            && s.getCurrentRequests(subject).stream().anyMatch((r) -> r == SubjectRequest.PARTNER))
-                                            .toList();
-            return PostResponse.ok(JSONUtils.toJSON(students, (partner, builder) -> {
-                builder.addProperty("id", partner.getId())
-                .addProperty("name", partner.getFirstName() + " " + partner.getLastName());
-            }), ContentType.JSON, rq);
+        HttpHandler.registerPostRequestHandler("/search-partner", AccessLevel.STUDENT, (rq) -> {
+            try {
+                if (rq.getJson() == null || !rq.containsKey("subjectId")) throw new CurriculumException(400, "invalid_input", "subjectId is required.");
+                for (String key : List.of("studentId", "classId", "topicId", "semesterId", "taskId"))
+                    if (rq.containsKey(key)) throw new CurriculumException(400, "invalid_input", "Only subjectId is accepted.");
+                Object rawSubject = rq.getJson().get("subjectId");
+                if (!(rawSubject instanceof Number subjectNumber) || subjectNumber.doubleValue() != Math.rint(subjectNumber.doubleValue()))
+                    throw new CurriculumException(400, "invalid_input", "subjectId must be an integer.");
+                Student student = rq.getCurrentStudent();
+                if (student == null) throw new CurriculumException(401, "unauthorized", "Please sign in.");
+                var students = new Curriculum(Server.getInstance().getConnection()).partnerCandidates(student.getId(), subjectNumber.intValue());
+                return PostResponse.ok(JSONUtils.toJSON(students, (partner, builder) -> {
+                    builder.addProperty("id", partner.id());
+                    builder.addProperty("name", partner.name());
+                }), ContentType.JSON, rq);
+            } catch (CurriculumException e) {
+                return curriculumError(e, rq);
+            }
         });
         HttpHandler.registerPostRequestHandler("/delete-subject", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<Subject>() {}, PostResponse.redirect("/manage_subjects", rq), (subject) -> subject.delete())            

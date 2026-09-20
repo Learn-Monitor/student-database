@@ -104,8 +104,8 @@ async function getStudents(classId) {
 async function getStudentsBySubject(classId, subjectId) {
     return await getJsonWithPost('/student-list', { classId, subjectId });
 }
-async function searchPartner(subjectId, topicId, classId, studentId) {
-    return await getJsonWithPost('/search-partner', { subjectId, topicId, classId, studentId});
+async function searchPartner(subjectId) {
+    return await getJsonWithPost('/search-partner', { subjectId });
 }
 async function addSubjectRequest(subjectId, subjectRequest) {
     return await post('/subject-request', { subjectId, subjectRequest });
@@ -242,19 +242,16 @@ async function populateSubjectStudentList(subjectSelectId, classSelectId, studen
   });
 }
 async function populatePartnerSubjectStudentList(subjectId, studentData) {
-    const topicId = (await fetchMyCurrentTopic(subjectId)).id;
-    const classId = studentData.schoolClass.id;
-    const studentId = studentData.id;
-
-    const students = await searchPartner(subjectId, topicId, classId, studentId);
+    const students = await searchPartner(subjectId);
 
     const studentTable = document.getElementById("studentTableBody");
     studentTable.innerHTML = ""; // clear previous rows
     students.forEach(student => {
         const row = document.createElement('tr');
-        row.innerHTML = `
-            <td class="student-name">${student.name}</td>
-        `;
+        const nameCell = document.createElement('td');
+        nameCell.className = 'student-name';
+        nameCell.textContent = student.name;
+        row.appendChild(nameCell);
         populatePartnerRowEvent(row, student);
         studentTable.appendChild(row);
     });

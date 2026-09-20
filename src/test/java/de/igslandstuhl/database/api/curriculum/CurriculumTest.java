@@ -22,7 +22,7 @@ class CurriculumTest {
     Curriculum.Scope scope;
     @BeforeEach void setup() throws Exception {
         db=Server.getInstance().getConnection();db.createTables();
-        service=new Curriculum(db);id=sequence.getAndAdd(10);topic=id;
+        service=new Curriculum(db);id=sequence.getAndAdd(100);topic=id;
         // Synthetic records only, in the test server's database; unique IDs avoid shared-cache collisions.
         db.writeTransaction(c->{
             exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",id,"Subject-"+id);
@@ -994,9 +994,74 @@ class CurriculumTest {
             edits.get(10,TimeUnit.SECONDS);
         }finally{pool.shutdownNow();}
     }
+    @Test void partnerCandidatesUseCanonicalCurrentActiveStagesAndPersistentPartnerSignals() throws Exception {
+        makeCurrentSemester(id);
+        int centralA=centralNamed("Partner central A",5), centralB=centralNamed("Partner central B",5);
+        var flexibleA=service.create(teacher,scope,"Partner flexible A",5);
+        var flexibleB=service.create(teacher,scope,"Partner flexible B",5);
+        int otherGradeClass=id+20;
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO classes(id,label,grade,active) VALUES(?,?,6,1)",otherGradeClass,"Grade6-"+id);
+            activeCentral(c,id,id,id,centralA);
+            request(c,id,id,id,"PARTNER");
+            student(c,id+2,"Able","Central",id+1,1);context(c,id+2,id,id,id,id+1,5);activeCentral(c,id+2,id,id,centralA);request(c,id+2,id,id,"PARTNER");
+            student(c,id+3,"No","Partner",id,1);context(c,id+3,id,id,id,id,5);activeCentral(c,id+3,id,id,centralA);
+            student(c,id+4,"Multi","Signal",id,1);context(c,id+4,id,id,id,id,5);activeCentral(c,id+4,id,id,centralA);request(c,id+4,id,id,"HELP");request(c,id+4,id,id,"PARTNER");
+            student(c,id+5,"Wrong","Central",id,1);context(c,id+5,id,id,id,id,5);activeCentral(c,id+5,id,id,centralB);request(c,id+5,id,id,"PARTNER");
+            student(c,id+6,"Wrong","Type",id,1);context(c,id+6,id,id,id,id,5);activeFlexible(c,id+6,id,id,flexibleA.id());request(c,id+6,id,id,"PARTNER");
+            student(c,id+7,"Other","Class",id+1,1);context(c,id+7,id,id,id,id+1,5);activeCentral(c,id+7,id,id,centralA);request(c,id+7,id,id,"PARTNER");
+            student(c,id+8,"Other","Grade",otherGradeClass,1);context(c,id+8,id,id,id,otherGradeClass,6);activeCentral(c,id+8,id,id,centralA);request(c,id+8,id,id,"PARTNER");
+            student(c,id+9,"Inactive","Student",id,0);context(c,id+9,id,id,id,id,5);activeCentral(c,id+9,id,id,centralA);request(c,id+9,id,id,"PARTNER");
+            student(c,id+10,"Wrong","Subject",id,1);context(c,id+10,id,id,id,id,5);activeCentral(c,id+10,id,id,centralA);request(c,id+10,id+1,id,"PARTNER");
+            student(c,id+11,"Old","Signal",id,1);context(c,id+11,id,id,id,id,5);activeCentral(c,id+11,id,id,centralA);request(c,id+11,id,id+1,"PARTNER");
+            student(c,id+12,"Old","Stage",id,1);context(c,id+12,id,id,id,id,5);activeCentral(c,id+12,id,id+1,centralA);request(c,id+12,id,id,"PARTNER");
+            student(c,id+13,"Legacy","Cache",id,1);context(c,id+13,id,id,id,id,5);request(c,id+13,id,id,"PARTNER");
+            return null;
+        });
+        Student.get(id+13).selectOnlyTaskForSubject(Task.get(centralA));
+
+        assertEquals(List.of(id+2,id+7,id+4),candidateIds());
+
+        db.writeTransaction(c->{activeFlexible(c,id,id,id,flexibleA.id());activeFlexible(c,id+2,id,id,flexibleA.id());activeFlexible(c,id+3,id,id,flexibleB.id());return null;});
+        assertEquals(List.of(id+2,id+6),candidateIds());
+
+        db.writeTransaction(c->{exec(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=?",id,id);return null;});
+        assertEquals(List.of(),service.partnerCandidates(id,id));
+
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.partnerCandidates(id,id+1)).status);
+    }
     @AfterEach void clearCurrentYearDates() throws Exception {
         // Only this case's synthetic school year; other tests share the isolated JVM.
         db.writeTransaction(c->{exec(c,"UPDATE school_years SET start_date=NULL,end_date=NULL WHERE id=?",id);return null;});
+    }
+    void makeCurrentSemester(int semester) throws Exception {
+        var today=java.time.LocalDate.now();
+        db.writeTransaction(c->{exec(c,"UPDATE school_years SET start_date=?,end_date=?,current_semester=? WHERE id=?",
+                today.minusDays(1).toString(),today.plusDays(1).toString(),semester,id);return null;});
+    }
+    List<Integer> candidateIds() throws Exception {
+        return service.partnerCandidates(id,id).stream().map(Curriculum.PartnerCandidate::id).toList();
+    }
+    void student(Connection c,int student,String first,String last,int classId,int active)throws SQLException {
+        exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level,active) VALUES(?,?,?,?,?,?,1,?)",
+                student,first,last,"partner"+student+"@example.invalid","unused",classId,active);
+    }
+    void context(Connection c,int student,int subject,int semester,int teacherId,int classId,int grade)throws SQLException {
+        exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,?)",
+                student,subject,semester,teacherId,classId,grade);
+    }
+    void activeCentral(Connection c,int student,int subject,int semester,int task)throws SQLException {
+        exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?,?,NULL) "
+                + "ON CONFLICT(student,subject) DO UPDATE SET semester=excluded.semester,central_task=excluded.central_task,flexible_task=NULL",
+                student,subject,semester,task);
+    }
+    void activeFlexible(Connection c,int student,int subject,int semester,int task)throws SQLException {
+        exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?,NULL,?) "
+                + "ON CONFLICT(student,subject) DO UPDATE SET semester=excluded.semester,central_task=NULL,flexible_task=excluded.flexible_task",
+                student,subject,semester,task);
+    }
+    void request(Connection c,int student,int subject,int semester,String type)throws SQLException {
+        exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,?)",student,subject,semester,type);
     }
     SchoolYear currentYear() throws Exception {
         var today=java.time.LocalDate.now();

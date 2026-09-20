@@ -37,6 +37,7 @@ public final class Curriculum {
     }
     public enum ActiveStageType { CENTRAL, FLEXIBLE }
     public record ActiveStage(ActiveStageType type, int taskId, int subjectId, int semesterId, String name) {}
+    public record PartnerCandidate(int id, String name) {}
     private record CentralTask(int id, int subjectId, int semesterId, int grade, int topicId, String name) {}
     static CurriculumException error(int status, String code, String message) {
         return new CurriculumException(status, code, message);
@@ -394,6 +395,36 @@ public final class Curriculum {
         var task=require(c,"SELECT t.id,t.name,p.subject,p.grade,p.semester,p.id AS topic FROM tasks t JOIN topics p ON p.id=t.topic WHERE t.id=?",taskId);
         if(task.get("semester")==null) throw error(409,"context_unassigned","Task is not assigned to a managed semester.");
         return new CentralTask(integer(task,"id"),integer(task,"subject"),integer(task,"semester"),integer(task,"grade"),integer(task,"topic"),(String)task.get("name"));
+    }
+    private static int currentSemester(Connection c) throws SQLException {
+        var found=rows(c,"SELECT y.current_semester FROM school_years y JOIN semesters s ON s.id=y.current_semester "
+                + "WHERE y.start_date IS NOT NULL AND y.end_date IS NOT NULL AND date('now') BETWEEN date(y.start_date) AND date(y.end_date) "
+                + "AND y.current_semester IS NOT NULL ORDER BY y.id DESC LIMIT 1");
+        if(found.isEmpty()) throw error(409,"current_semester_unavailable","No current semester is configured.");
+        return integer(found.get(0),"current_semester");
+    }
+    public List<PartnerCandidate> partnerCandidates(int studentId,int subjectId) throws SQLException {
+        return transaction(c->{
+            int semester=currentSemester(c);
+            var context=rows(c,"SELECT grade FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",studentId,subjectId,semester);
+            if(context.isEmpty()) throw error(403,"forbidden","Student is not assigned to this subject in the current semester.");
+            int grade=integer(context.get(0),"grade");
+            var active=rows(c,"SELECT central_task,flexible_task FROM student_active_curriculum_stages WHERE student=? AND subject=? AND semester=?",studentId,subjectId,semester);
+            if(active.isEmpty()) return List.of();
+            var stage=active.get(0);
+            String stageColumn=stage.get("central_task")!=null?"central_task":"flexible_task";
+            int taskId=integer(stage,stageColumn);
+            return rows(c,"SELECT s.id,(s.first_name || ' ' || s.last_name) AS name "
+                    + "FROM student_active_curriculum_stages a "
+                    + "JOIN students s ON s.id=a.student "
+                    + "JOIN student_curriculum_contexts x ON x.student=a.student AND x.subject=a.subject AND x.semester=a.semester "
+                    + "JOIN student_subject_requests r ON r.student=a.student AND r.subject=a.subject AND r.semester=a.semester AND r.request_type='PARTNER' "
+                    + "WHERE a.subject=? AND a.semester=? AND a.student<>? AND COALESCE(s.active,1)=1 AND x.grade=? "
+                    + "AND a." + stageColumn + "=? AND a." + ("central_task".equals(stageColumn)?"flexible_task":"central_task") + " IS NULL "
+                    + "ORDER BY s.last_name,s.first_name,s.id",
+                    subjectId,semester,studentId,grade,taskId).stream()
+                    .map(r->new PartnerCandidate(integer(r,"id"),(String)r.get("name"))).toList();
+        });
     }
     private static void putActiveCentral(Connection c,int studentId,CentralTask task) throws SQLException {
         write(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task,last_updated) VALUES(?,?,?,?,NULL,CURRENT_TIMESTAMP) "
