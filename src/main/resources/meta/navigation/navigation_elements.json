@@ -111,6 +111,11 @@
         "path": "/dashboard",
         "label": "Zurück zum Lehrer-Dashboard"
     },
+    {
+        "type": "TEACHER_DASHBOARD",
+        "path": "/dashboard#student-progress",
+        "label": "Schülerfortschritt"
+    },
 
     {
         "type": "TEACHER_STUDENT",

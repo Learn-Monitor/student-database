@@ -8,7 +8,7 @@ const tick=()=>new Promise(resolve=>setTimeout(resolve,20));
 async function setup(admin, options={}){
  const markup=options.adminDashboard
   ? '<section id="schuljahr"><div id="admin-enrollment"></div></section><section id="curriculum-admin"><div id="admin-central-curriculum"></div></section>'
-  : '<section id="curriculum"></section>';
+  : '<section id="curriculum"></section>'+(options.progress?'<section id="student-progress"></section>':'');
  const dom=new JSDOM(markup,{url:'https://school.example.invalid/',runScripts:'outside-only'});
  await new Promise(resolve=>dom.window.document.addEventListener('DOMContentLoaded',resolve,{once:true}));
  if(options.pm) {
@@ -39,6 +39,11 @@ async function setup(admin, options={}){
   subjects:admin?[{id:1,name:'Math'}]:[{id:1,name:'Math'},{id:2,name:'Legacy only'}],
   classes:admin?[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5}]:[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5},{id:12,label:'Legacy class',grade:8}],
   semesters:[{id:20,label:'H1'},{id:21,label:'H2'}],teachers:[{id:7,first_name:'Test',last_name:'Teacher'}],contexts:options.contexts ?? defaultContexts};
+ const defaultRoster=[
+  {id:50,name:'Ada Alpha',firstName:'Ada',lastName:'Alpha',activeStage:{type:'CENTRAL',taskId:3,name:'Central'},signals:{help:true,partner:true,experiment:false,exam:false}},
+  {id:51,name:'Ben Beta',firstName:'Ben',lastName:'Beta',activeStage:{type:'FLEXIBLE',taskId:100,name:'Own task'},signals:{help:false,partner:false,experiment:true,exam:true}},
+  {id:52,name:'Cara Gamma',firstName:'Cara',lastName:'Gamma',activeStage:null,signals:{help:false,partner:false,experiment:false,exam:false}}
+ ];
  dom.window.fetch=async(url,requestOptions)=>{
   const data=JSON.parse(requestOptions.body);requests.push({url,data});let body;let ok=true;
   if(options.response?.url===url)return {ok:false,status:options.response.status,text:async()=>options.response.body};
@@ -59,6 +64,7 @@ async function setup(admin, options={}){
    body={ok:true};
   }
   else if(url==='/curriculum-catalog')body=catalog;
+  else if(url==='/curriculum-teacher-roster')body=options.rosterHandler?await options.rosterHandler(data):(options.roster ?? defaultRoster);
   else if(url==='/curriculum-structure')body={centralTokens,topics:options.centralTopics||[{id:2,name:topicName,number:1}],tasks:options.centralTasks||[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1,stageNumber:1}]};
   else if(url==='/central-curriculum-overview')body={subjects:[{subjectId:1,subjectName:'Math',centralTokens,remainingRegular:100-centralTokens,remainingHard:105-centralTokens,warning:centralTokens>100}],rows:[{subjectId:1,subjectName:'Math',topicNumber:1,topicName,stageNumber:1,stageName:centralName,tokens:centralTokens}]};
   else if(url==='/preview-central-curriculum-import'){
@@ -155,6 +161,85 @@ test('teacher without active contexts sees message and sends no curriculum detai
  try{
   assert.match(root.textContent,/Für das aktive Halbjahr sind keine Lerngruppen oder Fächer zugewiesen/);
   assert.equal(requests.filter(r=>['/curriculum-structure','/curriculum-budget','/flexible-curriculum-structure'].includes(r.url)).length,0);
+ }finally{dom.window.close();}
+});
+test('student progress filters use active canonical contexts only',async()=>{
+ const{dom,requests}=await setup(false,{progress:true});
+ try{
+  const progress=dom.window.document.querySelector('#student-progress');
+  assert.ok(progress.querySelector('button').textContent.includes('Aktualisieren'));
+  assert.deepEqual(optionsOf(progress.querySelector('[name=classId]')).map(option=>option.text),['5a','5b']);
+  assert.deepEqual(optionsOf(progress.querySelector('[name=subjectId]')).map(option=>option.text),['Math']);
+  assert.equal(progress.querySelector('[name=semesterId]'),null);
+  assert.equal(progress.querySelector('[name=teacherId]'),null);
+  assert.equal(progress.querySelector('[name=grade]'),null);
+  assert.doesNotMatch(progress.textContent,/Legacy class|Legacy only|History/);
+  assert.deepEqual(requests.filter(r=>r.url==='/curriculum-teacher-roster').at(0).data,{subjectId:1,semesterId:20,classId:10,teacherId:7});
+  const classSelect=progress.querySelector('[name=classId]'),subjectSelect=progress.querySelector('[name=subjectId]');
+  classSelect.value='11';classSelect.dispatchEvent(new dom.window.Event('change'));await tick();
+  assert.deepEqual(optionsOf(subjectSelect),[{value:'1',text:'Math'},{value:'3',text:'Science'}]);
+  assert.deepEqual(requests.filter(r=>r.url==='/curriculum-teacher-roster').at(-1).data,{subjectId:1,semesterId:20,classId:11,teacherId:7});
+  subjectSelect.value='3';subjectSelect.dispatchEvent(new dom.window.Event('change'));await tick();
+  assert.deepEqual(requests.filter(r=>r.url==='/curriculum-teacher-roster').at(-1).data,{subjectId:3,semesterId:20,classId:11,teacherId:7});
+  const before=requests.filter(r=>r.url==='/curriculum-teacher-roster').length;
+  progress.querySelector('button').click();await tick();
+  assert.equal(requests.filter(r=>r.url==='/curriculum-teacher-roster').length,before+1);
+ }finally{dom.window.close();}
+});
+test('student progress skips roster requests without active contexts or in admin mode',async()=>{
+ const contexts=[{semesterId:21,semesterLabel:'H2',activeSemester:false,classId:10,classLabel:'5a',grade:5,subjectId:1,subjectName:'Math'}];
+ let env=await setup(false,{progress:true,contexts});
+ try{
+  assert.match(env.dom.window.document.querySelector('#student-progress').textContent,/Für das aktive Halbjahr sind keine Lerngruppen oder Fächer zugewiesen/);
+  assert.equal(env.requests.some(r=>r.url==='/curriculum-teacher-roster'),false);
+ }finally{env.dom.window.close();}
+ env=await setup(true,{progress:true});
+ try{
+  assert.equal(env.requests.some(r=>r.url==='/curriculum-teacher-roster'),false);
+  assert.equal(env.dom.window.document.querySelector('#student-progress').querySelector('select'),null);
+ }finally{env.dom.window.close();}
+});
+test('student progress renders active stages and signals read only',async()=>{
+ const{dom,requests}=await setup(false,{progress:true});
+ try{
+  const progress=dom.window.document.querySelector('#student-progress');
+  assert.match(progress.textContent,/Central · Zentral/);
+  assert.match(progress.textContent,/Own task · Flexibel/);
+  assert.match(progress.textContent,/Keine Etappe in Bearbeitung/);
+  const rows=[...progress.querySelectorAll('table tr')].slice(1).map(row=>[...row.cells].map(cell=>cell.textContent));
+  assert.deepEqual(rows[0],['Ada Alpha','Central · Zentral','Ja','Ja','—','—']);
+  assert.deepEqual(rows[1],['Ben Beta','Own task · Flexibel','—','—','Ja','Ja']);
+  assert.deepEqual(rows[2],['Cara Gamma','Keine Etappe in Bearbeitung','—','—','—','—']);
+  assert.equal(progress.querySelectorAll('form').length,0);
+  assert.equal(progress.querySelectorAll('input[type=checkbox]').length,0);
+  assert.equal([...progress.querySelectorAll('button')].filter(button=>button.textContent!=='Aktualisieren').length,0);
+  assert.equal(requests.some(r=>['/subject-request','/complete-task','/lock-task','/reopen-task','/complete-flexible-task'].includes(r.url)),false);
+ }finally{dom.window.close();}
+});
+test('student progress handles empty roster and safe text rendering',async()=>{
+ let env=await setup(false,{progress:true,roster:[]});
+ try{assert.match(env.dom.window.document.querySelector('#student-progress').textContent,/Für diesen Unterrichtskontext sind keine Schüler zugeordnet/);}
+ finally{env.dom.window.close();}
+ env=await setup(false,{progress:true,roster:[{id:1,name:'<img src=x onerror=alert(1)>',activeStage:{type:'CENTRAL',taskId:3,name:'<img src=y onerror=alert(2)>'},signals:{help:true,partner:false,experiment:false,exam:false}}]});
+ try{
+  const progress=env.dom.window.document.querySelector('#student-progress');
+  assert.equal(progress.querySelectorAll('img').length,0);
+  assert.match(progress.textContent,/<img src=x onerror=alert\(1\)>/);
+  assert.match(progress.textContent,/<img src=y onerror=alert\(2\)> · Zentral/);
+ }finally{env.dom.window.close();}
+});
+test('student progress blocks stale roster responses',async()=>{
+ const pending=new Map();
+ const rosterHandler=data=>new Promise(resolve=>pending.set(data.classId,resolve));
+ const{dom}=await setup(false,{progress:true,rosterHandler});
+ try{
+  const progress=dom.window.document.querySelector('#student-progress'),classSelect=progress.querySelector('[name=classId]');
+  classSelect.value='11';classSelect.dispatchEvent(new dom.window.Event('change'));await tick();
+  pending.get(11)([{id:11,name:'Fresh Class',activeStage:null,signals:{help:false,partner:false,experiment:false,exam:false}}]);await tick();
+  assert.match(progress.textContent,/Fresh Class/);
+  pending.get(10)([{id:10,name:'Stale Class',activeStage:null,signals:{help:false,partner:false,experiment:false,exam:false}}]);await tick();
+  assert.match(progress.textContent,/Fresh Class/);
+  assert.doesNotMatch(progress.textContent,/Stale Class/);
  }finally{dom.window.close();}
 });
 test('admin curriculum filters keep subject semester class teacher and grade selects',async()=>{

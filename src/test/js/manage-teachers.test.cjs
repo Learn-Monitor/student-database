@@ -150,3 +150,10 @@ test('admin dashboard teacher labels use Lehrkräfte only for manage teachers li
   const dashboardTeacher=items.find(item=>item.type==='ADMIN_DASHBOARD' && item.path==='/manage_teachers');
   assert.equal(dashboardTeacher.label,'Lehrkräfte verwalten');
 });
+
+test('teacher dashboard navigation links student progress exactly once',()=>{
+  const items=JSON.parse(navigation);
+  const matches=items.filter(item=>item.type==='TEACHER_DASHBOARD' && item.path==='/dashboard#student-progress');
+  assert.equal(matches.length,1);
+  assert.equal(matches[0].label,'Schülerfortschritt');
+});

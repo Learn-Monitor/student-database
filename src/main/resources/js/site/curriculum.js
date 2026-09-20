@@ -3,6 +3,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const adminEnrollmentRoot = document.querySelector('#admin-enrollment');
     const adminCentralRoot = document.querySelector('#admin-central-curriculum');
+    const progressRoot = document.querySelector('#student-progress');
     const separatedAdmin = Boolean(adminEnrollmentRoot && adminCentralRoot);
     const root = adminCentralRoot || document.querySelector('#curriculum');
     if (!root && !adminEnrollmentRoot) return;
@@ -57,6 +58,97 @@ document.addEventListener('DOMContentLoaded', async () => {
         const wrapper = el('label', label + ' '), node = el('select'); node.name = name;
         for (const item of items) { const option = el('option', item.label || item.name); option.value = item.id; node.append(option); }
         wrapper.append(node); root.append(wrapper); return node;
+    }
+    const uniqueBy = (items, key) => {
+        const seen = new Set(), out = [];
+        for (const item of items) { const value = key(item); if (seen.has(value)) continue; seen.add(value); out.push(item); }
+        return out;
+    };
+    async function mountStudentProgress(catalog, activeContexts) {
+        if (!progressRoot || catalog.admin === true) return;
+        const panel = el('div'), status = el('p'), rosterArea = el('div');
+        status.setAttribute('role', 'status');
+        progressRoot.append(panel, status, rosterArea);
+        const classes = uniqueBy(activeContexts, context => context.classId).map(context => ({id:context.classId,name:context.classLabel}));
+        if (!classes.length) {
+            status.textContent = 'Für das aktive Halbjahr sind keine Lerngruppen oder Fächer zugewiesen.';
+            return;
+        }
+        const progressSelect = (label, items, name) => {
+            const wrapper = el('label', label + ' '), node = el('select'); node.name = name;
+            for (const item of items) { const option = el('option', item.label || item.name); option.value = item.id; node.append(option); }
+            wrapper.append(node); panel.append(wrapper); return node;
+        };
+        const classSelect = progressSelect('Klasse/Lerngruppe', classes, 'classId');
+        const subjectSelect = progressSelect('Fach', [], 'subjectId');
+        const reload = el('button', 'Aktualisieren'); reload.type = 'button'; panel.append(reload);
+        let generation = 0;
+        function contextsForClass() {
+            return activeContexts.filter(context => context.classId === Number(classSelect.value));
+        }
+        function rebuildSubjects() {
+            const subjects = uniqueBy(contextsForClass(), context => context.subjectId).map(context => ({id:context.subjectId,name:context.subjectName}));
+            subjectSelect.replaceChildren();
+            for (const subject of subjects) { const option = el('option', subject.name); option.value = subject.id; subjectSelect.append(option); }
+        }
+        function selectedContext() {
+            return activeContexts.find(context => context.classId === Number(classSelect.value) && context.subjectId === Number(subjectSelect.value)) || null;
+        }
+        function stageText(stage) {
+            if (!stage) return 'Keine Etappe in Bearbeitung';
+            if (stage.type === 'CENTRAL') return `${stage.name || ''} · Zentral`;
+            if (stage.type === 'FLEXIBLE') return `${stage.name || ''} · Flexibel`;
+            return stage.name || 'Unbekannte Etappe';
+        }
+        function signalText(value) { return value === true ? 'Ja' : '—'; }
+        function renderRoster(rows) {
+            rosterArea.replaceChildren();
+            if (!Array.isArray(rows) || !rows.length) {
+                rosterArea.append(el('p', 'Für diesen Unterrichtskontext sind keine Schüler zugeordnet.'));
+                return;
+            }
+            const table = document.createElement('table'), head = table.insertRow();
+            ['Schüler','In Bearbeitung','Braucht Hilfe','Sucht Partner','Will experimentieren','Bereit für Gelingensnachweis']
+                .forEach(text => head.append(el('th', text)));
+            for (const row of rows) {
+                const tr = table.insertRow(), signals = row.signals || {};
+                tr.insertCell().textContent = row.name || `${row.firstName || ''} ${row.lastName || ''}`.trim();
+                tr.insertCell().textContent = stageText(row.activeStage);
+                tr.insertCell().textContent = signalText(signals.help);
+                tr.insertCell().textContent = signalText(signals.partner);
+                tr.insertCell().textContent = signalText(signals.experiment);
+                tr.insertCell().textContent = signalText(signals.exam);
+            }
+            rosterArea.append(table);
+        }
+        async function loadRoster() {
+            const current = ++generation, context = selectedContext();
+            status.textContent = ''; status.style.color = ''; rosterArea.replaceChildren();
+            if (!context) {
+                status.textContent = 'Für diese Auswahl ist kein Unterrichtskontext zugewiesen.';
+                return;
+            }
+            try {
+                const rows = await post('/curriculum-teacher-roster', {
+                    subjectId: context.subjectId,
+                    semesterId: context.semesterId,
+                    classId: context.classId,
+                    teacherId: catalog.teacherId
+                });
+                if (current !== generation) return;
+                renderRoster(rows);
+            } catch (error) {
+                if (current !== generation) return;
+                rosterArea.replaceChildren();
+                status.textContent = error.message;
+                status.style.color = 'darkred';
+            }
+        }
+        classSelect.addEventListener('change', () => { rebuildSubjects(); loadRoster(); });
+        subjectSelect.addEventListener('change', loadRoster);
+        reload.addEventListener('click', loadRoster);
+        rebuildSubjects();
+        await loadRoster();
     }
     function field(form, label, value, type = 'text') {
         const wrapper = el('label', label + ' '), input = el('input'); input.type = type; input.value = value; input.required = true;
@@ -176,15 +268,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const catalog = await post('/curriculum-catalog');
         const teacherMode = catalog.admin !== true;
         const activeContexts = teacherMode ? (catalog.contexts || []).filter(context => context.activeSemester === true) : [];
+        await mountStudentProgress(catalog, activeContexts);
         if (teacherMode && !activeContexts.length) {
             message.textContent = 'Für das aktive Halbjahr sind keine Lerngruppen oder Fächer zugewiesen.';
             return;
         }
-        const uniqueBy = (items, key) => {
-            const seen = new Set(), out = [];
-            for (const item of items) { const value = key(item); if (seen.has(value)) continue; seen.add(value); out.push(item); }
-            return out;
-        };
         const teacherClasses = teacherMode ? uniqueBy(activeContexts, context => context.classId).map(context => ({id:context.classId,label:context.classLabel,grade:context.grade})) : [];
         const subject = teacherMode ? select('Fach', [], 'subjectId') : select('Fach', catalog.subjects, 'subjectId');
         const semester = teacherMode ? null : select('Halbjahr', catalog.semesters, 'semesterId');
