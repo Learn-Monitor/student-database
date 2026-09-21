@@ -1,17 +1,41 @@
 %[site;title=Lehrer-Dashboard;content=!FOLLOWS]
-<div id="dashboard">
+<main id="dashboard" class="teacher-dashboard">
     <header>
-        <h1>Willkommen, Lehrer</h1>
+        <h1>Teacher Cockpit</h1>
+        <p>Unterrichtskontexte, Themen und Schülerfortschritt für das aktive Halbjahr.</p>
     </header>
-    <nav>%[teacher_dashboard_nav]</nav>
-</div>
+    <nav class="teacher-main-menu" aria-label="Teacher-Bereiche">
+        <div class="teacher-main-menu-sections">%[teacher_dashboard_nav]</div>
+    </nav>
+    <section class="teacher-function-page" id="overview">
+        <h2>Übersicht</h2>
+        <p role="status">Cockpit wird geladen.</p>
+    </section>
+    <section class="teacher-function-page teacher-workspace-panel" id="curriculum">
+        <h2>Themen &amp; Etappen</h2>
+    </section>
+    <section class="teacher-function-page" id="student-progress">
+        <h2>Schülerfortschritt</h2>
+    </section>
+</main>
 <script src="build_dashboard.js"></script>
-<section id="overview">
-    <h2>Übersicht</h2>
-    <p>Unterrichtskontexte, Themen und Schülerfortschritt für das aktive Halbjahr.</p>
-</section>
-<section id="curriculum"><h2>Themen &amp; Etappen</h2></section>
-<section id="student-progress">
-    <h2>Schülerfortschritt</h2>
-</section>
 <script src="/curriculum.js" defer></script>
+<script>
+(() => {
+  const pages = [...document.querySelectorAll('.teacher-function-page')];
+  const valid = new Set(pages.map(page => page.id));
+  const show = hash => {
+    const requested = hash || 'overview';
+    const active = valid.has(requested) ? requested : 'overview';
+    pages.forEach(page => { page.hidden = page.id !== active; });
+    document.querySelectorAll('.teacher-main-menu a').forEach(link => {
+      const linkHash = new URL(link.getAttribute('href'), location.href).hash.slice(1);
+      if (valid.has(linkHash)) link.setAttribute('aria-current', linkHash === active ? 'page' : 'false');
+      else link.removeAttribute('aria-current');
+    });
+  };
+  const select = () => show(location.hash.slice(1));
+  window.addEventListener('hashchange', select);
+  select();
+})();
+</script>

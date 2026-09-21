@@ -168,8 +168,52 @@ table tr:last-child td {
 .admin-quick-links { display:flex; flex-wrap:wrap; gap:.55rem; margin-top:1rem; }
 .admin-quick-links a { padding:.5rem .65rem; border-radius:.4rem; background:#eaf3fb; color:#24527a; font-weight:700; text-decoration:none; }
 .admin-quick-links a:hover, .admin-quick-links a:focus { text-decoration:underline; }
+
+/* Teacher Cockpit: dieselbe visuelle Sprache wie der Admin-Arbeitsbereich. */
+.teacher-dashboard { color:#243b53; }
+.teacher-main-menu { position:sticky; top:0; z-index:1000; margin:1rem 0; padding:.55rem .75rem; background:#17324d; border-radius:.55rem; box-shadow:0 3px 10px #172b4d33; }
+.teacher-main-menu-sections > ul { display:flex; flex-wrap:wrap; gap:.3rem; margin:0; padding:0; }
+.teacher-main-menu-sections > ul > li { margin:0; padding:0; background:transparent; }
+.teacher-main-menu a { display:block; padding:.62rem .72rem; color:#fff; font-weight:700; text-align:center; text-decoration:none; border-radius:.35rem; }
+.teacher-main-menu a:hover, .teacher-main-menu a:focus, .teacher-main-menu a[aria-current="page"] { background:#2c668e; }
+.teacher-main-menu a:focus-visible, .teacher-quick-links a:focus-visible, .teacher-dashboard button:focus-visible, .teacher-dashboard select:focus-visible, .teacher-dashboard input:focus-visible { outline:3px solid #ffbf47; outline-offset:2px; }
+.teacher-function-page { margin:1rem 0; padding:1rem 1.2rem; background:#fff; border:1px solid #d9e1ea; border-radius:.7rem; box-shadow:0 2px 8px #172b4d12; scroll-margin-top:5rem; }
+.teacher-function-page[hidden] { display:none; }
+.teacher-status-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(10.5rem, 1fr)); gap:.75rem; margin:1rem 0; }
+.teacher-status-card { padding:.9rem 1rem; background:#f8fbfd; border:1px solid #d9e1ea; border-radius:.55rem; box-shadow:0 1px 4px #172b4d0f; }
+.teacher-status-card h3 { margin:0 0 .35rem; font-size:.95rem; color:#17324d; }
+.teacher-status-value { font-size:1.45rem; font-weight:700; color:#102a43; }
+.teacher-status-detail { margin-top:.3rem; color:#526b82; font-size:.92rem; }
+.teacher-context-panel { margin:1rem 0; }
+.teacher-context-list { display:grid; grid-template-columns:repeat(auto-fit, minmax(12rem, 1fr)); gap:.45rem; }
+.teacher-context-list li { margin:0; padding:.65rem .75rem; background:#f8fbfd; border:1px solid #d9e1ea; }
+.teacher-quick-links { display:flex; flex-wrap:wrap; gap:.55rem; margin-top:1rem; }
+.teacher-quick-links a { padding:.55rem .7rem; border-radius:.4rem; background:#eaf3fb; color:#24527a; font-weight:700; text-decoration:none; }
+.teacher-quick-links a:hover, .teacher-quick-links a:focus { text-decoration:underline; }
+.teacher-filter-bar { display:flex; flex-wrap:wrap; align-items:end; gap:.65rem; margin:1rem 0; padding:.75rem; background:#f3f7fa; border:1px solid #d9e1ea; border-radius:.55rem; }
+.teacher-filter-bar label { display:flex; flex-direction:column; gap:.3rem; font-weight:700; color:#17324d; }
+.teacher-filter-bar select { min-width:min(15rem, 100%); margin:0; }
+.teacher-filter-bar button { margin:0; }
+.teacher-progress-layout { display:grid; grid-template-columns:minmax(0, 1.1fr) minmax(0, .9fr); gap:1rem; align-items:start; }
+.teacher-roster-panel, .teacher-detail-panel { min-width:0; padding:.8rem; background:#f8fbfd; border:1px solid #d9e1ea; border-radius:.55rem; }
+.teacher-detail-panel:empty::before { content:'Schüler auswählen, um Etappendetails anzuzeigen.'; display:block; color:#526b82; }
+.teacher-table-scroll { max-width:100%; overflow-x:auto; }
+.teacher-table-scroll table { min-width:42rem; margin-top:.5rem; }
+.teacher-detail-panel .teacher-table-scroll table { min-width:48rem; }
+.teacher-topic-panel { margin:.75rem 0; padding:.25rem .8rem .8rem; background:#f8fbfd; border:1px solid #d9e1ea; border-left:4px solid #477998; border-radius:.55rem; }
+.teacher-topic-flexible { border-left-color:#8b5e34; }
+.teacher-topic-panel > summary { padding:.7rem 0; color:#17324d; font-weight:700; cursor:pointer; }
+.teacher-stage-row { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem; padding:.55rem .65rem; background:#fff; border:1px solid #e3e9ef; border-radius:.4rem; }
+.teacher-topic-panel form { display:flex; flex-wrap:wrap; align-items:end; gap:.5rem; margin:.6rem 0; padding:.6rem; background:#edf4f9; border-radius:.4rem; }
+.teacher-topic-panel form label { display:flex; flex-direction:column; gap:.25rem; font-weight:700; }
+.teacher-topic-panel form select { margin:0; }
+.teacher-topic-panel form button { margin:0; }
 @media (max-width:700px) {
   .admin-main-menu { align-items:stretch; flex-direction:column; }
   .admin-main-menu-sections { display:grid; grid-template-columns:1fr 1fr; width:100%; }
   .admin-main-menu-logout { align-self:stretch; margin-left:0; }
+  .teacher-main-menu-sections > ul { display:grid; grid-template-columns:1fr 1fr; }
+  .teacher-progress-layout { grid-template-columns:1fr; }
+  .teacher-filter-bar { align-items:stretch; flex-direction:column; }
+  .teacher-filter-bar label, .teacher-filter-bar select, .teacher-filter-bar button { width:100%; box-sizing:border-box; }
 }

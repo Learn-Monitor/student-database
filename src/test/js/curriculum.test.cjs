@@ -8,7 +8,7 @@ const tick=()=>new Promise(resolve=>setTimeout(resolve,20));
 async function setup(admin, options={}){
  const markup=options.adminDashboard
   ? '<section id="schuljahr"><div id="admin-enrollment"></div></section><section id="curriculum-admin"><div id="admin-central-curriculum"></div></section>'
-  : '<section id="curriculum"></section>'+(options.progress?'<section id="student-progress"></section>':'');
+  : (options.overview?'<section id="overview"></section>':'')+'<section id="curriculum"></section>'+(options.progress?'<section id="student-progress"></section>':'');
  const dom=new JSDOM(markup,{url:'https://school.example.invalid/',runScripts:'outside-only'});
  await new Promise(resolve=>dom.window.document.addEventListener('DOMContentLoaded',resolve,{once:true}));
  if(options.pm) {
@@ -154,6 +154,26 @@ test('teacher filters use only active canonical contexts',async()=>{
   assert.equal(root.querySelector('[name=semesterId]'),null);
   assert.equal(root.querySelector('[name=teacherId]'),null);
   assert.equal(root.querySelector('[name=grade]'),null);
+ }finally{dom.window.close();}
+});
+test('teacher overview is a safe cockpit built only from active canonical contexts',async()=>{
+ const{dom,requests}=await setup(false,{overview:true});
+ try{
+  const overview=dom.window.document.querySelector('#overview');
+  const cards=[...overview.querySelectorAll('.teacher-status-card')].map(card=>card.textContent);
+  assert.equal(cards.length,4);
+  assert.match(cards[0],/Aktives HalbjahrH1/);
+  assert.match(cards[1],/Lerngruppen \/ Klassen2/);
+  assert.match(cards[2],/Fächer2/);
+  assert.match(cards[3],/Unterrichtskontexte3/);
+  assert.match(overview.textContent,/5a · Math/);
+  assert.match(overview.textContent,/5b · Science/);
+  assert.doesNotMatch(overview.textContent,/Legacy class|Legacy only|History/);
+  assert.deepEqual([...overview.querySelectorAll('.teacher-quick-links a')].map(link=>link.getAttribute('href')),[
+   '/dashboard#curriculum','/dashboard#student-progress','/attendance'
+  ]);
+  assert.equal(requests.some(request=>['/mydata','/teacher_classes','/teacher_subjects'].includes(request.url)),false);
+  assert.equal(overview.querySelectorAll('img').length,0);
  }finally{dom.window.close();}
 });
 test('teacher class changes rebuild subjects and requests canonical context scope',async()=>{

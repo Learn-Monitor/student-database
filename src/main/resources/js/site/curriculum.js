@@ -3,6 +3,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const adminEnrollmentRoot = document.querySelector('#admin-enrollment');
     const adminCentralRoot = document.querySelector('#admin-central-curriculum');
+    const overviewRoot = document.querySelector('#overview');
     const progressRoot = document.querySelector('#student-progress');
     const separatedAdmin = Boolean(adminEnrollmentRoot && adminCentralRoot);
     const root = adminCentralRoot || document.querySelector('#curriculum');
@@ -54,21 +55,63 @@ document.addEventListener('DOMContentLoaded', async () => {
         return body;
     }
     function showError(error) { message.textContent = error.message; message.style.color = 'darkred'; }
+    let selectMount = root;
     function select(label, items, name) {
         const wrapper = el('label', label + ' '), node = el('select'); node.name = name;
         for (const item of items) { const option = el('option', item.label || item.name); option.value = item.id; node.append(option); }
-        wrapper.append(node); root.append(wrapper); return node;
+        wrapper.append(node); selectMount.append(wrapper); return node;
     }
     const uniqueBy = (items, key) => {
         const seen = new Set(), out = [];
         for (const item of items) { const value = key(item); if (seen.has(value)) continue; seen.add(value); out.push(item); }
         return out;
     };
+    function renderTeacherOverview(activeContexts) {
+        if (!overviewRoot) return;
+        const contexts = Array.isArray(activeContexts) ? activeContexts : [];
+        const classes = uniqueBy(contexts, context => context.classId);
+        const subjects = uniqueBy(contexts, context => context.subjectId);
+        const semesters = uniqueBy(contexts, context => context.semesterId);
+        const value = (title, content, detail) => {
+            const card = el('article'); card.className = 'teacher-status-card';
+            card.append(el('h3', title), el('div', content, 'teacher-status-value'));
+            if (detail) card.append(el('div', detail, 'teacher-status-detail'));
+            return card;
+        };
+        const grid = el('div'); grid.className = 'teacher-status-grid';
+        const semesterLabel = semesters.map(context => context.semesterLabel).filter(Boolean).join(', ') || 'Nicht verfügbar';
+        grid.append(
+            value('Aktives Halbjahr', semesterLabel),
+            value('Lerngruppen / Klassen', String(classes.length)),
+            value('Fächer', String(subjects.length)),
+            value('Unterrichtskontexte', String(contexts.length))
+        );
+        const contextPanel = el('section'); contextPanel.className = 'teacher-context-panel';
+        contextPanel.append(el('h3', 'Meine Unterrichtskontexte'));
+        if (contexts.length) {
+            const list = el('ul'); list.className = 'teacher-context-list';
+            for (const context of contexts) list.append(el('li', `${context.classLabel || 'Lerngruppe'} · ${context.subjectName || 'Fach'}`));
+            contextPanel.append(list);
+        } else contextPanel.append(el('p', 'Für das aktive Halbjahr sind keine Unterrichtskontexte zugewiesen.'));
+        const quickLinks = el('nav'); quickLinks.className = 'teacher-quick-links'; quickLinks.setAttribute('aria-label', 'Schnellzugriffe');
+        for (const [label, href] of [
+            ['Themen & Etappen öffnen', '/dashboard#curriculum'],
+            ['Schülerfortschritt öffnen', '/dashboard#student-progress'],
+            ['Anwesenheit öffnen', '/attendance']
+        ]) {
+            const link = el('a', label); link.href = href; quickLinks.append(link);
+        }
+        overviewRoot.replaceChildren(el('h2', 'Übersicht'), grid, contextPanel, quickLinks);
+    }
     async function mountStudentProgress(catalog, activeContexts) {
         if (!progressRoot || catalog.admin === true) return;
         const panel = el('div'), status = el('p'), rosterArea = el('div'), detailArea = el('div');
+        panel.className = 'teacher-filter-bar';
+        rosterArea.className = 'teacher-roster-panel';
+        detailArea.className = 'teacher-detail-panel';
+        const workspace = el('div'); workspace.className = 'teacher-progress-layout'; workspace.append(rosterArea, detailArea);
         status.setAttribute('role', 'status');
-        progressRoot.append(panel, status, rosterArea, detailArea);
+        progressRoot.append(panel, status, workspace);
         const classes = uniqueBy(activeContexts, context => context.classId).map(context => ({id:context.classId,name:context.classLabel}));
         if (!classes.length) {
             status.textContent = 'Für das aktive Halbjahr sind keine Lerngruppen oder Fächer zugewiesen.';
@@ -159,7 +202,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tr.insertCell().textContent = stage.earned === true ? 'Ja' : '—';
                 tr.insertCell().textContent = stage.inProgress === true ? 'In Bearbeitung' : '—';
             }
-            detailArea.append(table);
+            const tableWrap = el('div'); tableWrap.className = 'teacher-table-scroll'; tableWrap.append(table);
+            detailArea.append(tableWrap);
         }
         async function loadDetail(studentId) {
             const context = selectedContext();
@@ -207,7 +251,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 detailButton.addEventListener('click', () => loadDetail(row.id));
                 tr.insertCell().append(detailButton);
             }
-            rosterArea.append(table);
+            const tableWrap = el('div'); tableWrap.className = 'teacher-table-scroll'; tableWrap.append(table);
+            rosterArea.append(tableWrap);
         }
         async function loadRoster() {
             const current = ++generation, context = selectedContext();
@@ -358,10 +403,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const catalog = await post('/curriculum-catalog');
         const teacherMode = catalog.admin !== true;
         const activeContexts = teacherMode ? (catalog.contexts || []).filter(context => context.activeSemester === true) : [];
+        if (teacherMode) renderTeacherOverview(activeContexts);
         await mountStudentProgress(catalog, activeContexts);
         if (teacherMode && !activeContexts.length) {
             message.textContent = 'Für das aktive Halbjahr sind keine Lerngruppen oder Fächer zugewiesen.';
             return;
+        }
+        if (teacherMode) {
+            selectMount = el('div');
+            selectMount.className = 'teacher-filter-bar';
+            root.append(selectMount);
         }
         const teacherClasses = teacherMode ? uniqueBy(activeContexts, context => context.classId).map(context => ({id:context.classId,label:context.classLabel,grade:context.grade})) : [];
         const subject = teacherMode ? select('Fach', [], 'subjectId') : select('Fach', catalog.subjects, 'subjectId');
@@ -385,8 +436,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             return activeContexts.find(context => context.classId === Number(schoolClass.value) && context.subjectId === Number(subject.value)) || null;
         }
         rebuildTeacherSubjects();
-        const load = el('button', 'Anzeigen / Aktualisieren'); load.type = 'button'; root.append(load);
+        const load = el('button', 'Anzeigen / Aktualisieren'); load.type = 'button'; selectMount.append(load);
         const summary = el('p'), central = el('section'), flexible = el('section'), assignments = el('section'); root.append(summary, central, flexible, assignments);
+        if (teacherMode) central.className = 'teacher-curriculum-content';
         const genericControls=[subject,semester,schoolClass,teacher,grade,load,summary,central,flexible,assignments].filter(Boolean);
         if(catalog.admin && !separatedAdmin) genericControls.forEach(node=>node.hidden=true);
         const previousReveal=revealSemesterSetup; revealSemesterSetup=()=>{previousReveal();genericControls.forEach(node=>node.hidden=false);};
@@ -486,7 +538,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const manageFlexible=await allowed('curriculum_manage_flexible');
                 for (const topic of structure.topics) {
                     const topicTasks=structure.tasks.filter(t=>t.topic===topic.id);
-                    const section=el('details');section.open=true;
+                    const section=el('details');section.open=true;section.className='teacher-topic-panel teacher-topic-central';
                     section.append(el('summary',`Thema ${topic.number} - ${topic.name} · Zentral · ${topicStatus(topic, topicTasks, releases)}`));
                     central.append(section);
                     if(canPublish) {
@@ -495,14 +547,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     for(const task of topicTasks) {
                         const active=releaseTask(releases,task)?.active === true;
-                        const row=el('p',`Etappe ${task.stageNumber ?? ''} - ${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);
+                        const row=el('p',`Etappe ${task.stageNumber ?? ''} - ${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);row.className='teacher-stage-row';
                         section.append(row);
                         if(canPublish) appendReleaseButton(row,active?'Sperren':'Freigeben',{taskId:task.id,active:!active});
                     }
                 }
                 for(const topic of flexibleTopics) {
                     const topicTasks=tasks.filter(task=>(task.topicId??null)===topic.id);
-                    const group=el('details');group.open=true;group.append(el('summary',`${topic.name} · Flexibel · ${flexibleTopicStatus(topic, topicTasks, releases)}`));central.append(group);
+                    const group=el('details');group.open=true;group.className='teacher-topic-panel teacher-topic-flexible';group.append(el('summary',`${topic.name} · Flexibel · ${flexibleTopicStatus(topic, topicTasks, releases)}`));central.append(group);
                     if(canPublish) {
                         appendReleaseButton(group,'Alle freigeben',{flexibleTopicId:topic.id,active:true});
                         appendReleaseButton(group,'Alle sperren',{flexibleTopicId:topic.id,active:false});
@@ -513,7 +565,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     for(const task of topicTasks) {
                         const active=flexibleTaskRelease(releases,task)?.active === true;
-                        const row=el('p',`${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);
+                        const row=el('p',`${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);row.className='teacher-stage-row';
                         group.append(row);
                         if(canPublish) appendReleaseButton(row,active?'Sperren':'Freigeben',{flexibleTaskId:task.id,active:!active});
                         if(manageFlexible) editTask(group,task,true);
@@ -521,10 +573,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 const unassigned=tasks.filter(task=>(task.topicId??null)===null);
                 if(unassigned.length) {
-                    const group=el('details');group.open=true;group.append(el('summary','Ohne Thema · Flexibel'));central.append(group);
+                    const group=el('details');group.open=true;group.className='teacher-topic-panel teacher-topic-flexible';group.append(el('summary','Ohne Thema · Flexibel'));central.append(group);
                     for(const task of unassigned) {
                         const active=flexibleTaskRelease(releases,task)?.active === true;
-                        const row=el('p',`${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);
+                        const row=el('p',`${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);row.className='teacher-stage-row';
                         group.append(row);
                         if(canPublish) appendReleaseButton(row,active?'Sperren':'Freigeben',{flexibleTaskId:task.id,active:!active});
                         if(manageFlexible) editTask(group,task,true);
