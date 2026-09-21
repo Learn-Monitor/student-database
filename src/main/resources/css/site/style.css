@@ -172,8 +172,8 @@ table tr:last-child td {
 /* Teacher Cockpit: dieselbe visuelle Sprache wie der Admin-Arbeitsbereich. */
 .teacher-dashboard { color:#243b53; }
 .teacher-main-menu { position:sticky; top:0; z-index:1000; margin:1rem 0; padding:.55rem .75rem; background:#17324d; border-radius:.55rem; box-shadow:0 3px 10px #172b4d33; }
-.teacher-main-menu-sections > ul { display:flex; flex-wrap:wrap; gap:.3rem; margin:0; padding:0; }
-.teacher-main-menu-sections > ul > li { margin:0; padding:0; background:transparent; }
+.teacher-main-menu-sections > ul, .teacher-main-menu > ul { display:flex; flex-wrap:wrap; gap:.3rem; margin:0; padding:0; }
+.teacher-main-menu-sections > ul > li, .teacher-main-menu > ul > li { margin:0; padding:0; background:transparent; }
 .teacher-main-menu a { display:block; padding:.62rem .72rem; color:#fff; font-weight:700; text-align:center; text-decoration:none; border-radius:.35rem; }
 .teacher-main-menu a:hover, .teacher-main-menu a:focus, .teacher-main-menu a[aria-current="page"] { background:#2c668e; }
 .teacher-main-menu a:focus-visible, .teacher-quick-links a:focus-visible, .teacher-dashboard button:focus-visible, .teacher-dashboard select:focus-visible, .teacher-dashboard input:focus-visible { outline:3px solid #ffbf47; outline-offset:2px; }
@@ -212,7 +212,7 @@ table tr:last-child td {
   .admin-main-menu { align-items:stretch; flex-direction:column; }
   .admin-main-menu-sections { display:grid; grid-template-columns:1fr 1fr; width:100%; }
   .admin-main-menu-logout { align-self:stretch; margin-left:0; }
-  .teacher-main-menu-sections > ul { display:grid; grid-template-columns:1fr 1fr; }
+  .teacher-main-menu-sections > ul, .teacher-main-menu > ul { display:grid; grid-template-columns:1fr 1fr; }
   .teacher-progress-layout { grid-template-columns:1fr; }
   .teacher-filter-bar { align-items:stretch; flex-direction:column; }
   .teacher-filter-bar label, .teacher-filter-bar select, .teacher-filter-bar button { width:100%; box-sizing:border-box; }

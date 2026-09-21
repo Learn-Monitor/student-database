@@ -209,6 +209,14 @@
         "access_level": "public"
     },
 
+    "/teacher-navigation.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["site"],
+        "context": "js",
+        "access_level": "public"
+    },
+
     "/build_dashboard.js": {
         "type": "GET",
         "handler_type": "FileRequestHandler",

@@ -1,2 +1,15 @@
-%[student_dashboard;script=build_student.js;nav=!FOLLOWS]
-%[teacher_student_nav]
+%[site;title=Lehrkraft-Schüleransicht;content=!FOLLOWS]
+<div id="dashboard" class="teacher-student-view">
+    <header>
+        %[student_header]
+    </header>
+    <nav class="teacher-main-menu" aria-label="Lehrkraftbereiche">
+        <div class="teacher-main-menu-sections">%[teacher_dashboard_nav]</div>
+    </nav>
+    %[student_top]
+    <section id="subjects">
+        <h2>Fächer</h2>
+        <div id="subject-list"></div>
+    </section>
+</div>
+<script src="build_student.js"></script>

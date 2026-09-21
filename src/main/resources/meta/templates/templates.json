@@ -69,8 +69,8 @@
     },
     "teacher_other_nav": {
         "type": "HTMLNavigationTemplate",
-        "navigation_type": "TEACHER_OTHER",
-        "appearance": "BUTTON_APPEARANCE"
+        "navigation_type": "TEACHER_DASHBOARD",
+        "appearance": "LIST_APPEARANCE"
     },
     "teacher_student_nav": {
         "type": "HTMLNavigationTemplate",
