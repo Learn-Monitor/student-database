@@ -22,7 +22,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.14.0")
     implementation("commons-codec:commons-codec:1.22.1")
     implementation("com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20260313.1")
-    implementation("org.jline:jline:4.3.1") // for better console input handling
+    implementation("org.jline:jline:4.4.5") // for better console input handling
 
     // Logging
     implementation("org.slf4j:slf4j-api:2.0.18")
