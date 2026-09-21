@@ -69,16 +69,18 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
     /**
      * Applies schema migrations to the database by executing SQL scripts.
      * This method reads SQL files matching the pattern "./migrations/*.sql" (regex: .*migrations.+\.sql) and executes their content.
-     * Migrations are expected to be idempotent-safe: if a migration was already applied (e.g. a column
-     * or table already exists/was already renamed/dropped), the resulting SQL error ("duplicate column
-     * name", "no such column", or "no such table") is logged at debug level and ignored, so that
-     * re-running migrations on an already up-to-date database is harmless.
+     * The final legacy migration added {@code students.active}; when that column exists, migrations
+     * 001-020 must not be replayed because some of them rebuild tables destructively.
      * @param supplier the Statement object used to execute the SQL commands
      * @throws SQLException if an SQL error occurs during migration that is not an "already applied" error
      */
     private void migrateTables(PreparedStatementSupplier supplier) throws SQLException {
         lock.writeLock().lock();
         try {
+            if (hasColumn("students", "active")) {
+                LOGGER.info("Legacy database migrations 001-020 are already complete (students.active exists); skipping replay.");
+                return;
+            }
             for (BufferedReader in : Server.getInstance().getResourceManager().openResourcesAsReader(Pattern.compile(".*migrations.+\\.sql"))) {
                 try (in) {
                     String request = Server.getInstance().getResourceManager().readResourceCompletely(in);
@@ -104,6 +106,17 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
             }
         } finally {
             lock.writeLock().unlock();
+        }
+    }
+
+    boolean hasColumn(String table, String column) throws SQLException {
+        try (PreparedStatement statement = getSQLConnection().prepareStatement(
+                "SELECT 1 FROM pragma_table_info(?) WHERE name = ? LIMIT 1")) {
+            statement.setString(1, table);
+            statement.setString(2, column);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next();
+            }
         }
     }
     static List<String> splitSqlScript(String script) {
