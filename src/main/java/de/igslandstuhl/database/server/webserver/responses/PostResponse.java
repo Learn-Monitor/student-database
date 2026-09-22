@@ -113,6 +113,7 @@ public class PostResponse implements HttpResponse {
         out.print("HTTP/1.1 ");
         statusCode.write(out);
         out.print("\r\n");
+        out.print("Connection: close\r\n");
         out.print("Content-Type: " + contentType.getName() + "; charset=UTF-8\r\n");
         if (cookie != null) {
             out.print("Set-Cookie: " + cookie + "; HttpOnly; Secure\r\n");

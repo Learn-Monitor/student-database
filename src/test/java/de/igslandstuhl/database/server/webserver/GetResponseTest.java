@@ -60,5 +60,6 @@ public class GetResponseTest {
         String responseBody = response.getResponseBody();
         assertTrue(responseString.contains(responseBody));
         assertTrue(responseString.contains("HTTP/1.1 200 OK"));
+        assertTrue(responseString.contains("Connection: close\n"));
     }
 }

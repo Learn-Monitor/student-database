@@ -25,4 +25,11 @@ public class WebServerTest {
         String result = handler.readHeadersAsString(in);
         assertTrue(result.contains("Content-Length: 11"));
     }
+
+    @Test
+    public void emptyRequestIsIgnoredWithoutParsing() throws Exception {
+        WebServer.ClientHandler handler = new WebServer().new ClientHandler(null);
+
+        assertNull(handler.readHeadersAsString(new ByteArrayInputStream(new byte[0])));
+    }
 }

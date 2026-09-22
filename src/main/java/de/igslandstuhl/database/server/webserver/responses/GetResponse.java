@@ -1,8 +1,10 @@
 package de.igslandstuhl.database.server.webserver.responses;
 
 import java.io.FileNotFoundException;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 
 import de.igslandstuhl.database.client.TemplatingPreprocessor;
 import de.igslandstuhl.database.server.Server;
@@ -173,16 +175,7 @@ public class GetResponse implements HttpResponse {
      */
     public void respond(PrintStream out) {
         try {
-            out.print("HTTP/1.1 "); status.write(out); out.println();
-            if (contentType != null) {
-                out.print("Content-Type: "); out.print(contentType.getName());
-                if (contentType.isText()) {
-                    out.print("; charset=");out.print(charset);
-                }
-                out.println();
-                out.println("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie());
-            }
-            out.println(); // <--- This line is important: seperates Header and Body!
+            byte[] body;
             if (contentType.isText()) {
                 String resource = "";
                 if (resourceLocation != null) {
@@ -198,18 +191,35 @@ public class GetResponse implements HttpResponse {
                         } else {
                             resource = Server.getInstance().getResourceManager().readVirtualResource(user, resourceLocation);
                         }
-                            if (resource == null) throw new NullPointerException();
+                        if (resource == null) throw new NullPointerException();
                     }
                 }
                 if (isTemplating) {
                     resource = TemplatingPreprocessor.getInstance().executeTemplating(resource);
                 }
-                out.println(resource);
+                body = (resource + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
             } else {
-                try (InputStream in = Server.getInstance().getResourceManager().openResourceAsStream(resourceLocation)) {
-                    in.transferTo(out); // Streams bytes directly
+                try (InputStream in = Server.getInstance().getResourceManager().openResourceAsStream(resourceLocation);
+                     ByteArrayOutputStream bodyOut = new ByteArrayOutputStream()) {
+                    in.transferTo(bodyOut);
+                    body = bodyOut.toByteArray();
                 }
             }
+
+            out.print("HTTP/1.1 "); status.write(out); out.println();
+            out.println("Connection: close");
+            if (contentType != null) {
+                out.print("Content-Type: "); out.print(contentType.getName());
+                if (contentType.isText()) {
+                    out.print("; charset=");out.print(charset);
+                }
+                out.println();
+                out.println("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie());
+            }
+            out.println("Content-Length: " + body.length);
+            out.println();
+            out.write(body);
+            out.flush();
         } catch (FileNotFoundException e) {
             notFound(request).respond(out);
         } catch (Exception e) {

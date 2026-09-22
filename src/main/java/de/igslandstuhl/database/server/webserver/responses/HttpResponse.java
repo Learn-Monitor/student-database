@@ -27,6 +27,7 @@ public interface HttpResponse {
             @Override
             public void respond(PrintStream out) {
                 out.print("HTTP/1.1 ");errorStatus.write(out);out.println();
+                out.println("Connection: close");
                 out.print("Content-Type: text/html");
                 out.print("; charset=UTF8");
                 out.println();
@@ -72,6 +73,7 @@ public interface HttpResponse {
             @Override
             public void respond(PrintStream out) {
                 out.print("HTTP/1.1 ");errorStatus.write(out);out.println();
+                out.println("Connection: close");
                 out.print("Content-Type: text/html");
                 out.print("; charset=UTF8");
                 out.println();

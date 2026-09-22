@@ -97,24 +97,23 @@ public class WebServer implements Runnable {
             try {
                 BufferedOutputStream rawOut = new BufferedOutputStream(clientSocket.getOutputStream());
                 PrintStream out = new PrintStream(rawOut, false, StandardCharsets.UTF_8);
-                try (BufferedInputStream bis = new BufferedInputStream(clientSocket.getInputStream())) {
-                    String headerString = readHeadersAsString(bis);
-                    if (headerString == null) {
-                        rawOut.close();
+                BufferedInputStream bis = new BufferedInputStream(clientSocket.getInputStream());
+                String headerString = readHeadersAsString(bis);
+                if (headerString == null || headerString.isBlank()) {
+                    return;
+                }
+                try {
+                    if (headerString.startsWith("GET")) {
+                        handleGet(headerString, out);
+                    } else if (headerString.startsWith("POST")) {
+                        handlePost(headerString, bis, out);
+                    } else {
+                        // TODO: response with "Unsupported Method"
                     }
-                    try {
-                        if (headerString.startsWith("GET")) {
-                            handleGet(headerString, out);
-                        } else if (headerString.startsWith("POST")) {
-                            handlePost(headerString, bis, out);
-                        } else {
-                            rawOut.close();
-                            // TODO: response with "Unsupported Method"
-                        }
-                        out.flush();
-                    } catch (SocketException e) {
-                        Thread.currentThread().interrupt();
-                    }
+                    out.flush();
+                    rawOut.close();
+                } catch (SocketException e) {
+                    Thread.currentThread().interrupt();
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to handle client {}", clientIp, e);

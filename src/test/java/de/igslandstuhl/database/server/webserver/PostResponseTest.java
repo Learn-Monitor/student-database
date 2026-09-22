@@ -50,7 +50,9 @@ public class PostResponseTest {
 
     @Test
     void testOk() {
-        assert read(PostResponse.ok("Test", ContentType.TEXT_PLAIN, initialRequest)).contains("200");
+        String response = read(PostResponse.ok("Test", ContentType.TEXT_PLAIN, initialRequest));
+        assert response.contains("200");
+        assert response.contains("Connection: close");
         assert read(PostResponse.ok("Test", ContentType.TEXT_PLAIN, initialRequest, new Cookie("test-key", "test-value"))).contains("Set-Cookie: test-key=test-value");
     }
 
