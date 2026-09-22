@@ -151,31 +151,35 @@ public final class CurriculumEnrollment {
             return null;
         });
     }
-    /** All classes and pupils are resolved afresh; a single invalid mapping rolls back the batch. */
+    /** Only submitted class/subject mappings are written; a single invalid mapping rolls back the batch. */
     public Map<String,Object> assignGrade(Actor actor,int grade,int semester,List<Integer> subjects,List<Teaching> teaching) throws SQLException {
         admin(actor);
         if(grade<1 || grade>13 || subjects.isEmpty() || new HashSet<>(subjects).size()!=subjects.size())
             throw error(400,"invalid_input","Select a grade and distinct regular subjects.");
         return curriculum.transaction(c->{
             require(c,"SELECT id FROM semesters WHERE id=?",semester);
-            for(int subject:subjects) if(individual(c,subject)) throw error(400,"invalid_input","Individual subjects must be assigned individually.");
             var classes=rows(c,"SELECT id FROM classes WHERE grade=? AND active=1 AND id<>0 ORDER BY id",grade);
             if(classes.isEmpty()) throw error(409,"context_conflict","No classes exist in this grade.");
-            Set<String> expected=new HashSet<>();for(var cl:classes) for(int subject:subjects)expected.add(integer(cl,"id")+":"+subject);
+            Set<Integer> validClasses=new HashSet<>();for(var cl:classes)validClasses.add(integer(cl,"id"));
+            Set<Integer> validSubjects=new HashSet<>(subjects);
+            for(int subject:subjects) if(individual(c,subject)) throw error(400,"invalid_input","Individual subjects must be assigned individually.");
             Map<String,Teaching> mappings=new HashMap<>();
-            for(var item:teaching) if(mappings.put(item.classId()+":"+item.subjectId(),item)!=null)
-                throw error(400,"invalid_input","Duplicate teaching assignment.");
-            if(!mappings.keySet().equals(expected)) throw error(409,"context_conflict","Every class and subject needs an explicit teacher; refresh the class list.");
+            for(var item:teaching) {
+                if(!validClasses.contains(item.classId())) throw error(400,"invalid_input","Class is not part of the selected grade.");
+                if(!validSubjects.contains(item.subjectId())) throw error(400,"invalid_input","Subject is not part of the selected regular subjects.");
+                require(c,"SELECT id FROM teachers WHERE id=?",item.teacherId());
+                if(mappings.put(item.classId()+":"+item.subjectId(),item)!=null)
+                    throw error(400,"invalid_input","Duplicate teaching assignment.");
+            }
             int assignments=0,students=0;
-            for(var cl:classes) {
-                int classId=integer(cl,"id");var pupils=rows(c,"SELECT id FROM students WHERE class=? ORDER BY id",classId);students+=pupils.size();
-                for(int subject:subjects) {
-                    var scope=new Scope(mappings.get(classId+":"+subject).teacherId(),subject,classId,semester);
-                    require(c,"SELECT id FROM teachers WHERE id=?",scope.teacherId());
+            Set<Integer> usedSubjects=new HashSet<>();
+            for(var item:mappings.values()) {
+                int classId=item.classId(),subject=item.subjectId();
+                var pupils=rows(c,"SELECT id FROM students WHERE class=? ORDER BY id",classId);students+=pupils.size();
+                var scope=new Scope(item.teacherId(),subject,classId,semester);usedSubjects.add(subject);
                     write(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?) ON CONFLICT(semester,class,subject) DO UPDATE SET teacher=excluded.teacher",semester,classId,subject,scope.teacherId());
                     authorize(c,new Actor(false,scope.teacherId()),scope,true);
                     for(var pupil:pupils) { Curriculum.assign(c,integer(pupil,"id"),scope);assignments++; }
-                }
                 for(var pupil:pupils) {
                     int student=integer(pupil,"id");
                     var previous=rows(c,"SELECT grade FROM curriculum_enrolled_students WHERE student=? AND semester=?",student,semester);
@@ -183,8 +187,8 @@ public final class CurriculumEnrollment {
                     write(c,"INSERT INTO curriculum_enrolled_students(student,semester,grade) VALUES(?,?,?) ON CONFLICT(student,semester) DO NOTHING",student,semester,grade);
                 }
             }
-            for(int subject:subjects)write(c,"INSERT INTO curriculum_grade_subjects(grade,semester,subject) VALUES(?,?,?) ON CONFLICT DO NOTHING",grade,semester,subject);
-            return Map.of("students",students,"assignments",assignments,"classes",classes.size());
+            for(int subject:usedSubjects)write(c,"INSERT INTO curriculum_grade_subjects(grade,semester,subject) VALUES(?,?,?) ON CONFLICT DO NOTHING",grade,semester,subject);
+            return Map.of("students",students,"assignments",assignments,"classes",mappings.size());
         });
     }
     public List<Map<String,Object>> wpfRoster(Actor actor,int classId,int semester) throws SQLException {

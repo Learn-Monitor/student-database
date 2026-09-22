@@ -1557,14 +1557,28 @@ class CurriculumTest {
         assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_enrolled_students WHERE semester=?",id));
         assertEquals(id+1,scalar("SELECT teacher FROM student_curriculum_contexts WHERE student=? AND semester=?",id+1,id));
     }
-    @Test void gradeEnrollmentRejectsMissingMappingAndWorksWithoutLegacyTeacherLinks() throws Exception {
+    @Test void gradeEnrollmentStoresPartialMappingsAndWorksWithoutLegacyTeacherLinks() throws Exception {
         var enrollment=enrollmentFixture();
-        assertThrows(CurriculumException.class,()->enrollment.assignGrade(admin,13,id,List.of(id),List.of(teachingMappings().get(0))));
-        db.writeTransaction(c->{exec(c,"DELETE FROM teacher_classes WHERE teacher_id=? AND class_id=?",id+1,id+1);return null;});
-        enrollment.assignGrade(admin,13,id,List.of(id),teachingMappings());
+        enrollment.assignGrade(admin,13,id,List.of(id),List.of(teachingMappings().get(0)));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=?",id));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE semester=?",id));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE student=? AND semester=?",id+1,id));
+        enrollment.assignGrade(admin,13,id,List.of(id),List.of(teachingMappings().get(1)));
+        assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=?",id));
         assertEquals(2,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE semester=?",id));
+        db.writeTransaction(c->{exec(c,"DELETE FROM teacher_classes WHERE teacher_id=? AND class_id=?",id+1,id+1);return null;});
+        enrollment.assignGrade(admin,13,id,List.of(id),List.of(new CurriculumEnrollment.Teaching(id+1,id,id)));
+        assertEquals(id,scalar("SELECT teacher FROM curriculum_class_teachers WHERE semester=? AND class=? AND subject=?",id,id+1,id));
         assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=?",id));
         assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_grade_subjects WHERE semester=?",id));
+    }
+    @Test void gradeEnrollmentRejectsInvalidPartialBatchTransactionally() throws Exception {
+        var enrollment=enrollmentFixture();
+        var invalid=List.of(teachingMappings().get(0),new CurriculumEnrollment.Teaching(999,id,id));
+        assertThrows(CurriculumException.class,()->enrollment.assignGrade(admin,13,id,List.of(id),invalid));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=?",id));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE semester=?",id));
+        assertThrows(CurriculumException.class,()->enrollment.assignGrade(admin,13,id,List.of(id+1),List.of(teachingMappings().get(0))));
     }
     @Test void archivedClassMovesStudentsToSystemClassAndStopsCurrentContext() throws Exception {
         SchoolClass.get(id).delete();

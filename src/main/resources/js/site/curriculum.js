@@ -351,22 +351,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         const regularSubjects=()=>data.subjects.filter(s=>(s.mode||'REGULAR')!=='INDIVIDUAL'&&!s.wpf);semester.addEventListener('change',invalidate);grade.addEventListener('change',invalidate);
         const teacherChoice=(parent,classId,subjectId)=>{
             const teachers=data.teachers.map(t=>({id:t.id,name:t.first_name+' '+t.last_name}));
-            const select=choice(parent,'Lehrkraft',[{id:'',name:'Lehrkraft auswählen'},...teachers]);if(teachers.length===1)select.value=teachers[0].id;return select;
+            const select=choice(parent,'Lehrkraft',[{id:'',name:'Lehrkraft auswählen'},...teachers]);
+            const existing=data.teaching.find(t=>t.classId===classId&&t.subjectId===subjectId&&t.semesterId===Number(semester.value));
+            if(existing)select.value=String(existing.teacherId);
+            return select;
         };
         const prepareTeachersButton=action(panel,'Lehrkräfte-Tabelle aufbauen',async()=>{
             const subjectIds=regularSubjects().map(s=>s.id);if(!subjectIds.length)throw Error('Keine verbindlichen Fächer vorhanden.');
             invalidate();const version=mappingVersion,selectedGrade=Number(grade.value),semesterId=Number(semester.value),mappings=[];
             const classes=data.classes.filter(c=>c.grade===selectedGrade);
             if(!classes.length)throw Error(`Für Klassenstufe ${selectedGrade} sind keine Klassen hinterlegt.`);
-            mappingArea.append(el('p',`${classes.length} Klassen; alle verbindlichen Fächer werden zugeordnet.`));
+            mappingArea.append(el('p',`${classes.length} Klassen; alle verbindlichen Fächer werden angezeigt.`));
             const filter=el('input');filter.placeholder='Klasse oder Fach filtern';mappingArea.append(filter);const table=el('table');table.className='curriculum-wpf-table';const h=table.insertRow();['Klasse','Fach','Lehrkraft'].forEach((x,i)=>{const th=el('th',x);th.className=i<2?'sortable':'';h.append(th)});const tableRows=[];
             for(const cls of classes)for(const subjectId of subjectIds){const tr=table.insertRow();tr.insertCell().textContent=cls.label;tr.insertCell().textContent=data.subjects.find(s=>s.id===subjectId).name;const cell=tr.insertCell();const input=teacherChoice(cell,cls.id,subjectId);tableRows.push({tr,text:(cls.label+' '+data.subjects.find(s=>s.id===subjectId).name).toLowerCase()});mappings.push({classId:cls.id,subjectId,input});}
             mappingArea.append(table);filter.addEventListener('input',()=>tableRows.forEach(r=>r.tr.hidden=!r.text.includes(filter.value.toLowerCase())));
             proposal={version,subjectIds,selectedGrade,semesterId,mappings};
-            action(mappingArea,'Dem gesamten Jahrgang zuordnen',async()=>{
+            action(mappingArea,'Ausgewählte Lehrkräfte-Zuordnungen speichern',async()=>{
                 if(!proposal || version!==mappingVersion)throw Error('Bitte die Zuordnung erneut vorbereiten.');
-                const teaching=mappings.map(m=>({classId:m.classId,subjectId:m.subjectId,teacherId:Number(m.input.value)}));
-                if(teaching.some(t=>!t.teacherId))throw Error('Bitte für jede Klasse und jedes Fach eine zuständige Lehrkraft auswählen.');
+                const teaching=mappings.filter(m=>m.input.value).map(m=>({classId:m.classId,subjectId:m.subjectId,teacherId:Number(m.input.value)}));
+                if(!teaching.length)throw Error('Bitte mindestens eine Lehrkraft auswählen.');
                 const result=await call('/assign-grade-curriculum',{grade:selectedGrade,semesterId,subjectIds,teaching},'curriculum_manage_enrollment');
                 invalidate();status.textContent=`Gespeichert: ${result.students} Kinder, ${result.assignments} Fachzuordnungen. Zentrale Inhalte erscheinen nach Freischaltung durch die Lehrkraft.`;
             });

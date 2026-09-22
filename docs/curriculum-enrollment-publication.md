@@ -52,8 +52,11 @@ das global konfigurierte aktuelle Halbjahr.
 - /curriculum-enrollment-catalog: Admin; Facharten, Klassen, Halbjahre, Lehrkräfte,
   mögliche Lehrer/Klassen/Fach-Kombinationen und bisherige Jahrgangsfächer.
 - /set-curriculum-subject-type: Admin; subjectId, wpf (Boolean).
-- /assign-grade-curriculum: Admin; grade, semesterId, subjectIds und teaching
-  mit classId/subjectId/teacherId für jede Kombination.
+- /assign-grade-curriculum: Admin; grade, semesterId, subjectIds und teaching.
+  Teilzuordnungen sind erlaubt: übermittelte Zuordnungen mit
+  classId/subjectId/teacherId werden additiv gespeichert bzw. aktualisiert,
+  leere Kombinationen bleiben unverändert. Vorhandene Zuordnungen werden im
+  UI semesterbezogen wieder angezeigt.
 - /curriculum-wpf-roster: Admin; classId, semesterId. Minimaler Schülername,
   ID, aktuelle WPF- und Lehrer-ID; keine Zugangsdaten.
 - /assign-curriculum-wpf: Admin; studentId, subjectId, classId, teacherId,
