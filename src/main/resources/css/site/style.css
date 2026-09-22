@@ -208,6 +208,73 @@ table tr:last-child td {
 .teacher-topic-panel form label { display:flex; flex-direction:column; gap:.25rem; font-weight:700; }
 .teacher-topic-panel form select { margin:0; }
 .teacher-topic-panel form button { margin:0; }
+
+.curriculum-topic-card {
+  display:block;
+  margin:1.25rem 0;
+  padding:.35rem 1rem 1rem;
+  background:#f5f8fb;
+  border:1px solid #c8d7e3;
+  border-left:5px solid #477998;
+  border-radius:.65rem;
+  box-shadow:0 2px 5px rgba(23,50,77,.06);
+}
+.curriculum-topic-card:nth-of-type(even) { background:#f8fafc; }
+.curriculum-topic-card > summary {
+  padding:.8rem .2rem;
+  color:#17324d;
+  font-weight:700;
+  cursor:pointer;
+}
+.curriculum-topic-summary { font-size:1.05rem; }
+.curriculum-topic-edit { margin:.35rem 0 .9rem; }
+.curriculum-stage-card {
+  margin:.7rem .25rem;
+  padding:.7rem .85rem;
+  background:#fff;
+  border:1px solid #d9e1ea;
+  border-radius:.45rem;
+  box-shadow:0 1px 2px rgba(23,50,77,.04);
+}
+.curriculum-stage-card h4,
+.curriculum-add-stage h4 { margin:.1rem 0 .6rem; color:#294e69; }
+.curriculum-stage-card form,
+.curriculum-add-stage form,
+.curriculum-topic-edit { display:flex; flex-wrap:wrap; align-items:end; gap:.6rem; }
+.curriculum-stage-card form label,
+.curriculum-add-stage form label,
+.curriculum-topic-edit label { display:flex; flex:1 1 10rem; flex-direction:column; gap:.25rem; font-weight:700; }
+.curriculum-stage-card form input,
+.curriculum-add-stage form input,
+.curriculum-topic-edit input { max-width:100%; box-sizing:border-box; }
+.curriculum-add-stage {
+  margin:.9rem .25rem .2rem;
+  padding:.7rem .85rem;
+  background:#edf4f9;
+  border:1px dashed #9eb8c9;
+  border-radius:.45rem;
+}
+.curriculum-add-topic {
+  margin:1.5rem 0 .5rem;
+  padding:1rem;
+  background:#edf4f9;
+  border:1px solid #c8d7e3;
+  border-radius:.55rem;
+}
+.curriculum-add-topic h3 { margin:.1rem 0 .7rem; color:#17324d; }
+@media (max-width:600px) {
+  .curriculum-topic-card { padding-left:.65rem; padding-right:.65rem; }
+  .curriculum-stage-card { margin-left:0; margin-right:0; }
+  .curriculum-stage-card form,
+  .curriculum-add-stage form,
+  .curriculum-topic-edit { align-items:stretch; flex-direction:column; }
+  .curriculum-stage-card form label,
+  .curriculum-add-stage form label,
+  .curriculum-topic-edit label { flex-basis:auto; }
+  .curriculum-stage-card form button,
+  .curriculum-add-stage form button,
+  .curriculum-topic-edit button { align-self:flex-start; }
+}
 @media (max-width:700px) {
   .admin-main-menu { align-items:stretch; flex-direction:column; }
   .admin-main-menu-sections { display:grid; grid-template-columns:1fr 1fr; width:100%; }

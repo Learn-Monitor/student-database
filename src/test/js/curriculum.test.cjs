@@ -128,7 +128,7 @@ test('admin can rename topics and tasks safely and sees server budget conflicts'
  try{
   let form=formWith(root,'Thema umbenennen');form.querySelector('input').value='<img src=x onerror=alert(1)>';await submit(dom,form);
   assert.equal(requests.find(r=>r.url==='/rename-topic').data.topicId,2);assert.equal(root.querySelectorAll('img').length,0);
-  form=root.querySelector('details form:nth-of-type(2)');const inputs=form.querySelectorAll('input');inputs[0].value='Revised';inputs[1].value=71;await submit(dom,form);
+  form=root.querySelector('.curriculum-stage-card form');const inputs=form.querySelectorAll('input');inputs[0].value='Revised';inputs[1].value=71;await submit(dom,form);
   assert.match(root.textContent,/105 Münzen/);assert.match(root.textContent,/106/);
  }finally{dom.window.close();}
 });
@@ -144,6 +144,27 @@ test('admin curriculum topics stay open across edits and new content is revealed
   topic=detailWith(root,'Renamed');assert.equal(topic.open,true);assert.match(topic.textContent,/New stage/);
   form=formWith(root,'Thema anlegen');form.querySelectorAll('input')[0].value='New topic';await submit(dom,form);
   const newTopic=detailWith(root,'New topic');assert.ok(newTopic);assert.equal(newTopic.open,true);
+ }finally{dom.window.close();}
+});
+test('admin central curriculum renders topic and stage hierarchy with totals',async()=>{
+ const{dom,root}=await setup(true,{centralTopics:[
+  {id:2,name:'Bruchrechnung',number:1},{id:4,name:'Dezimalzahlen',number:2}
+ ],centralTasks:[
+  {id:3,topic:2,name:'Brüche verstehen',tokens:5,stageNumber:1},
+  {id:6,topic:2,name:'Brüche addieren',tokens:7,stageNumber:2},
+  {id:7,topic:4,name:'Dezimalzahlen lesen',tokens:8,stageNumber:1}
+ ]});
+ try{
+  const topics=[...root.querySelectorAll('details.curriculum-topic-card')];assert.equal(topics.length,2);
+  assert.equal(topics.every(topic=>topic.classList.contains('curriculum-topic-card')),true);
+  assert.match(topics[0].querySelector('summary').textContent,/2 Etappen · 12 Münzen/);
+  assert.match(topics[1].querySelector('summary').textContent,/1 Etappe · 8 Münzen/);
+  const stages=topics.map(topic=>[...topic.querySelectorAll('.curriculum-stage-card')]);
+  assert.deepEqual(stages.map(group=>group.length),[2,1]);
+  assert.equal(stages[0].every(stage=>stage.parentElement===topics[0]),true);
+  assert.equal(stages[1].every(stage=>stage.parentElement===topics[1]),true);
+  assert.equal(root.querySelectorAll('.curriculum-add-stage').length,2);
+  assert.ok(root.querySelector('.curriculum-add-topic'));
  }finally{dom.window.close();}
 });
 test('teacher gets own context, can edit and create, and UI blocks totals above 105',async()=>{

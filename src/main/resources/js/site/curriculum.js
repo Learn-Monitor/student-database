@@ -614,19 +614,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             for (const topic of structure.topics) {
-                const section=el('details'), title=el('summary',`Thema ${topic.number} - ${topic.name}`+(manageCentral?' — Etappen anzeigen / bearbeiten':' — Etappen anzeigen'));section.open=openTopicKeys.has(topicKey('central',topic.id));section.dataset.curriculumTopicKey=topicKey('central',topic.id);section.append(title);central.append(section);
+                const topicTasks=structure.tasks.filter(t=>t.topic===topic.id);
+                const topicTokens=topicTasks.reduce((sum,task)=>sum+Number(task.tokens||0),0);
+                const section=el('details');section.open=openTopicKeys.has(topicKey('central',topic.id));section.dataset.curriculumTopicKey=topicKey('central',topic.id);section.className='curriculum-topic-card';
+                const title=el('summary',`Thema ${topic.number} – ${topic.name} · ${topicTasks.length} ${topicTasks.length===1?'Etappe':'Etappen'} · ${topicTokens} Münzen`);title.className='curriculum-topic-summary';section.append(title);central.append(section);
                 if(manageCentral) {
-                    const form=el('form'), name=field(form,'Themenname',topic.name);button(form,'Thema umbenennen');section.append(form);
+                    const form=el('form'), name=field(form,'Themenname',topic.name);form.className='curriculum-topic-edit';button(form,'Thema umbenennen');section.append(form);
                     form.addEventListener('submit',async e=>{e.preventDefault();try{await save('/rename-topic',{topicId:topic.id,name:name.value});}catch(error){showError(error);}});
                 }
-                for(const task of structure.tasks.filter(t=>t.topic===topic.id)) {
+                for(const task of topicTasks) {
                     if(manageCentral) {
-                        section.append(el('p',`Etappe ${task.stageNumber ?? ''} - ${task.name} - ${task.tokens} Münzen`));
-                        editTask(section,task,false);
+                        const stageCard=el('article');stageCard.className='curriculum-stage-card';
+                        stageCard.append(el('h4',`Etappe ${task.stageNumber ?? ''} · ${task.name} · ${task.tokens} Münzen`));
+                        editTask(stageCard,task,false);section.append(stageCard);
                     } else section.append(el('p',`Etappe ${task.stageNumber ?? ''} - ${task.name}: ${task.tokens} Münzen`));
                 }
                 if(manageCentral) {
-                    const form=el('form'), stage=field(form,'Etappennummer',Math.max(0,...structure.tasks.filter(t=>t.topic===topic.id).map(t=>t.stageNumber||0))+1,'number'), name=field(form,'Neue Etappe',''), tokens=field(form,'Münzen',0,'number');stage.min=1;stage.removeAttribute('max');button(form,'Etappe anlegen');section.append(form);
+                    const addStage=el('div');addStage.className='curriculum-add-stage';addStage.append(el('h4','Neue Etappe hinzufügen'));
+                    const form=el('form'), stage=field(form,'Etappennummer',Math.max(0,...topicTasks.map(t=>t.stageNumber||0))+1,'number'), name=field(form,'Neue Etappe',''), tokens=field(form,'Münzen',0,'number');stage.min=1;stage.removeAttribute('max');button(form,'Etappe anlegen');addStage.append(form);section.append(addStage);
                     form.addEventListener('submit',async e=>{e.preventDefault();try{
                         if(structure.centralTokens+Number(tokens.value)>105) throw Error('Zentrale Summe über 105.');
                         await save('/add-curriculum-task',{topicId:topic.id,stageNumber:Number(stage.value),name:name.value,tokens:Number(tokens.value)});
@@ -634,7 +639,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
             if(manageCentral) {
-                const form=el('form'), name=field(form,'Neues Thema',''), number=field(form,'Nummer',Math.max(0,...structure.topics.map(t=>t.number))+1,'number');number.min=1;number.removeAttribute('max');button(form,'Thema anlegen');central.append(form);
+                const addTopic=el('div');addTopic.className='curriculum-add-topic';addTopic.append(el('h3','Neues Thema hinzufügen'));
+                const form=el('form'), name=field(form,'Themenname',''), number=field(form,'Nummer',Math.max(0,...structure.topics.map(t=>t.number))+1,'number');number.min=1;number.removeAttribute('max');button(form,'Thema anlegen');addTopic.append(form);central.append(addTopic);
                 form.addEventListener('submit',async e=>{e.preventDefault();try{await save('/add-curriculum-topic',{...scope,grade:g,number:Number(number.value),name:name.value});}catch(error){showError(error);}});
             }
             if (catalog.admin && separatedAdmin) return;
