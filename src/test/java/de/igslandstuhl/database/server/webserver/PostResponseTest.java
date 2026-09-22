@@ -53,7 +53,16 @@ public class PostResponseTest {
         String response = read(PostResponse.ok("Test", ContentType.TEXT_PLAIN, initialRequest));
         assert response.contains("200");
         assert response.contains("Connection: close");
+        assert response.contains("Content-Length: 4");
         assert read(PostResponse.ok("Test", ContentType.TEXT_PLAIN, initialRequest, new Cookie("test-key", "test-value"))).contains("Set-Cookie: test-key=test-value");
+    }
+
+    @Test
+    void contentLengthCoversEmptyAndUtf8Bodies() {
+        String empty = read(PostResponse.ok("", ContentType.TEXT_PLAIN, initialRequest));
+        assert empty.contains("Content-Length: 0");
+        String unicode = read(PostResponse.ok("äöü", ContentType.TEXT_PLAIN, initialRequest));
+        assert unicode.contains("Content-Length: 6");
     }
 
     @Test

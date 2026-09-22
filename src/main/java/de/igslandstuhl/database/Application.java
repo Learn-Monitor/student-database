@@ -157,6 +157,7 @@ public final class Application {
         if (getInstance().runsWebServer()) {
             LOGGER.info("Starting WebServer...");
             Server.getInstance().getWebServer().start();
+            LOGGER.info("WebServer started and ready");
         }
 
         PluginLoader.getInstance().enablePlugins();

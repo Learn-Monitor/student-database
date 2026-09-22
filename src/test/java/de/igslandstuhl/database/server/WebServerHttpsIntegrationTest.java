@@ -26,6 +26,12 @@ import org.junit.jupiter.api.Test;
 
 import de.igslandstuhl.database.server.webserver.WebPath;
 import de.igslandstuhl.database.server.webserver.handlers.GetRequestHandler;
+import de.igslandstuhl.database.server.webserver.handlers.HttpHandler;
+import de.igslandstuhl.database.server.webserver.access.AccessLevel;
+import de.igslandstuhl.database.server.webserver.responses.GetResponse;
+import de.igslandstuhl.database.server.webserver.requests.RequestType;
+
+import java.util.List;
 import de.igslandstuhl.database.client.HTMLTemplate;
 
 class WebServerHttpsIntegrationTest {
@@ -54,7 +60,9 @@ class WebServerHttpsIntegrationTest {
 
         WebPath.registerPaths();
         HTMLTemplate.registerAll();
+        WebPath.registerPath("/attendance", RequestType.GET, "FileRequestHandler", List.of(), "html", AccessLevel.ADMIN);
         GetRequestHandler.getInstance().registerHandlers();
+        HttpHandler.registerGetRequestHandler("/attendance", AccessLevel.ADMIN, GetResponse::notFound);
         server = new WebServer(freePort(), keystore.toString(), PASSWORD, "JKS");
         server.start();
     }
@@ -91,6 +99,35 @@ class WebServerHttpsIntegrationTest {
             boolean finished = curl.waitFor(15, TimeUnit.SECONDS);
             String curlOutput = new String(curl.getInputStream().readAllBytes());
             assertEquals(0, finished ? curl.exitValue() : -1, () -> "curl failed: " + curlOutput);
+        }
+    }
+
+    @Test
+    void anonymousErrorRoutesAreFramedAndCloseCleanly() throws Exception {
+        SSLContext context = insecureClientContext();
+        for (String path : new String[] {"/dashboard", "/attendance"}) {
+            HttpsURLConnection connection = (HttpsURLConnection) new URL(
+                    "https://127.0.0.1:" + port() + path).openConnection();
+            connection.setSSLSocketFactory(context.getSocketFactory());
+            connection.setHostnameVerifier((host, session) -> true);
+            connection.setConnectTimeout(3000);
+            connection.setReadTimeout(10000);
+
+            assertEquals(401, connection.getResponseCode());
+            byte[] body = connection.getErrorStream().readAllBytes();
+            assertEquals(body.length, Integer.parseInt(connection.getHeaderField("Content-Length")));
+            assertFalse(body.length == 0);
+            assertEquals("close", connection.getHeaderField("Connection"));
+            connection.disconnect();
+
+            Process curl = new ProcessBuilder(
+                    "curl", "-k", "--connect-timeout", "3", "--max-time", "10", "-sS",
+                    "https://127.0.0.1:" + port() + path)
+                    .redirectErrorStream(true)
+                    .start();
+            boolean finished = curl.waitFor(15, TimeUnit.SECONDS);
+            curl.getInputStream().readAllBytes();
+            assertEquals(0, finished ? curl.exitValue() : -1);
         }
     }
 

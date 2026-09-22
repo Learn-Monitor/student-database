@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
 import de.igslandstuhl.database.server.webserver.responses.GetResponse;
+import de.igslandstuhl.database.server.webserver.responses.HttpResponse;
 
 public class GetResponseTest {
     GetRequest request = new GetRequest("GET / HTTP/1.1", "127.0.0.1", true);
@@ -61,5 +63,21 @@ public class GetResponseTest {
         assertTrue(responseString.contains(responseBody));
         assertTrue(responseString.contains("HTTP/1.1 200 OK"));
         assertTrue(responseString.contains("Connection: close\n"));
+    }
+
+    @Test
+    void errorResponsesDeclareExactUtf8BodyLength() {
+        for (Status status : new Status[] {Status.BAD_REQUEST, Status.UNAUTHORIZED, Status.FORBIDDEN,
+                Status.NOT_FOUND, Status.INTERNAL_SERVER_ERROR}) {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            HttpResponse.error(request, status).respond(new PrintStream(output));
+            String response = output.toString(StandardCharsets.UTF_8);
+            String body = response.substring(response.indexOf("\n\n") + 2);
+            String length = response.lines()
+                    .filter(line -> line.startsWith("Content-Length:"))
+                    .findFirst().orElseThrow().substring("Content-Length:".length()).trim();
+            assertEquals(body.getBytes(StandardCharsets.UTF_8).length, Integer.parseInt(length));
+            assertTrue(response.contains("Connection: close"));
+        }
     }
 }

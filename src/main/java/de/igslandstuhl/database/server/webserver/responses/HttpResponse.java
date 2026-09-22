@@ -1,6 +1,7 @@
 package de.igslandstuhl.database.server.webserver.responses;
 
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
@@ -26,30 +27,10 @@ public interface HttpResponse {
             }
             @Override
             public void respond(PrintStream out) {
-                out.print("HTTP/1.1 ");errorStatus.write(out);out.println();
-                out.println("Connection: close");
-                out.print("Content-Type: text/html");
-                out.print("; charset=UTF8");
-                out.println();
-                out.println("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie());
-                out.println(); // <--- This line is important: seperates Header and Body!
-                ResourceLocation resourceLocation = new ResourceLocation("html", "errors", errorStatus.getCode() + ".html");
-                String resource;
                 try {
-                    resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
-                    out.println(resource);
+                    respondError(out, request, errorStatus);
                 } catch (Exception e) {
-                    if (errorStatus != Status.INTERNAL_SERVER_ERROR) {
-                        resourceLocation = new ResourceLocation("html", "errors", errorStatus.getCode() + ".html");
-                        try {
-                            resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
-                            out.println(resource);
-                        } catch (Exception e2) {
-                            throw new IllegalStateException(e);
-                        }
-                    } else {
-                        throw new IllegalStateException(e);
-                    }
+                    throw new IllegalStateException(e);
                 }
             }
             @Override
@@ -72,18 +53,8 @@ public interface HttpResponse {
             }
             @Override
             public void respond(PrintStream out) {
-                out.print("HTTP/1.1 ");errorStatus.write(out);out.println();
-                out.println("Connection: close");
-                out.print("Content-Type: text/html");
-                out.print("; charset=UTF8");
-                out.println();
-                out.println("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie());
-                out.println(); // <--- This line is important: seperates Header and Body!
-                ResourceLocation resourceLocation = new ResourceLocation("html", "errors", errorStatus.getCode() + ".html");
-                String resource;
                 try {
-                    resource = Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation);
-                    out.println(resource);
+                    respondError(out, request, errorStatus);
                 } catch (Exception e) {
                     throw new IllegalStateException(e);
                 }
@@ -94,5 +65,19 @@ public interface HttpResponse {
             }
             
         };
+    }
+
+    private static void respondError(PrintStream out, HttpRequest request, Status status) throws Exception {
+        ResourceLocation resourceLocation = new ResourceLocation("html", "errors", status.getCode() + ".html");
+        byte[] body = (Server.getInstance().getResourceManager().readResourceCompletely(resourceLocation)
+                + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
+        out.print("HTTP/1.1 "); status.write(out); out.println();
+        out.println("Connection: close");
+        out.println("Content-Type: text/html; charset=UTF8");
+        out.println("Content-Length: " + body.length);
+        out.println("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie());
+        out.println();
+        out.write(body);
+        out.flush();
     }
 }

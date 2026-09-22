@@ -110,11 +110,13 @@ public class PostResponse implements HttpResponse {
      * @param out The PrintWriter to write the response to.
      */
     public void respond(PrintStream out) {
+        byte[] responseBody = body == null ? new byte[0] : body.getBytes(StandardCharsets.UTF_8);
         out.print("HTTP/1.1 ");
         statusCode.write(out);
         out.print("\r\n");
         out.print("Connection: close\r\n");
         out.print("Content-Type: " + contentType.getName() + "; charset=UTF-8\r\n");
+        out.print("Content-Length: " + responseBody.length + "\r\n");
         if (cookie != null) {
             out.print("Set-Cookie: " + cookie + "; HttpOnly; Secure\r\n");
         }
@@ -127,7 +129,7 @@ public class PostResponse implements HttpResponse {
                 "HTTP response: status={}, contentType={}, bodyLength={}",
                 statusCode.getCode(), contentType.getName(), body.getBytes(StandardCharsets.UTF_8).length
             );
-            out.print(body);
+            out.write(responseBody, 0, responseBody.length);
         }
         out.flush();
     }

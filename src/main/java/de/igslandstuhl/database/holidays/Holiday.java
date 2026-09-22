@@ -6,6 +6,7 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -15,6 +16,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,8 +27,11 @@ import com.google.gson.reflect.TypeToken;
 import de.igslandstuhl.database.api.SchoolYear;
 
 public final class Holiday {
-    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
-    private static final String API_URL = "https://www.mehr-schulferien.de/api/v2.1/schools/66849-integrierte-gesamtschule-am-na/periods";
+    static HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
+    static Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
+    static String API_URL = "https://www.mehr-schulferien.de/api/v2.1/schools/66849-integrierte-gesamtschule-am-na/periods";
     private static final String SUMMER_HOLIDAY_ID = "Sommer";
     private static final Logger LOGGER = LoggerFactory.getLogger(Holiday.class);
 
@@ -128,6 +133,7 @@ public final class Holiday {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(url.toURI())
                     .GET()
+                    .timeout(REQUEST_TIMEOUT)
                     .build();
 
             HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
@@ -170,10 +176,20 @@ public final class Holiday {
         return (int) SchoolWeek.getAll(getLastSummerHoliday().getEnd(), Instant.now(), ZoneId.of("UTC")).stream().filter(SchoolWeek::noSchoolUTC).count();
     }
     public static void setupCurrentSchoolYear() throws SQLException {
+        setupCurrentSchoolYear(() -> SchoolYear.getCurrentYear(false));
+    }
+
+    static void setupCurrentSchoolYear(Supplier<SchoolYear> localYearSupplier) throws SQLException {
         LOGGER.info("Trying to set up current school year...");
-        String name = getLastSummerHoliday().getEnd().toString().substring(0, 4) + "/" + getNextSummerHoliday().getStart().toString().substring(0, 4);
-        int totalWeeks = getTotalWeeks();
-        int actualWeek = getActualWeek();
-        SchoolYear.addSchoolYear(name, totalWeeks, actualWeek);
+        try {
+            String name = getLastSummerHoliday().getEnd().toString().substring(0, 4) + "/" + getNextSummerHoliday().getStart().toString().substring(0, 4);
+            int totalWeeks = getTotalWeeks();
+            int actualWeek = getActualWeek();
+            SchoolYear.addSchoolYear(name, totalWeeks, actualWeek);
+        } catch (RuntimeException remoteFailure) {
+            SchoolYear localYear = localYearSupplier.get();
+            if (localYear == null) throw remoteFailure;
+            LOGGER.warn("Holiday API unavailable; retaining existing local school year {} without holiday refresh", localYear.getLabel(), remoteFailure);
+        }
     }
 }
