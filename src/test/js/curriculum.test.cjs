@@ -19,6 +19,8 @@ async function setup(admin, options={}){
  let centralTokens=70;
  let centralName='Central';
  let topicName='Topic';
+ let centralTopics=options.centralTopics||[{id:2,name:topicName,number:1}];
+ let centralTasks=options.centralTasks||[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1,stageNumber:1}];
  let releaseTopics=options.releaseTopics||[{id:2,name:'Topic',active:false}];
  let releaseTasks=options.releaseTasks||[{id:3,topicId:2,name:'Task',active:false}];
  const defaultFlexibleTasks=[{id:100,name:'Own task',tokens:30,topicId:null}];
@@ -82,7 +84,7 @@ async function setup(admin, options={}){
     const changed=progressDetail.stages.find(stage=>stage.type===data.stageType&&stage.stageId===data.stageId);body={status:changed.status,earned:changed.earned};
    }
   }
-  else if(url==='/curriculum-structure')body={centralTokens,topics:options.centralTopics||[{id:2,name:topicName,number:1}],tasks:options.centralTasks||[{id:3,topic:2,name:centralName,tokens:centralTokens,niveau:1,stageNumber:1}]};
+  else if(url==='/curriculum-structure')body={centralTokens,topics:centralTopics,tasks:centralTasks};
   else if(url==='/central-curriculum-overview')body={subjects:[{subjectId:1,subjectName:'Math',centralTokens,remainingRegular:100-centralTokens,remainingHard:105-centralTokens,warning:centralTokens>100}],rows:[{subjectId:1,subjectName:'Math',topicNumber:1,topicName,stageNumber:1,stageName:centralName,tokens:centralTokens}]};
   else if(url==='/preview-central-curriculum-import'){
    const bad=data.csv.includes('BAD'), warn=data.csv.includes('104');
@@ -97,13 +99,14 @@ async function setup(admin, options={}){
   else if(url==='/curriculum-students')body=[{id:50,first_name:'Sample',last_name:'Student',teacherId:8,classId:10}];
   else if(url==='/assign-curriculum-context' || url==='/transfer-curriculum-context')body={ok:true};
   else if(url==='/curriculum-transfer-preview')body={source:{teacherId:8,classId:10},completions:[{id:200,name:'Completed elsewhere',tokens:30}],targets:[{id:100,name:'Own task',tokens:30}]};
-  else if(url==='/rename-topic'){topicName=data.name;body={ok:true};}
+  else if(url==='/rename-topic'){topicName=data.name;const topic=centralTopics.find(item=>item.id===data.topicId);if(topic)topic.name=data.name;body={ok:true};}
   else if(url==='/edit-task'){
    if(data.tokens>70){ok=false;body={error:'budget_exceeded',message:'Budget exceeded',affectedContexts:[{teacherId:7,classId:10,semesterId:20,centralTokens:data.tokens,flexibleTokens:35,totalTokens:data.tokens+35}]};}
-   else{centralName=data.name;centralTokens=data.tokens;body={ok:true};}
+   else{centralName=data.name;centralTokens=data.tokens;const task=centralTasks.find(item=>item.id===data.taskId);if(task){task.name=data.name;task.tokens=data.tokens;}body={ok:true};}
   }
   else if(url==='/add-flexible-task'){tasks.push({id:101,name:data.name,tokens:data.tokens,topicId:data.topicId});byClass.set(data.classId,tasks);body=tasks.at(-1);releaseFlexibleTasks.push({id:body.id,name:body.name,topicId:body.topicId??null,active:false});}
-  else if(url==='/add-curriculum-task'){centralName=data.name;centralTokens+=data.tokens;body={id:301};}
+  else if(url==='/add-curriculum-task'){const task={id:301,topic:data.topicId,name:data.name,tokens:data.tokens,stageNumber:data.stageNumber};centralTasks.push(task);centralName=data.name;centralTokens+=data.tokens;body={id:task.id};}
+  else if(url==='/add-curriculum-topic'){const topic={id:9,name:data.name,number:data.number};centralTopics.push(topic);body={id:topic.id};}
   else if(url==='/edit-flexible-task'){const task=[...byClass.values()].flat().find(t=>t.id===data.taskId);Object.assign(task,{name:data.name,tokens:data.tokens,topicId:data.topicId});body=task;}
   else throw Error('Unexpected endpoint '+url);
   return {ok,status:ok?200:409,text:async()=>JSON.stringify(body)};
@@ -127,6 +130,20 @@ test('admin can rename topics and tasks safely and sees server budget conflicts'
   assert.equal(requests.find(r=>r.url==='/rename-topic').data.topicId,2);assert.equal(root.querySelectorAll('img').length,0);
   form=root.querySelector('details form:nth-of-type(2)');const inputs=form.querySelectorAll('input');inputs[0].value='Revised';inputs[1].value=71;await submit(dom,form);
   assert.match(root.textContent,/105 Münzen/);assert.match(root.textContent,/106/);
+ }finally{dom.window.close();}
+});
+test('admin curriculum topics stay open across edits and new content is revealed',async()=>{
+ const{dom,root}=await setup(true);
+ try{
+  let topic=detailWith(root,'Topic');topic.open=true;
+  let form=formWith(root,'Thema umbenennen');form.querySelector('input').value='Renamed';await submit(dom,form);
+  topic=detailWith(root,'Renamed');assert.equal(topic.open,true);
+  form=formWith(root,'Speichern');form.querySelector('input').value='Revised';await submit(dom,form);
+  topic=detailWith(root,'Renamed');assert.equal(topic.open,true);
+  form=formWith(root,'Etappe anlegen');const textInputs=form.querySelectorAll('input[type=text]');textInputs[textInputs.length-1].value='New stage';await submit(dom,form);
+  topic=detailWith(root,'Renamed');assert.equal(topic.open,true);assert.match(topic.textContent,/New stage/);
+  form=formWith(root,'Thema anlegen');form.querySelectorAll('input')[0].value='New topic';await submit(dom,form);
+  const newTopic=detailWith(root,'New topic');assert.ok(newTopic);assert.equal(newTopic.open,true);
  }finally{dom.window.close();}
 });
 test('teacher gets own context, can edit and create, and UI blocks totals above 105',async()=>{

@@ -446,8 +446,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         if(catalog.admin && !separatedAdmin) genericControls.forEach(node=>node.hidden=true);
         const previousReveal=revealSemesterSetup; revealSemesterSetup=()=>{previousReveal();genericControls.forEach(node=>node.hidden=false);};
         let version = 0;
+        const openTopicKeys = new Set();
+        let hasRememberedOpenTopics = false;
+        function rememberOpenTopics() {
+            const sections = central.querySelectorAll('details[data-curriculum-topic-key]');
+            if (sections.length) hasRememberedOpenTopics = true;
+            sections.forEach(section => {
+                if (section.open) openTopicKeys.add(section.dataset.curriculumTopicKey);
+                else openTopicKeys.delete(section.dataset.curriculumTopicKey);
+            });
+        }
+        function topicKey(type, id) { return `${type}:${id}`; }
         async function refresh() {
             const current = ++version;
+            rememberOpenTopics();
             message.textContent = '';
             central.replaceChildren(); flexible.replaceChildren(); assignments.replaceChildren(); summary.textContent = '';
             if (!await allowed('curriculum_view')) throw Error(permissionDenied);
@@ -501,6 +513,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             summary.textContent = `Zentrale Summe Jahrgang ${g}: ${structure.centralTokens} / 100 Münzen (absolute Grenze 105).`;
             summary.style.color = structure.centralTokens > 100 ? 'darkred' : '';
             async function save(path, data) {
+                const scrollTop = window.scrollY;
                 const isAssignment = path === '/assign-curriculum-context' || path === '/transfer-curriculum-context';
                 const isFlexible = ['/add-flexible-task','/edit-flexible-task','/add-flexible-topic','/rename-flexible-topic'].includes(path);
                 if (current !== version) throw Error('Die Auswahl wurde geändert. Bitte das aktuelle Formular verwenden.');
@@ -508,7 +521,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     !await allowed(isAssignment ? 'curriculum_assign_context' : isFlexible ? 'curriculum_manage_flexible' : 'curriculum_manage_central')) {
                     await refresh(); throw Error(permissionDenied);
                 }
-                await post(path, data); await refresh();
+                const result = await post(path, data);
+                if (path === '/add-curriculum-topic' && result?.id != null) openTopicKeys.add(topicKey('central', result.id));
+                if (path === '/add-curriculum-task' && data.topicId != null) openTopicKeys.add(topicKey('central', data.topicId));
+                await refresh();
+                if (window.scrollY !== scrollTop && typeof window.scrollTo === 'function') window.scrollTo(0, scrollTop);
             }
             function editTask(parent, task, isFlexible) {
                 const form = el('form'), name = field(form,'Name',task.name), tokens = field(form,'Münzen',task.tokens,'number');
@@ -541,7 +558,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const manageFlexible=await allowed('curriculum_manage_flexible');
                 for (const topic of structure.topics) {
                     const topicTasks=structure.tasks.filter(t=>t.topic===topic.id);
-                    const section=el('details');section.open=true;section.className='teacher-topic-panel teacher-topic-central';
+                    const section=el('details');section.open=!hasRememberedOpenTopics || openTopicKeys.has(topicKey('central',topic.id));section.dataset.curriculumTopicKey=topicKey('central',topic.id);section.className='teacher-topic-panel teacher-topic-central';
                     section.append(el('summary',`Thema ${topic.number} - ${topic.name} · Zentral · ${topicStatus(topic, topicTasks, releases)}`));
                     central.append(section);
                     if(canPublish) {
@@ -557,7 +574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 for(const topic of flexibleTopics) {
                     const topicTasks=tasks.filter(task=>(task.topicId??null)===topic.id);
-                    const group=el('details');group.open=true;group.className='teacher-topic-panel teacher-topic-flexible';group.append(el('summary',`${topic.name} · Flexibel · ${flexibleTopicStatus(topic, topicTasks, releases)}`));central.append(group);
+                    const group=el('details');group.open=!hasRememberedOpenTopics || openTopicKeys.has(topicKey('flexible',topic.id));group.dataset.curriculumTopicKey=topicKey('flexible',topic.id);group.className='teacher-topic-panel teacher-topic-flexible';group.append(el('summary',`${topic.name} · Flexibel · ${flexibleTopicStatus(topic, topicTasks, releases)}`));central.append(group);
                     if(canPublish) {
                         appendReleaseButton(group,'Alle freigeben',{flexibleTopicId:topic.id,active:true});
                         appendReleaseButton(group,'Alle sperren',{flexibleTopicId:topic.id,active:false});
@@ -576,7 +593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 const unassigned=tasks.filter(task=>(task.topicId??null)===null);
                 if(unassigned.length) {
-                    const group=el('details');group.open=true;group.className='teacher-topic-panel teacher-topic-flexible';group.append(el('summary','Ohne Thema · Flexibel'));central.append(group);
+                    const group=el('details');group.open=!hasRememberedOpenTopics || openTopicKeys.has(topicKey('flexible', 'unassigned'));group.dataset.curriculumTopicKey=topicKey('flexible', 'unassigned');group.className='teacher-topic-panel teacher-topic-flexible';group.append(el('summary','Ohne Thema · Flexibel'));central.append(group);
                     for(const task of unassigned) {
                         const active=flexibleTaskRelease(releases,task)?.active === true;
                         const row=el('p',`${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);row.className='teacher-stage-row';
@@ -597,7 +614,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             for (const topic of structure.topics) {
-                const section=el('details'), title=el('summary',`Thema ${topic.number} - ${topic.name}`+(manageCentral?' — Etappen anzeigen / bearbeiten':' — Etappen anzeigen'));section.append(title);central.append(section);
+                const section=el('details'), title=el('summary',`Thema ${topic.number} - ${topic.name}`+(manageCentral?' — Etappen anzeigen / bearbeiten':' — Etappen anzeigen'));section.open=openTopicKeys.has(topicKey('central',topic.id));section.dataset.curriculumTopicKey=topicKey('central',topic.id);section.append(title);central.append(section);
                 if(manageCentral) {
                     const form=el('form'), name=field(form,'Themenname',topic.name);button(form,'Thema umbenennen');section.append(form);
                     form.addEventListener('submit',async e=>{e.preventDefault();try{await save('/rename-topic',{topicId:topic.id,name:name.value});}catch(error){showError(error);}});
