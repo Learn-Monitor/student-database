@@ -1603,6 +1603,7 @@ class CurriculumTest {
         var wpf=new Curriculum.Scope(id,id+1,id,id);
         enrollment.assignWpf(admin,id,wpf,null);
         assertEquals(id+1,scalar("SELECT subject FROM curriculum_individual_assignments WHERE student=? AND semester=? AND assignment_group='WPF'",id,id));
+        assertEquals(id,scalar("SELECT teacher FROM curriculum_grade_teachers WHERE semester=? AND grade=13 AND subject=?",id,id+1));
         assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_individual_assignments WHERE student=?",id+1));
         assertThrows(CurriculumException.class,()->enrollment.assignWpf(admin,id,wpf,null));
         assertThrows(CurriculumException.class,()->enrollment.assignWpf(admin,id+1,wpf,null));

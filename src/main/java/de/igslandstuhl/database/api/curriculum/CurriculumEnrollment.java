@@ -208,7 +208,7 @@ public final class CurriculumEnrollment {
         admin(actor);
         String finalGroup=assignmentGroup==null?"WPF":assignmentGroup.strip().toUpperCase(Locale.ROOT);
         return curriculum.transaction(c->{require(c,"SELECT id FROM classes WHERE id=? AND active=1 AND id<>0",classId);require(c,"SELECT id FROM semesters WHERE id=?",semester);
-            return rows(c,"SELECT s.id,s.first_name,s.last_name,w.subject AS subjectId,gt.teacher AS teacherId FROM students s JOIN classes cl ON cl.id=s.class LEFT JOIN curriculum_individual_assignments w ON w.student=s.id AND w.semester=? AND w.assignment_group=? LEFT JOIN curriculum_grade_teachers gt ON gt.semester=w.semester AND gt.grade=cl.grade AND gt.subject=w.subject WHERE s.class=? ORDER BY s.last_name,s.first_name,s.id",semester,finalGroup,classId);
+            return rows(c,"SELECT s.id,s.first_name,s.last_name,w.subject AS subjectId FROM students s LEFT JOIN curriculum_individual_assignments w ON w.student=s.id AND w.semester=? AND w.assignment_group=? WHERE s.class=? ORDER BY s.last_name,s.first_name,s.id",semester,finalGroup,classId);
         });
     }
     public void assignWpf(Actor actor,int student,Scope scope,Integer expectedSubject) throws SQLException {

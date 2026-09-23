@@ -757,10 +757,10 @@ test('individual subject groups save independently through the guarded assignmen
   const panel=root.querySelector('.curriculum-enrollment');await clickNamed(dom,panel,'Jetzt verwalten');await clickNamed(dom,panel,'Auswahl bestätigen');
   const group=[...panel.querySelectorAll('select')].find(select=>[...select.options].some(option=>option.value==='RELIGION_ETHIK'));assert.ok(group);assert.equal(group.value,'RELIGION_ETHIK');
   await clickNamed(dom,panel,'Zuordnungen laden');
-  let row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');let selects=row.querySelectorAll('select');assert.equal(selects.length,1);selects[0].value='6';selects[0].dispatchEvent(new dom.window.Event('change'));assert.match(row.textContent,/Test Teacher/);await clickNamed(dom,panel,'Zuordnungen speichern');
+  let row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');let selects=row.querySelectorAll('select');assert.equal(row.cells.length,2);assert.equal(selects.length,1);assert.doesNotMatch(row.textContent,/Lehrkraft/);selects[0].value='6';await clickNamed(dom,panel,'Zuordnungen speichern');
   let request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.deepEqual(request.data,{studentId:50,subjectId:6,classId:10,semesterId:20,assignmentGroup:'RELIGION_ETHIK',expectedSubjectId:null});
   group.value='WPF';group.dispatchEvent(new dom.window.Event('change'));await clickNamed(dom,panel,'Zuordnungen laden');
-  row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');selects=row.querySelectorAll('select');assert.equal(selects.length,1);selects[0].value='5';selects[0].dispatchEvent(new dom.window.Event('change'));assert.match(row.textContent,/Test Teacher/);await clickNamed(dom,panel,'Zuordnungen speichern');
+  row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');selects=row.querySelectorAll('select');assert.equal(row.cells.length,2);assert.equal(selects.length,1);assert.doesNotMatch(row.textContent,/Lehrkraft/);selects[0].value='5';await clickNamed(dom,panel,'Zuordnungen speichern');
   request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.deepEqual(request.data,{studentId:50,subjectId:5,classId:10,semesterId:20,assignmentGroup:'WPF',expectedSubjectId:null});
  }finally{dom.window.close();}
 });
