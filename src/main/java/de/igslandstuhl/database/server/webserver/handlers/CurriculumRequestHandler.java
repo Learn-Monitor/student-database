@@ -21,7 +21,7 @@ public final class CurriculumRequestHandler {
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task",
                 "/central-curriculum-overview","/preview-central-curriculum-import","/import-central-curriculum",
-                "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
+                "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/assign-individual-grade-teacher","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/set-curriculum-stage-assessment",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/curriculum-student-progress-detail",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
@@ -152,6 +152,12 @@ public final class CurriculumRequestHandler {
                     result=Map.of("ok",true);
                 }
                 case "/remove-grade-curriculum-subject" -> {enrollment.removeGradeSubject(actor,integer(rq,"grade"),integer(rq,"semesterId"),integer(rq,"subjectId"));result=Map.of("ok",true);}
+                case "/assign-individual-grade-teacher" -> {
+                    Set<String> allowed=Set.of("grade","semesterId","subjectId","teacherId");
+                    if(!allowed.containsAll(rq.getJson().keySet()) || rq.getJson().size()!=allowed.size()) throw new CurriculumException(400,"invalid_input","Individual grade-teacher payload contains unexpected or missing fields.");
+                    enrollment.assignIndividualGradeTeacher(actor,integer(rq,"grade"),integer(rq,"semesterId"),integer(rq,"subjectId"),integer(rq,"teacherId"));
+                    result=Map.of("ok",true);
+                }
                 case "/assign-grade-curriculum" -> {
                     List<Integer> subjects=new ArrayList<>();for(Object value:list(rq,"subjectIds"))subjects.add(integer(value,"subjectId"));
                     List<CurriculumEnrollment.Teaching> teaching=new ArrayList<>();
@@ -165,10 +171,9 @@ public final class CurriculumRequestHandler {
                         ? enrollment.individualRoster(actor,integer(rq,"classId"),integer(rq,"semesterId"),String.valueOf(rq.getJson().get("assignmentGroup")))
                         : enrollment.wpfRoster(actor,integer(rq,"classId"),integer(rq,"semesterId"));
                 case "/assign-curriculum-wpf" -> {
-                    if(!rq.containsKey("expectedSubjectId"))throw new CurriculumException(400,"invalid_input","Expected WPF assignment required.");
-                    if(rq.containsKey("assignmentGroup"))
-                        enrollment.assignIndividual(actor,integer(rq,"studentId"),scope(rq,actor),String.valueOf(rq.getJson().get("assignmentGroup")),rq.getJson().get("expectedSubjectId")==null?null:integer(rq,"expectedSubjectId"));
-                    else enrollment.assignWpf(actor,integer(rq,"studentId"),scope(rq,actor),rq.getJson().get("expectedSubjectId")==null?null:integer(rq,"expectedSubjectId"));
+                    Set<String> allowed=Set.of("studentId","subjectId","classId","semesterId","assignmentGroup","expectedSubjectId");
+                    if(!allowed.containsAll(rq.getJson().keySet()) || rq.getJson().size()!=allowed.size()) throw new CurriculumException(400,"invalid_input","Individual assignment payload contains unexpected or missing fields.");
+                    enrollment.assignIndividual(actor,integer(rq,"studentId"),integer(rq,"subjectId"),integer(rq,"classId"),integer(rq,"semesterId"),String.valueOf(rq.getJson().get("assignmentGroup")),rq.getJson().get("expectedSubjectId")==null?null:integer(rq,"expectedSubjectId"));
                     result=Map.of("ok",true);
                 }
                 case "/curriculum-releases" -> result=enrollment.releases(actor,scope(rq,actor));

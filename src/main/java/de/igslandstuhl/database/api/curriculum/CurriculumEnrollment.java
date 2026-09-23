@@ -106,8 +106,18 @@ public final class CurriculumEnrollment {
             "classes",rows(c,"SELECT id,label,grade FROM classes WHERE active=1 AND id<>0 ORDER BY grade,label"),
             "semesters",rows(c,"SELECT s.id,s.label,s.school_year AS schoolYearId,CASE WHEN y.current_semester=s.id THEN 1 ELSE 0 END AS active FROM semesters s JOIN school_years y ON y.id=s.school_year ORDER BY s.school_year,s.position"),
             "teachers",rows(c,"SELECT id,first_name,last_name FROM teachers ORDER BY last_name,first_name"),
-            "teaching",rows(c,"SELECT teacher AS teacherId,class AS classId,subject AS subjectId,semester AS semesterId FROM curriculum_class_teachers UNION SELECT teacher AS teacherId,NULL AS classId,subject AS subjectId,semester AS semesterId FROM curriculum_grade_teachers"),
+            "teaching",rows(c,"SELECT teacher AS teacherId,class AS classId,NULL AS grade,subject AS subjectId,semester AS semesterId FROM curriculum_class_teachers UNION SELECT teacher AS teacherId,NULL AS classId,grade,subject AS subjectId,semester AS semesterId FROM curriculum_grade_teachers"),
             "gradeSubjects",rows(c,"SELECT grade,semester AS semesterId,subject AS subjectId FROM curriculum_grade_subjects")));
+    }
+    public void assignIndividualGradeTeacher(Actor actor,int grade,int semester,int subject,int teacher) throws SQLException {
+        admin(actor);
+        curriculum.transaction(c->{
+            if(!individual(c,subject)) throw error(400,"invalid_input","Only individual subjects may use grade-wide teacher assignments.");
+            require(c,"SELECT id FROM semesters WHERE id=?",semester);
+            require(c,"SELECT id FROM teachers WHERE id=?",teacher);
+            write(c,"INSERT INTO curriculum_grade_teachers(semester,grade,subject,teacher) VALUES(?,?,?,?) ON CONFLICT(semester,grade,subject) DO UPDATE SET teacher=excluded.teacher",semester,grade,subject,teacher);
+            return null;
+        });
     }
     public void subjectType(Actor actor,int subject,boolean isWpf) throws SQLException {
         subjectType(actor,subject,isWpf?"INDIVIDUAL":"REGULAR",isWpf?"WPF":null);
@@ -198,37 +208,43 @@ public final class CurriculumEnrollment {
         admin(actor);
         String finalGroup=assignmentGroup==null?"WPF":assignmentGroup.strip().toUpperCase(Locale.ROOT);
         return curriculum.transaction(c->{require(c,"SELECT id FROM classes WHERE id=? AND active=1 AND id<>0",classId);require(c,"SELECT id FROM semesters WHERE id=?",semester);
-            return rows(c,"SELECT s.id,s.first_name,s.last_name,w.subject AS subjectId,a.teacher AS teacherId FROM students s LEFT JOIN curriculum_individual_assignments w ON w.student=s.id AND w.semester=? AND w.assignment_group=? LEFT JOIN student_curriculum_contexts a ON a.student=s.id AND a.semester=w.semester AND a.subject=w.subject WHERE s.class=? ORDER BY s.last_name,s.first_name,s.id",semester,finalGroup,classId);
+            return rows(c,"SELECT s.id,s.first_name,s.last_name,w.subject AS subjectId,gt.teacher AS teacherId FROM students s JOIN classes cl ON cl.id=s.class LEFT JOIN curriculum_individual_assignments w ON w.student=s.id AND w.semester=? AND w.assignment_group=? LEFT JOIN curriculum_grade_teachers gt ON gt.semester=w.semester AND gt.grade=cl.grade AND gt.subject=w.subject WHERE s.class=? ORDER BY s.last_name,s.first_name,s.id",semester,finalGroup,classId);
         });
     }
     public void assignWpf(Actor actor,int student,Scope scope,Integer expectedSubject) throws SQLException {
-        assignIndividual(actor,student,scope,"WPF",expectedSubject);
+        assignIndividual(actor,student,scope.subjectId(),scope.classId(),scope.semesterId(),"WPF",expectedSubject);
     }
-    public void assignIndividual(Actor actor,int student,Scope scope,String assignmentGroup,Integer expectedSubject) throws SQLException {
+    public void assignIndividual(Actor actor,int student,int subject,int classId,int semester,String assignmentGroup,Integer expectedSubject) throws SQLException {
         admin(actor);
         String finalGroup=assignmentGroup==null?"WPF":assignmentGroup.strip().toUpperCase(Locale.ROOT);
         curriculum.transaction(c->{
-            if(!individual(c,scope.subjectId()) || !group(c,scope.subjectId()).equals(finalGroup))
+            if(!individual(c,subject) || !group(c,subject).equals(finalGroup))
                 throw error(400,"invalid_input","Select an individual subject from the requested assignment group.");
-            var previous=rows(c,"SELECT subject FROM curriculum_individual_assignments WHERE student=? AND semester=? AND assignment_group=?",student,scope.semesterId(),finalGroup);
+            int grade=integer(require(c,"SELECT grade FROM classes WHERE id=? AND active=1",classId),"grade");
+            var canonical=rows(c,"SELECT teacher FROM curriculum_grade_teachers WHERE semester=? AND grade=? AND subject=?",semester,grade,subject);
+            if(canonical.isEmpty()) throw error(409,"context_conflict","No grade-wide teacher is assigned for this individual subject.");
+            int teacher=integer(canonical.get(0),"teacher");
+            var scope=new Scope(teacher,subject,classId,semester);
+            var previous=rows(c,"SELECT subject FROM curriculum_individual_assignments WHERE student=? AND semester=? AND assignment_group=?",student,semester,finalGroup);
             Integer old=previous.isEmpty()?null:integer(previous.get(0),"subject");
             if(!Objects.equals(old,expectedSubject))throw error(409,"context_conflict","Individual assignment changed; refresh the list.");
             if(old!=null && old!=scope.subjectId()) {
                 long completed=number(c,"SELECT COUNT(*) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE x.student=? AND x.status<>0 AND p.subject=? AND p.semester=?",student,old,scope.semesterId())
-                    +number(c,"SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task WHERE x.student=? AND t.subject=? AND t.semester=?",student,old,scope.semesterId());
+                    +number(c,"SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task WHERE x.student=? AND t.subject=? AND t.semester=?",student,old,semester);
                 if(completed>0)throw error(409,"context_conflict","Individual subject with existing work requires an explicit transfer.");
             }
-            int grade=integer(require(c,"SELECT grade FROM classes WHERE id=?",scope.classId()),"grade");
-            require(c,"SELECT id FROM teachers WHERE id=?",scope.teacherId());
-            write(c,"INSERT INTO curriculum_grade_teachers(semester,grade,subject,teacher) VALUES(?,?,?,?) ON CONFLICT(semester,grade,subject) DO UPDATE SET teacher=excluded.teacher",scope.semesterId(),grade,scope.subjectId(),scope.teacherId());
             Curriculum.assign(c,student,scope);
-            var previousEnrollment=rows(c,"SELECT grade FROM curriculum_enrolled_students WHERE student=? AND semester=?",student,scope.semesterId());
+            var previousEnrollment=rows(c,"SELECT grade FROM curriculum_enrolled_students WHERE student=? AND semester=?",student,semester);
             if(!previousEnrollment.isEmpty() && integer(previousEnrollment.get(0),"grade")!=grade)
                 throw error(409,"context_conflict","Historical grade cannot be changed.");
-            write(c,"INSERT INTO curriculum_enrolled_students(student,semester,grade) VALUES(?,?,?) ON CONFLICT(student,semester) DO NOTHING",student,scope.semesterId(),grade);
-            write(c,"INSERT INTO curriculum_individual_assignments(student,semester,assignment_group,subject) VALUES(?,?,?,?) ON CONFLICT(student,semester,assignment_group) DO UPDATE SET subject=excluded.subject",student,scope.semesterId(),finalGroup,scope.subjectId());
+            write(c,"INSERT INTO curriculum_enrolled_students(student,semester,grade) VALUES(?,?,?) ON CONFLICT(student,semester) DO NOTHING",student,semester,grade);
+            write(c,"INSERT INTO curriculum_individual_assignments(student,semester,assignment_group,subject) VALUES(?,?,?,?) ON CONFLICT(student,semester,assignment_group) DO UPDATE SET subject=excluded.subject",student,semester,finalGroup,subject);
             return null;
         });
+    }
+    /* Compatibility overload: the teacher in the old scope is ignored. */
+    public void assignIndividual(Actor actor,int student,Scope scope,String assignmentGroup,Integer expectedSubject) throws SQLException {
+        assignIndividual(actor,student,scope.subjectId(),scope.classId(),scope.semesterId(),assignmentGroup,expectedSubject);
     }
     static void requireSelectedWpf(Connection c,int student,int subject,int semester) throws SQLException {
         if(Curriculum.individualSubject(c,subject)) {

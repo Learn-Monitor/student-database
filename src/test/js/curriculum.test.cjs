@@ -752,15 +752,16 @@ test('admin grade batch preselects assignments only for the selected semester',a
  }finally{dom.window.close();}
 });
 test('individual subject groups save independently through the guarded assignment endpoint',async()=>{
- const {dom,root,requests}=await setup(true,{enrollment:true});try{
+ const teaching=[{grade:5,subjectId:4,teacherId:7,semesterId:20},{grade:5,subjectId:5,teacherId:7,semesterId:20},{grade:5,subjectId:6,teacherId:7,semesterId:20},{grade:5,subjectId:7,teacherId:7,semesterId:20}];
+ const {dom,root,requests}=await setup(true,{enrollment:true,teaching});try{
   const panel=root.querySelector('.curriculum-enrollment');await clickNamed(dom,panel,'Jetzt verwalten');await clickNamed(dom,panel,'Auswahl bestätigen');
   const group=[...panel.querySelectorAll('select')].find(select=>[...select.options].some(option=>option.value==='RELIGION_ETHIK'));assert.ok(group);assert.equal(group.value,'RELIGION_ETHIK');
   await clickNamed(dom,panel,'Zuordnungen laden');
-  let row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');let selects=row.querySelectorAll('select');selects[0].value='6';selects[1].value='7';await clickNamed(dom,panel,'Zuordnungen speichern');
-  let request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.equal(request.data.studentId,50);assert.equal(request.data.subjectId,6);assert.equal(request.data.assignmentGroup,'RELIGION_ETHIK');assert.equal(request.data.expectedSubjectId,null);
+  let row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');let selects=row.querySelectorAll('select');assert.equal(selects.length,1);selects[0].value='6';selects[0].dispatchEvent(new dom.window.Event('change'));assert.match(row.textContent,/Test Teacher/);await clickNamed(dom,panel,'Zuordnungen speichern');
+  let request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.deepEqual(request.data,{studentId:50,subjectId:6,classId:10,semesterId:20,assignmentGroup:'RELIGION_ETHIK',expectedSubjectId:null});
   group.value='WPF';group.dispatchEvent(new dom.window.Event('change'));await clickNamed(dom,panel,'Zuordnungen laden');
-  row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');selects=row.querySelectorAll('select');selects[0].value='5';selects[1].value='7';await clickNamed(dom,panel,'Zuordnungen speichern');
-  request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.equal(request.data.subjectId,5);assert.equal(request.data.classId,10);assert.equal(request.data.assignmentGroup,'WPF');
+  row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');selects=row.querySelectorAll('select');assert.equal(selects.length,1);selects[0].value='5';selects[0].dispatchEvent(new dom.window.Event('change'));assert.match(row.textContent,/Test Teacher/);await clickNamed(dom,panel,'Zuordnungen speichern');
+  request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.deepEqual(request.data,{studentId:50,subjectId:5,classId:10,semesterId:20,assignmentGroup:'WPF',expectedSubjectId:null});
  }finally{dom.window.close();}
 });
 test('teacher publishes a whole topic or individual task but has no enrollment UI',async()=>{
