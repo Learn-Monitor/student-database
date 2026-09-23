@@ -109,16 +109,6 @@ public final class CurriculumEnrollment {
             "teaching",rows(c,"SELECT teacher AS teacherId,class AS classId,NULL AS grade,subject AS subjectId,semester AS semesterId FROM curriculum_class_teachers UNION SELECT teacher AS teacherId,NULL AS classId,grade,subject AS subjectId,semester AS semesterId FROM curriculum_grade_teachers"),
             "gradeSubjects",rows(c,"SELECT grade,semester AS semesterId,subject AS subjectId FROM curriculum_grade_subjects")));
     }
-    public void assignIndividualGradeTeacher(Actor actor,int grade,int semester,int subject,int teacher) throws SQLException {
-        admin(actor);
-        curriculum.transaction(c->{
-            if(!individual(c,subject)) throw error(400,"invalid_input","Only individual subjects may use grade-wide teacher assignments.");
-            require(c,"SELECT id FROM semesters WHERE id=?",semester);
-            require(c,"SELECT id FROM teachers WHERE id=?",teacher);
-            write(c,"INSERT INTO curriculum_grade_teachers(semester,grade,subject,teacher) VALUES(?,?,?,?) ON CONFLICT(semester,grade,subject) DO UPDATE SET teacher=excluded.teacher",semester,grade,subject,teacher);
-            return null;
-        });
-    }
     public void subjectType(Actor actor,int subject,boolean isWpf) throws SQLException {
         subjectType(actor,subject,isWpf?"INDIVIDUAL":"REGULAR",isWpf?"WPF":null);
     }

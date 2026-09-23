@@ -2029,7 +2029,7 @@ class CurriculumTest {
         assertEquals(1,((List<?>)service.studentCatalog(Student.get(id),id,id).get("centralTasks")).size());
     }
     @Test void enrollmentAndPublicationRoutesRepeatRoleAndInputChecks() throws Exception {
-        for(String path:List.of("/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf")) {
+        for(String path:List.of("/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf","/assign-individual-grade-teacher")) {
             assertNotEquals(Status.OK,request(Teacher.get(id),path,body()).getStatus());
             assertEquals(Status.FORBIDDEN,request(Student.get(id),path,body()).getStatus());
         }

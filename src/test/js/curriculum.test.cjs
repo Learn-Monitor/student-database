@@ -754,7 +754,10 @@ test('admin grade batch preselects assignments only for the selected semester',a
 test('individual subject groups save independently through the guarded assignment endpoint',async()=>{
  const teaching=[{grade:5,subjectId:4,teacherId:7,semesterId:20},{grade:5,subjectId:5,teacherId:7,semesterId:20},{grade:5,subjectId:6,teacherId:7,semesterId:20},{grade:5,subjectId:7,teacherId:7,semesterId:20}];
  const {dom,root,requests}=await setup(true,{enrollment:true,teaching});try{
-  const panel=root.querySelector('.curriculum-enrollment');await clickNamed(dom,panel,'Jetzt verwalten');await clickNamed(dom,panel,'Auswahl bestätigen');
+ const panel=root.querySelector('.curriculum-enrollment');await clickNamed(dom,panel,'Jetzt verwalten');await clickNamed(dom,panel,'Auswahl bestätigen');
+  assert.equal(panel.querySelector('.individual-grade-teacher-mapping'),null);
+  assert.doesNotMatch(panel.textContent,/Lehrkräfte für individuelle Fächer/);
+  assert.equal(requests.filter(r=>r.url==='/assign-individual-grade-teacher').length,0);
   const group=[...panel.querySelectorAll('select')].find(select=>[...select.options].some(option=>option.value==='RELIGION_ETHIK'));assert.ok(group);assert.equal(group.value,'RELIGION_ETHIK');
   await clickNamed(dom,panel,'Zuordnungen laden');
   let row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');let selects=row.querySelectorAll('select');assert.equal(row.cells.length,2);assert.equal(selects.length,1);assert.doesNotMatch(row.textContent,/Lehrkraft/);selects[0].value='6';await clickNamed(dom,panel,'Zuordnungen speichern');

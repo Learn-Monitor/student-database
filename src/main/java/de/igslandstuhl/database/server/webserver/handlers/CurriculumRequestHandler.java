@@ -21,7 +21,7 @@ public final class CurriculumRequestHandler {
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task",
                 "/central-curriculum-overview","/preview-central-curriculum-import","/import-central-curriculum",
-                "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/assign-individual-grade-teacher","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
+                "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/set-curriculum-stage-assessment",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/curriculum-student-progress-detail",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
@@ -152,12 +152,6 @@ public final class CurriculumRequestHandler {
                     result=Map.of("ok",true);
                 }
                 case "/remove-grade-curriculum-subject" -> {enrollment.removeGradeSubject(actor,integer(rq,"grade"),integer(rq,"semesterId"),integer(rq,"subjectId"));result=Map.of("ok",true);}
-                case "/assign-individual-grade-teacher" -> {
-                    Set<String> allowed=Set.of("grade","semesterId","subjectId","teacherId");
-                    if(!allowed.containsAll(rq.getJson().keySet()) || rq.getJson().size()!=allowed.size()) throw new CurriculumException(400,"invalid_input","Individual grade-teacher payload contains unexpected or missing fields.");
-                    enrollment.assignIndividualGradeTeacher(actor,integer(rq,"grade"),integer(rq,"semesterId"),integer(rq,"subjectId"),integer(rq,"teacherId"));
-                    result=Map.of("ok",true);
-                }
                 case "/assign-grade-curriculum" -> {
                     List<Integer> subjects=new ArrayList<>();for(Object value:list(rq,"subjectIds"))subjects.add(integer(value,"subjectId"));
                     List<CurriculumEnrollment.Teaching> teaching=new ArrayList<>();
