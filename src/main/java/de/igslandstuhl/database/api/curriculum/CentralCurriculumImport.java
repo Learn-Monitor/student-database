@@ -77,7 +77,7 @@ public final class CentralCurriculumImport {
     private Map<String,Object> overview(Connection c, int grade, int semesterId) throws SQLException {
         Curriculum.require(c, "SELECT id FROM semesters WHERE id=?", semesterId);
         List<Map<String,Object>> rows = Curriculum.rows(c, "SELECT s.id AS subjectId,s.name AS subjectName,p.number AS topicNumber,p.name AS topicName,"
-                + "t.stage_number AS stageNumber,t.name AS stageName,t.tokens AS tokens,t.id AS taskId,p.id AS topicId "
+                + "t.stage_number AS stageNumber,t.name AS stageName,t.niveau AS niveau,t.tokens AS tokens,t.id AS taskId,p.id AS topicId "
                 + "FROM tasks t JOIN topics p ON p.id=t.topic JOIN subjects s ON s.id=p.subject "
                 + "WHERE p.grade=? AND p.semester=? ORDER BY lower(s.name),p.number,t.stage_number,t.id", grade, semesterId);
         return Map.of("rows", rows, "subjects", subjectSummaries(c, grade, semesterId, Collections.emptyMap()));
