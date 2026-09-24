@@ -25,6 +25,7 @@ public final class CurriculumRequestHandler {
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/set-curriculum-stage-assessment",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/curriculum-student-progress-detail",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
+        HttpHandler.registerPostRequestHandler("/curriculum-weekly-conversations",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-progress",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-catalog",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-subjects",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
@@ -135,6 +136,11 @@ public final class CurriculumRequestHandler {
                 Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
                 if(actor.admin()) throw new CurriculumException(403,"forbidden","Teacher session required.");
                 return PostResponse.jsonWithNulls(service.studentProgressDetail(actor,integer(rq,"studentId"),scope(rq,actor)),rq);
+            }
+            if(rq.getPath().equals("/curriculum-weekly-conversations")) {
+                if(!rq.getJson().keySet().equals(Set.of("semesterId","classId"))) throw new CurriculumException(400,"invalid_input","semesterId and classId are required.");
+                Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
+                return PostResponse.jsonWithNulls(service.weeklyConversationOverview(actor,integer(rq,"semesterId"),integer(rq,"classId")),rq);
             }
             Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
             CurriculumEnrollment enrollment=new CurriculumEnrollment(service);

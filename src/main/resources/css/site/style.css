@@ -208,6 +208,17 @@ table tr:last-child td {
 .teacher-topic-panel form label { display:flex; flex-direction:column; gap:.25rem; font-weight:700; }
 .teacher-topic-panel form select { margin:0; }
 .teacher-topic-panel form button { margin:0; }
+.teacher-weekly-conversations { margin-top:1rem; padding-top:1rem; border-top:1px solid #d9e1ea; }
+.teacher-weekly-conversations h3 { color:#17324d; }
+.teacher-weekly-conversations small { display:block; margin-top:.25rem; color:#526b82; }
+@media print {
+  .teacher-main-menu, .teacher-weekly-conversations .teacher-filter-bar, button, nav { display:none !important; }
+  .teacher-function-page { border:0; box-shadow:none; margin:0; padding:0; }
+  .teacher-weekly-conversations { border:0; margin:0; padding:0; }
+  .teacher-table-scroll { overflow:visible; }
+  .teacher-weekly-conversations table { width:100%; min-width:0; page-break-inside:auto; }
+  .teacher-weekly-conversations tr { page-break-inside:avoid; page-break-after:auto; }
+}
 
 .curriculum-topic-card {
   display:block;

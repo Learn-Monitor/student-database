@@ -53,6 +53,14 @@ public final class Curriculum {
     }
     public record StudentProgressDetail(int studentId, String studentName, int subjectId, int semesterId,
                                         List<StudentStageProgress> stages) {}
+    public static int noteForTokens(long tokens) {
+        if (tokens >= 90) return 1;
+        if (tokens >= 75) return 2;
+        if (tokens >= 60) return 3;
+        if (tokens >= 40) return 4;
+        if (tokens >= 20) return 5;
+        return 6;
+    }
     private record CentralTask(int id, int subjectId, int semesterId, int grade, int topicId, String name) {}
     static CurriculumException error(int status, String code, String message) {
         return new CurriculumException(status, code, message);
@@ -831,6 +839,52 @@ public final class Curriculum {
         long flexible=completedFlexibleTasks.stream().mapToLong(CompletedFlexibleTask::tokens).sum();
         return Map.of("semesterId",scope.semesterId(),"centralTokens",central,"flexibleTokens",flexible,"totalTokens",central+flexible,
                 "completedCentralTasks",completedCentralTasks,"completedFlexibleTasks",completedFlexibleTasks);
+    }
+    /** Tutor-only read model built from the same completion and stage read models as normal progress. */
+    public Map<String,Object> weeklyConversationOverview(Actor actor,int semester,int classId) throws SQLException {
+        if (actor == null || actor.admin() || actor.teacherId() < 1)
+            throw error(403,"forbidden","Teacher session required.");
+        return transaction(c -> {
+            var classRow=require(c,"SELECT id,label,grade FROM classes WHERE id=? AND active=1",classId);
+            if (classId == SchoolClass.UNASSIGNED_CLASS_ID || integer(classRow,"grade") == 0)
+                throw error(403,"forbidden","Tutor overview is unavailable for this class.");
+            require(c,"SELECT id FROM semesters WHERE id=?",semester);
+            if (number(c,"SELECT COUNT(*) FROM curriculum_class_tutors WHERE semester=? AND class=? AND teacher=?",semester,classId,actor.teacherId()) == 0)
+                throw error(403,"forbidden","Teacher is not a tutor for this class.");
+            String semesterLabel=String.valueOf(require(c,"SELECT label FROM semesters WHERE id=?",semester).get("label"));
+            int grade=integer(classRow,"grade");
+            List<Map<String,Object>> subjects=rows(c,
+                    "SELECT DISTINCT s.id,s.name,ct.teacher AS teacherId FROM curriculum_grade_subjects gs "
+                    + "JOIN subjects s ON s.id=gs.subject JOIN curriculum_class_teachers ct ON ct.semester=gs.semester AND ct.class=? AND ct.subject=gs.subject "
+                    + "WHERE gs.semester=? AND gs.grade=? "
+                    + "UNION SELECT DISTINCT s.id,s.name,sc.teacher AS teacherId FROM student_curriculum_contexts sc JOIN subjects s ON s.id=sc.subject "
+                    + "WHERE sc.semester=? AND sc.class=? ORDER BY name",classId,semester,grade,semester,classId);
+            List<Map<String,Object>> students=rows(c,"SELECT id,first_name AS firstName,last_name AS lastName FROM students WHERE class=? AND COALESCE(active,1)=1 ORDER BY last_name,first_name,id",classId);
+            List<Map<String,Object>> output=new ArrayList<>();
+            for (var student:students) {
+                int studentId=integer(student,"id");
+                Map<String,Object> row=new LinkedHashMap<>(); row.put("id",studentId); row.put("name",student.get("firstName")+" "+student.get("lastName"));
+                List<Map<String,Object>> cells=new ArrayList<>();
+                for (var subject:subjects) {
+                    int subjectId=integer(subject,"id"), teacherId=integer(subject,"teacherId");
+                    var context=rows(c,"SELECT teacher,class,grade FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=? AND class=?",studentId,subjectId,semester,classId);
+                    Map<String,Object> cell=new LinkedHashMap<>(); cell.put("subjectId",subjectId); cell.put("totalTokens",0L); cell.put("note",noteForTokens(0)); cell.put("stages",List.of());
+                    if (!context.isEmpty()) {
+                        Map<String,Object> totals=progress(c,studentId,new Scope(teacherId,subjectId,classId,semester));
+                        long total=((Number)totals.get("totalTokens")).longValue(); cell.put("totalTokens",total); cell.put("note",noteForTokens(total));
+                        List<Map<String,Object>> stages=new ArrayList<>();
+                        @SuppressWarnings("unchecked") List<CompletedCentralTask> central=(List<CompletedCentralTask>)totals.get("completedCentralTasks");
+                        for (var stage:central) { Map<String,Object> done=new LinkedHashMap<>(); done.put("id",stage.id()); done.put("name",stage.name()); done.put("niveau",stage.niveau()); done.put("tokens",stage.tokens()); stages.add(done); }
+                        @SuppressWarnings("unchecked") List<CompletedFlexibleTask> flexible=(List<CompletedFlexibleTask>)totals.get("completedFlexibleTasks");
+                        for (var stage:flexible) { Map<String,Object> done=new LinkedHashMap<>(); done.put("id",stage.id()); done.put("name",stage.name()); done.put("tokens",stage.tokens()); stages.add(done); }
+                        cell.put("stages",stages);
+                    }
+                    cells.add(cell);
+                }
+                row.put("subjects",cells); output.add(row);
+            }
+            Map<String,Object> out=new LinkedHashMap<>(); out.put("semesterId",semester); out.put("semesterLabel",semesterLabel); out.put("classId",classId); out.put("classLabel",classRow.get("label")); out.put("subjects",subjects); out.put("students",output); return out;
+        });
     }
     /** Assigned total for staff; both their scope access and the student's explicit assignment apply. */
     public Map<String,Object> progress(Actor actor, int studentId, Scope scope) throws SQLException {

@@ -62,6 +62,26 @@ class CurriculumTest {
         new CurriculumEnrollment(service).release(teacher,new Curriculum.Scope(id,id+1,id,id),otherTopic,null,true);
         return service.createCentralTask(otherTopic,name,TaskLevel.LEVEL1,tokens);
     }
+    @Test void weeklyConversationUsesTutorAuthorizationAndCanonicalNoteThresholds() throws Exception {
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);
+            exec(c,"INSERT INTO curriculum_grade_subjects(grade,semester,subject) VALUES(?,?,?)",5,id,id);
+            return null;
+        });
+        new CurriculumEnrollment(service).assignClassTutors(admin,id,id,id,null);
+        var overview=service.weeklyConversationOverview(teacher,id,id);
+        assertEquals(id,overview.get("classId"));
+        assertEquals(1,((List<?>)overview.get("subjects")).size());
+        assertEquals(1,((List<?>)overview.get("students")).size());
+        assertEquals(403,assertThrows(CurriculumException.class,()->service.weeklyConversationOverview(other,id,id)).status);
+        assertEquals(6,Curriculum.noteForTokens(0));
+        assertEquals(6,Curriculum.noteForTokens(19));
+        assertEquals(5,Curriculum.noteForTokens(20));
+        assertEquals(4,Curriculum.noteForTokens(40));
+        assertEquals(3,Curriculum.noteForTokens(60));
+        assertEquals(2,Curriculum.noteForTokens(75));
+        assertEquals(1,Curriculum.noteForTokens(90));
+    }
     void releaseAllCentral() throws Exception {
         new CurriculumEnrollment(service).release(teacher,scope,topic,null,true);
     }
