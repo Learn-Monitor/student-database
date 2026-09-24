@@ -30,6 +30,7 @@ public final class CurriculumEnrollment {
             int created=(int)number(c,"SELECT last_insert_rowid()");
             boolean copied=previous>0 && position==2;
             if(copied) copyFrame(c,previous,created);
+            if(previous>0) copyTutorFrame(c,previous,created);
             return Map.of("id",created,"label",value,"copiedFromSemesterId",copied?previous:0);
         });
     }
@@ -86,6 +87,54 @@ public final class CurriculumEnrollment {
         write(c,"INSERT INTO curriculum_individual_assignments(student,semester,assignment_group,subject) SELECT student,?,assignment_group,subject FROM curriculum_individual_assignments WHERE semester=? ON CONFLICT DO NOTHING",to,from);
         write(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) SELECT ?,class,subject,teacher FROM curriculum_class_teachers WHERE semester=? ON CONFLICT DO NOTHING",to,from);
         write(c,"INSERT INTO curriculum_grade_teachers(semester,grade,subject,teacher) SELECT ?,grade,subject,teacher FROM curriculum_grade_teachers WHERE semester=? ON CONFLICT DO NOTHING",to,from);
+    }
+
+    private static void copyTutorFrame(Connection c,int from,int to) throws SQLException {
+        write(c,"INSERT INTO curriculum_class_tutors(semester,class,teacher,tutor_slot) SELECT ?,class,teacher,tutor_slot FROM curriculum_class_tutors WHERE semester=? AND EXISTS (SELECT 1 FROM classes WHERE classes.id=curriculum_class_tutors.class AND classes.active=1 AND classes.id<>0) AND EXISTS (SELECT 1 FROM teachers WHERE teachers.id=curriculum_class_tutors.teacher)",to,from);
+    }
+
+    /** Stores the two optional semester-scoped tutors for one active, normal class. */
+    public void assignClassTutors(Actor actor,int semester,int classId,Integer tutor1,Integer tutor2) throws SQLException {
+        admin(actor);
+        if (classId==0) throw error(400,"invalid_input","Class 0 cannot receive tutor assignments.");
+        if (Objects.equals(tutor1,tutor2) && tutor1!=null) throw error(400,"invalid_input","A teacher cannot occupy both tutor slots.");
+        curriculum.transaction(c->{
+            require(c,"SELECT id FROM semesters WHERE id=?",semester);
+            require(c,"SELECT id FROM classes WHERE id=? AND active=1 AND id<>0",classId);
+            validateTutor(c,tutor1); validateTutor(c,tutor2);
+            write(c,"DELETE FROM curriculum_class_tutors WHERE semester=? AND class=?",semester,classId);
+            if(tutor1!=null) write(c,"INSERT INTO curriculum_class_tutors(semester,class,teacher,tutor_slot) VALUES(?,?,?,1)",semester,classId,tutor1);
+            if(tutor2!=null) write(c,"INSERT INTO curriculum_class_tutors(semester,class,teacher,tutor_slot) VALUES(?,?,?,2)",semester,classId,tutor2);
+            return null;
+        });
+    }
+
+    public List<Map<String,Object>> tutorAssignments(Actor actor,int semester) throws SQLException {
+        admin(actor);
+        return curriculum.transaction(c->{
+            require(c,"SELECT id FROM semesters WHERE id=?",semester);
+            return rows(c,"SELECT semester AS semesterId,class AS classId,teacher AS teacherId,tutor_slot AS tutorSlot FROM curriculum_class_tutors WHERE semester=? ORDER BY class,tutor_slot",semester);
+        });
+    }
+
+    private static void validateTutor(Connection c,Integer teacher) throws SQLException {
+        if(teacher!=null) require(c,"SELECT id FROM teachers WHERE id=?",teacher);
+    }
+
+    /** Returns only the active normal classes tutored by the authenticated teacher. */
+    public List<Map<String,Object>> tutorClasses(Actor actor,Integer semester) throws SQLException {
+        if(actor==null || actor.admin() || actor.teacherId()<=0) throw error(403,"forbidden","Teacher session required.");
+        Integer requestedSemester=semester;
+        return curriculum.transaction(c->{
+            int selectedSemester=requestedSemester==null?0:requestedSemester;
+            if(requestedSemester==null) {
+                var current=rows(c,"SELECT current_semester AS id FROM school_years WHERE current_semester IS NOT NULL ORDER BY id DESC LIMIT 1");
+                if(current.isEmpty()) return List.of();
+                selectedSemester=integer(current.get(0),"id");
+            }
+            require(c,"SELECT id FROM semesters WHERE id=?",selectedSemester);
+            return rows(c,"SELECT t.semester AS semesterId,t.class AS classId,c.label,c.grade,t.tutor_slot AS tutorSlot FROM curriculum_class_tutors t JOIN classes c ON c.id=t.class WHERE t.semester=? AND t.teacher=? AND c.active=1 AND c.id<>0 ORDER BY c.grade,c.label,t.tutor_slot",selectedSemester,actor.teacherId());
+        });
     }
 
     private static boolean wpf(Connection c,int subject) throws SQLException {

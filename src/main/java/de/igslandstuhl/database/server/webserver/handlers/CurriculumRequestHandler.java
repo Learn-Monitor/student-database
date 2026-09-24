@@ -17,11 +17,11 @@ public final class CurriculumRequestHandler {
         for(String path:List.of("/curriculum-catalog","/curriculum-structure","/curriculum-budget","/curriculum-progress",
                 "/flexible-tasks","/add-flexible-task","/edit-flexible-task","/complete-flexible-task",
                 "/flexible-curriculum-structure","/add-flexible-topic","/rename-flexible-topic","/curriculum-releases","/set-curriculum-release",
-                "/curriculum-teacher-roster"))
+                "/curriculum-teacher-roster","/my-tutor-classes"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task",
                 "/central-curriculum-overview","/preview-central-curriculum-import","/import-central-curriculum",
-                "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/set-curriculum-subject-type","/assign-grade-curriculum","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
+                "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/curriculum-tutor-assignments","/set-curriculum-subject-type","/assign-grade-curriculum","/assign-class-tutors","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/set-curriculum-stage-assessment",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/curriculum-student-progress-detail",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
@@ -160,6 +160,22 @@ public final class CurriculumRequestHandler {
                         teaching.add(new CurriculumEnrollment.Teaching(integer(m.get("classId"),"classId"),integer(m.get("subjectId"),"subjectId"),integer(m.get("teacherId"),"teacherId")));
                     }
                     result=enrollment.assignGrade(actor,integer(rq,"grade"),integer(rq,"semesterId"),subjects,teaching);
+                }
+                case "/assign-class-tutors" -> {
+                    Set<String> allowed=Set.of("semesterId","classId","tutor1Id","tutor2Id");
+                    if(!allowed.containsAll(rq.getJson().keySet()) || rq.getJson().size()!=allowed.size()) throw new CurriculumException(400,"invalid_input","Tutor assignment payload contains unexpected or missing fields.");
+                    Integer tutor1=rq.getJson().get("tutor1Id")==null?null:integer(rq,"tutor1Id");
+                    Integer tutor2=rq.getJson().get("tutor2Id")==null?null:integer(rq,"tutor2Id");
+                    enrollment.assignClassTutors(actor,integer(rq,"semesterId"),integer(rq,"classId"),tutor1,tutor2); result=Map.of("ok",true);
+                }
+                case "/curriculum-tutor-assignments" -> {
+                    if(rq.getJson().keySet().stream().anyMatch(key -> !key.equals("semesterId")) || rq.getJson().size()!=1) throw new CurriculumException(400,"invalid_input","semesterId is required.");
+                    result=enrollment.tutorAssignments(actor,integer(rq,"semesterId"));
+                }
+                case "/my-tutor-classes" -> {
+                    Integer semester=rq.getJson().get("semesterId")==null?null:integer(rq,"semesterId");
+                    if(rq.getJson().keySet().stream().anyMatch(key -> !key.equals("semesterId"))) throw new CurriculumException(400,"invalid_input","Only semesterId is accepted.");
+                    result=enrollment.tutorClasses(actor,semester);
                 }
                 case "/curriculum-wpf-roster" -> result=rq.containsKey("assignmentGroup")
                         ? enrollment.individualRoster(actor,integer(rq,"classId"),integer(rq,"semesterId"),String.valueOf(rq.getJson().get("assignmentGroup")))

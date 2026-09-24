@@ -25,6 +25,7 @@ class CurriculumTest {
         service=new Curriculum(db);id=sequence.getAndAdd(100);topic=id;
         // Synthetic records only, in the test server's database; unique IDs avoid shared-cache collisions.
         db.writeTransaction(c->{
+            exec(c,"CREATE TABLE IF NOT EXISTS curriculum_class_tutors (semester INTEGER NOT NULL REFERENCES semesters(id), class INTEGER NOT NULL REFERENCES classes(id), teacher INTEGER NOT NULL REFERENCES teachers(id), tutor_slot INTEGER NOT NULL CHECK(tutor_slot IN (1,2)), PRIMARY KEY (semester,class,tutor_slot), UNIQUE (semester,class,teacher))");
             exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",id,"Subject-"+id);
             exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",id+1,"Other-"+id);
             exec(c,"INSERT INTO school_years(id,label,week_count,current_week) VALUES(?,?,39,1)",id,"Year-"+id);
@@ -1548,6 +1549,30 @@ class CurriculumTest {
     }
     List<CurriculumEnrollment.Teaching> teachingMappings() {
         return List.of(new CurriculumEnrollment.Teaching(id,id,id),new CurriculumEnrollment.Teaching(id+1,id,id+1));
+    }
+
+    @Test void classTutorsAreSemesterScopedAndLimitedToTwoDistinctTeachers() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        enrollment.assignClassTutors(admin,id,id,id,id+1);
+        assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_class_tutors WHERE semester=? AND class=?",id,id));
+        assertEquals(2,enrollment.tutorAssignments(admin,id).size());
+        assertEquals(1,enrollment.tutorClasses(teacher,id).size());
+        assertEquals(1,enrollment.tutorClasses(other,id).size());
+        assertThrows(CurriculumException.class,()->enrollment.assignClassTutors(admin,id,id,id,id));
+        assertThrows(CurriculumException.class,()->enrollment.assignClassTutors(admin,id,id,999999,null));
+        assertThrows(CurriculumException.class,()->enrollment.assignClassTutors(admin,id,0,id,null));
+        assertThrows(CurriculumException.class,()->enrollment.assignClassTutors(teacher,id,id,id,id+1));
+        enrollment.assignClassTutors(admin,id,id,null,null);
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_class_tutors WHERE semester=? AND class=?",id,id));
+    }
+
+    @Test void tutorAssignmentsRemainSeparateBetweenSemesters() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        enrollment.assignClassTutors(admin,id,id,id,id+1);
+        db.writeTransaction(c->{exec(c,"UPDATE school_years SET label=? WHERE id=?","2026/27",id);exec(c,"UPDATE semesters SET label=?,position=1 WHERE id=?","2026_27_HJ1",id);return null;});
+        int next=(int)enrollment.createNextSemester(admin).get("id");
+        assertEquals(id+1,scalar("SELECT teacher FROM curriculum_class_tutors WHERE semester=? AND class=? AND tutor_slot=2",next,id));
+        assertEquals(id,scalar("SELECT teacher FROM curriculum_class_tutors WHERE semester=? AND class=? AND tutor_slot=1",id,id));
     }
     @Test void gradeEnrollmentAssignsEveryClassAndPupilIdempotently() throws Exception {
         var enrollment=enrollmentFixture();var result=enrollment.assignGrade(admin,13,id,List.of(id),teachingMappings());
