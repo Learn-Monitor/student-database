@@ -6,6 +6,8 @@ import de.igslandstuhl.database.api.TaskLevel;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Server-side preview and atomic upsert for the central curriculum CSV format. */
 public final class CentralCurriculumImport {
@@ -14,7 +16,7 @@ public final class CentralCurriculumImport {
 
     public enum Action { CREATE, UPDATE, NO_OP, ERROR }
     public record ImportRow(int sourceLine, Integer subjectId, String subjectName, int topicNumber, String topicName,
-                            int stageNumber, String stageName, int tokens, Action action, String message) {}
+                            int stageNumber, String stageName, int niveau, int tokens, Action action, String message) {}
     public record SubjectSummary(int subjectId, String subjectName, long centralTokens, long remainingRegular,
                                  long remainingHard, boolean warning) {}
 
@@ -55,10 +57,10 @@ public final class CentralCurriculumImport {
                 int topicId = topicIds.get(stage.key.topicKey);
                 if (stage.existingId == null) {
                     Curriculum.write(c, "INSERT INTO tasks(topic,name,niveau,stage_number,tokens) VALUES(?,?,?,?,?)",
-                            topicId, stage.name, TaskLevel.LEVEL1.getNumber(), stage.key.stageNumber, stage.tokens);
+                            topicId, stage.name, stage.niveau.getNumber(), stage.key.stageNumber, stage.tokens);
                     createdStages++;
                 } else if (stage.action == Action.UPDATE) {
-                    Curriculum.write(c, "UPDATE tasks SET name=?,tokens=? WHERE id=?", stage.name, stage.tokens, stage.existingId);
+                    Curriculum.write(c, "UPDATE tasks SET name=?,niveau=?,tokens=? WHERE id=?", stage.name, stage.niveau.getNumber(), stage.tokens, stage.existingId);
                     updatedStages++;
                 } else unchangedStages++;
             }
@@ -103,6 +105,11 @@ public final class CentralCurriculumImport {
             String topicName = name(input.topicName, "Themenname", input.line, rowErrors);
             String stageName = name(input.stageName, "Etappenname", input.line, rowErrors);
             int tokens = token(input.tokens, input.line, rowErrors);
+            TaskLevel niveau = null;
+            if (grade == 5 || grade == 6) {
+                try { niveau = levelFromStageName(topicNumber, stageName); }
+                catch (CurriculumException e) { rowErrors.add("Zeile " + input.line + ": " + e.getMessage()); }
+            } else niveau = TaskLevel.LEVEL1;
             String topicFileKey = subjectName.toLowerCase(Locale.ROOT) + "#" + topicNumber;
             String previousTopicName = topicNamesInFile.putIfAbsent(topicFileKey, topicName);
             if (previousTopicName != null && !previousTopicName.equals(topicName))
@@ -114,7 +121,7 @@ public final class CentralCurriculumImport {
             if (duplicate != null && (!duplicate.name.equals(stageName) || duplicate.tokens != tokens))
                 rowErrors.add("Zeile " + input.line + ": gleiche Etappennummer mit widersprüchlichen Daten.");
             if (!rowErrors.isEmpty()) {
-                plan.addRow(new ImportRow(input.line, subjectId == 0 ? null : subjectId, subjectName, topicNumber, topicName, stageNumber, stageName, tokens, Action.ERROR, String.join(" ", rowErrors)));
+                plan.addRow(new ImportRow(input.line, subjectId == 0 ? null : subjectId, subjectName, topicNumber, topicName, stageNumber, stageName, niveau == null ? 0 : niveau.getNumber(), tokens, Action.ERROR, String.join(" ", rowErrors)));
                 plan.errors.addAll(rowErrors);
                 continue;
             }
@@ -126,11 +133,11 @@ public final class CentralCurriculumImport {
             if (!topic.name.equals(topicName)) topic.name = topicName;
             StagePlan stage = stagesInFile.get(stageFileKey);
             if (stage == null) {
-                stage = loadStage(c, stageKey, topic, stageName, tokens);
+                    stage = loadStage(c, stageKey, topic, stageName, niveau, tokens);
                 stagesInFile.put(stageFileKey, stage);
             }
             plan.stages.putIfAbsent(stageKey, stage);
-            plan.addRow(new ImportRow(input.line, subjectId, subjectName, topicNumber, topicName, stageNumber, stageName, tokens, stage.action, stage.message));
+            plan.addRow(new ImportRow(input.line, subjectId, subjectName, topicNumber, topicName, stageNumber, stageName, stage.niveau.getNumber(), tokens, stage.action, stage.message));
             if (stage.action == Action.ERROR) plan.errors.add("Zeile " + input.line + ": " + stage.message);
         }
         plan.subjectSummaries = subjectSummaries(c, grade, semesterId, plan.stages);
@@ -145,17 +152,33 @@ public final class CentralCurriculumImport {
         return new TopicPlan(key, name, Curriculum.integer(rows.get(0), "id"), String.valueOf(rows.get(0).get("name")));
     }
 
-    private StagePlan loadStage(Connection c, StageKey key, TopicPlan topic, String name, int tokens) throws SQLException {
-        if (topic.existingId == null) return new StagePlan(key, null, null, name, tokens, Action.CREATE, "Neue Etappe.");
-        var rows = Curriculum.rows(c, "SELECT id,name,tokens FROM tasks WHERE topic=? AND stage_number=?", topic.existingId, key.stageNumber);
-        if (rows.isEmpty()) return new StagePlan(key, null, null, name, tokens, Action.CREATE, "Neue Etappe.");
+    static TaskLevel levelFromStageName(int topicNumber, String name) {
+        Matcher matcher = Pattern.compile("(?<!\\d)(\\d+)\\.(\\d+)\\.(\\d+)(?!\\d)").matcher(name);
+        Integer found = null;
+        while (matcher.find()) {
+            int topic = Integer.parseInt(matcher.group(1));
+            int level = Integer.parseInt(matcher.group(2));
+            if (topic != topicNumber || level < 1 || level > 3)
+                throw Curriculum.error(400, "invalid_input", "Etappenname muss genau eine fachliche Nummer " + topicNumber + ".1/2/3.Etappe enthalten.");
+            if (found != null && found != level)
+                throw Curriculum.error(400, "invalid_input", "Etappenname enthält widersprüchliche fachliche Niveaunummern.");
+            found = level;
+        }
+        if (found == null) throw Curriculum.error(400, "invalid_input", "Etappenname enthält keine eindeutige fachliche Nummer Thema.Niveau.Etappe.");
+        return TaskLevel.get(found);
+    }
+
+    private StagePlan loadStage(Connection c, StageKey key, TopicPlan topic, String name, TaskLevel niveau, int tokens) throws SQLException {
+        if (topic.existingId == null) return new StagePlan(key, null, null, niveau, name, tokens, Action.CREATE, "Neue Etappe.");
+        var rows = Curriculum.rows(c, "SELECT id,name,niveau,tokens FROM tasks WHERE topic=? AND stage_number=?", topic.existingId, key.stageNumber);
+        if (rows.isEmpty()) return new StagePlan(key, null, null, niveau, name, tokens, Action.CREATE, "Neue Etappe.");
         var row = rows.get(0);
-        int id = Curriculum.integer(row, "id"), oldTokens = Curriculum.integer(row, "tokens");
+        int id = Curriculum.integer(row, "id"), oldTokens = Curriculum.integer(row, "tokens"), oldNiveau = Curriculum.integer(row, "niveau");
         boolean nameChanged = !Objects.equals(String.valueOf(row.get("name")), name);
-        boolean tokenChanged = oldTokens != tokens;
-        if (tokenChanged && Curriculum.number(c, "SELECT COUNT(*) FROM taskstats WHERE task=? AND status=?", id, Task.STATUS_COMPLETED) > 0)
-            return new StagePlan(key, id, oldTokens, name, tokens, Action.ERROR, "completion_history_conflict: Der Münzwert kann nicht geändert werden, weil bereits Leistungen bestätigt wurden.");
-        return new StagePlan(key, id, oldTokens, name, tokens, nameChanged || tokenChanged ? Action.UPDATE : Action.NO_OP, nameChanged || tokenChanged ? "Etappe wird aktualisiert." : "Unverändert.");
+        boolean tokenChanged = oldTokens != tokens, niveauChanged = oldNiveau != niveau.getNumber();
+        if ((tokenChanged || niveauChanged) && Curriculum.number(c, "SELECT COUNT(*) FROM taskstats WHERE task=? AND status=?", id, Task.STATUS_COMPLETED) > 0)
+            return new StagePlan(key, id, oldTokens, niveau, name, tokens, Action.ERROR, "completion_history_conflict: Münzwert oder Niveau kann wegen bestätigter Leistung nicht geändert werden.");
+        return new StagePlan(key, id, oldTokens, niveau, name, tokens, nameChanged || tokenChanged || niveauChanged ? Action.UPDATE : Action.NO_OP, niveauChanged ? "Niveau wird aktualisiert." : nameChanged || tokenChanged ? "Etappe wird aktualisiert." : "Unverändert.");
     }
 
     private List<SubjectSummary> subjectSummaries(Connection c, int grade, int semesterId, Map<StageKey,StagePlan> planned) throws SQLException {
@@ -260,8 +283,8 @@ public final class CentralCurriculumImport {
         TopicPlan(TopicKey key, String name, Integer existingId, String existingName) { this.key = key; this.name = name; this.existingId = existingId; this.existingName = existingName; }
     }
     private static final class StagePlan {
-        final StageKey key; final Integer existingId; final Integer oldTokens; final String name; final int tokens; final Action action; final String message;
-        StagePlan(StageKey key, Integer existingId, Integer oldTokens, String name, int tokens, Action action, String message) { this.key = key; this.existingId = existingId; this.oldTokens = oldTokens; this.name = name; this.tokens = tokens; this.action = action; this.message = message; }
+        final StageKey key; final Integer existingId; final Integer oldTokens; final TaskLevel niveau; final String name; final int tokens; final Action action; final String message;
+        StagePlan(StageKey key, Integer existingId, Integer oldTokens, TaskLevel niveau, String name, int tokens, Action action, String message) { this.key = key; this.existingId = existingId; this.oldTokens = oldTokens; this.niveau = niveau; this.name = name; this.tokens = tokens; this.action = action; this.message = message; }
     }
     private static final class Plan {
         final List<ImportRow> rows = new ArrayList<>(); final List<String> errors = new ArrayList<>(); final Map<TopicKey,TopicPlan> topics = new LinkedHashMap<>(); final Map<StageKey,StagePlan> stages = new LinkedHashMap<>();

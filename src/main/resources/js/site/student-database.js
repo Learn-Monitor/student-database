@@ -396,7 +396,8 @@ function createList(items, textBuilder, labelText, onClick) {
     return { label, list };
 }
 function createTaskList(tasks, titleText, onClick) {
-    return createList(tasks, task => `${task.number} ${decodeEntities(task.name)} (Niveau ${task.niveau}, Gesamtanteil: ${Math.round(task.ratio * 10000) / 100}%)`, titleText, onClick);
+    const levels = {1:'Wanderer', 2:'Bergsteiger', 3:'Gipfelstürmer'};
+    return createList(tasks, task => `${task.number} ${decodeEntities(task.name)} · ${levels[task.niveau] || 'Niveau ' + task.niveau} (Gesamtanteil: ${Math.round(task.ratio * 10000) / 100}%)`, titleText, onClick);
 }
 async function buildTeacherDashboard(classes, subjects) {
     async function onClassChange(event) {

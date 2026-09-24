@@ -37,13 +37,20 @@ public final class Curriculum {
     }
     public enum ActiveStageType { CENTRAL, FLEXIBLE }
     public enum AssessmentStatus { PASSED, FAILED_ONCE, FAILED_TWICE, LOCKED }
-    public record ActiveStage(ActiveStageType type, int taskId, int subjectId, int semesterId, String name) {}
+    public record ActiveStage(ActiveStageType type, int taskId, int subjectId, int semesterId, String name, Integer niveau) {
+        public ActiveStage(ActiveStageType type, int taskId, int subjectId, int semesterId, String name) { this(type, taskId, subjectId, semesterId, name, null); }
+    }
     public record PartnerCandidate(int id, String name) {}
     public record StudentSubject(int id, String name) {}
     public record StageAssessment(AssessmentStatus status, boolean earned) {}
     public record StudentStageProgress(ActiveStageType type, int stageId, Integer topicId, String topicName,
                                       String name, int tokens, AssessmentStatus status, boolean earned,
-                                      boolean inProgress) {}
+                                      boolean inProgress, Integer niveau) {
+        public StudentStageProgress(ActiveStageType type, int stageId, Integer topicId, String topicName,
+                                    String name, int tokens, AssessmentStatus status, boolean earned, boolean inProgress) {
+            this(type, stageId, topicId, topicName, name, tokens, status, earned, inProgress, null);
+        }
+    }
     public record StudentProgressDetail(int studentId, String studentName, int subjectId, int semesterId,
                                         List<StudentStageProgress> stages) {}
     private record CentralTask(int id, int subjectId, int semesterId, int grade, int topicId, String name) {}
@@ -181,11 +188,22 @@ public final class Curriculum {
     }
     public void editTask(Actor actor,int id,String name,int tokenValue) throws SQLException {
         admin(actor);String value=validName(name);tokens(tokenValue);
-        transaction(c->{var old=require(c,"SELECT topic,tokens FROM tasks WHERE id=?",id);
+        TaskLevel[] changedLevel={TaskLevel.LEVEL1};
+        transaction(c->{var old=require(c,"SELECT topic,tokens,niveau FROM tasks WHERE id=?",id);
+            var topic=require(c,"SELECT grade,number FROM topics WHERE id=?",integer(old,"topic"));
+            TaskLevel level;
+            try { level=levelForName(integer(topic,"grade"),integer(topic,"number"),value); }
+            catch (CurriculumException e) {
+                if ((integer(topic,"grade") == 5 || integer(topic,"grade") == 6) && integer(old,"niveau") != TaskLevel.LEVEL1.getNumber()) throw e;
+                level=TaskLevel.get(integer(old,"niveau"));
+            }
+            changedLevel[0]=level;
             if (integer(old,"tokens") != tokenValue && number(c,"SELECT COUNT(*) FROM taskstats WHERE task=? AND status=?",id,Task.STATUS_COMPLETED)>0)
                 throw error(409,"completion_history_conflict","Der Münzwert kann nicht geändert werden, weil bereits Leistungen bestätigt wurden.");
+            if (integer(old,"niveau") != level.getNumber() && number(c,"SELECT COUNT(*) FROM taskstats WHERE task=? AND status=?",id,Task.STATUS_COMPLETED)>0)
+                throw error(409,"completion_history_conflict","Das Niveau kann nicht geändert werden, weil bereits Leistungen bestätigt wurden.");
             centralLimit(c,integer(old,"topic"),(long)tokenValue-integer(old,"tokens"));
-            write(c,"UPDATE tasks SET name=?,tokens=? WHERE id=?",value,tokenValue,id);return null;}, ignored -> Task.refreshDefinition(id,value,tokenValue));
+            write(c,"UPDATE tasks SET name=?,niveau=?,tokens=? WHERE id=?",value,level.getNumber(),tokenValue,id);return null;}, ignored -> Task.refreshDefinition(id,value,tokenValue,changedLevel[0]));
     }
     /** Core insertion path also used by legacy curriculum imports. */
     public int createCentralTask(int topicId,String name,TaskLevel level,int tokenValue) throws SQLException {
@@ -200,6 +218,17 @@ public final class Curriculum {
             write(c,"INSERT INTO tasks(topic,name,niveau,stage_number,tokens) VALUES(?,?,?,?,?)",topicId,value,level.getNumber(),number,tokenValue);
             return (int)number(c,"SELECT last_insert_rowid()");});
         Topic.invalidateTaskLists(topicId);return id;
+    }
+    private static TaskLevel levelForName(int grade, int topicNumber, String name) {
+        return grade == 5 || grade == 6 ? CentralCurriculumImport.levelFromStageName(topicNumber, name) : TaskLevel.LEVEL1;
+    }
+    public int createCentralTaskDerived(int topicId,String name,int stageNumber,int tokenValue) throws SQLException {
+        String value=validName(name); tokens(tokenValue);
+        int id=transaction(c->{var topic=require(c,"SELECT grade,number FROM topics WHERE id=?",topicId);
+            TaskLevel level=levelForName(integer(topic,"grade"),integer(topic,"number"),value); centralLimit(c,topicId,tokenValue);
+            int number=stageNumber>0?stageNumber:(int)number(c,"SELECT COALESCE(MAX(stage_number),0)+1 FROM tasks WHERE topic=?",topicId);
+            write(c,"INSERT INTO tasks(topic,name,niveau,stage_number,tokens) VALUES(?,?,?,?,?)",topicId,value,level.getNumber(),number,tokenValue);
+            return (int)number(c,"SELECT last_insert_rowid()");}); Topic.invalidateTaskLists(topicId); return id;
     }
     public int createTopic(Actor actor,int subject,int grade,int semester,int number,String name) throws SQLException {
         admin(actor);String value=validName(name);
@@ -519,7 +548,7 @@ public final class Curriculum {
                 }
             }
             List<StudentStageProgress> stages=new ArrayList<>();
-            for(var row:rows(c,"SELECT t.id,t.name,t.tokens,p.id AS topicId,p.name AS topicName "
+            for(var row:rows(c,"SELECT t.id,t.name,t.tokens,t.niveau,p.id AS topicId,p.name AS topicName "
                     + "FROM tasks t JOIN topics p ON p.id=t.topic "
                     + "WHERE p.subject=? AND p.grade=? AND p.semester=? "
                     + "ORDER BY p.number,t.stage_number,t.id",scope.subjectId(),grade,scope.semesterId())) {
@@ -527,7 +556,7 @@ public final class Curriculum {
                 StageAssessment assessment=stageAssessment(c,studentId,scope,ActiveStageType.CENTRAL,stageId,grade);
                 stages.add(new StudentStageProgress(ActiveStageType.CENTRAL,stageId,integer(row,"topicId"),
                         (String)row.get("topicName"),(String)row.get("name"),integer(row,"tokens"),
-                        assessment.status(),assessment.earned(),activeType==ActiveStageType.CENTRAL && activeId==stageId));
+                        assessment.status(),assessment.earned(),activeType==ActiveStageType.CENTRAL && activeId==stageId,integer(row,"niveau")));
             }
             for(var row:rows(c,"SELECT t.id,t.name,t.tokens,p.id AS topicId,p.name AS topicName "
                     + "FROM flexible_tasks t LEFT JOIN flexible_task_topics m ON m.flexible_task=t.id "
@@ -608,12 +637,12 @@ public final class Curriculum {
     }
     public ActiveStage activeStage(int studentId,int subjectId) throws SQLException {
         return transaction(c->{
-            var rows=rows(c,"SELECT a.subject,a.semester,a.central_task,a.flexible_task,ct.name AS centralName,ft.name AS flexibleName "
+            var rows=rows(c,"SELECT a.subject,a.semester,a.central_task,a.flexible_task,ct.name AS centralName,ct.niveau AS centralNiveau,ft.name AS flexibleName "
                     + "FROM student_active_curriculum_stages a LEFT JOIN tasks ct ON ct.id=a.central_task LEFT JOIN flexible_tasks ft ON ft.id=a.flexible_task "
                     + "WHERE a.student=? AND a.subject=?",studentId,subjectId);
             if(rows.isEmpty())return null;
             var row=rows.get(0);
-            if(row.get("central_task")!=null)return new ActiveStage(ActiveStageType.CENTRAL,integer(row,"central_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("centralName"));
+            if(row.get("central_task")!=null)return new ActiveStage(ActiveStageType.CENTRAL,integer(row,"central_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("centralName"),integer(row,"centralNiveau"));
             return new ActiveStage(ActiveStageType.FLEXIBLE,integer(row,"flexible_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("flexibleName"));
         });
     }
@@ -732,7 +761,7 @@ public final class Curriculum {
         return grade;
     }
     private static Map<String,Object> teacherRosterActiveStage(Connection c,int studentId,Scope scope) throws SQLException {
-        var stages=rows(c,"SELECT a.central_task,a.flexible_task,ct.name AS centralName,ft.name AS flexibleName "
+        var stages=rows(c,"SELECT a.central_task,a.flexible_task,ct.name AS centralName,ct.niveau AS centralNiveau,ft.name AS flexibleName "
                 + "FROM student_active_curriculum_stages a LEFT JOIN tasks ct ON ct.id=a.central_task LEFT JOIN flexible_tasks ft ON ft.id=a.flexible_task "
                 + "WHERE a.student=? AND a.subject=? AND a.semester=?",
                 studentId,scope.subjectId(),scope.semesterId());
@@ -743,6 +772,7 @@ public final class Curriculum {
             out.put("type",ActiveStageType.CENTRAL.name());
             out.put("taskId",integer(stage,"central_task"));
             out.put("name",stage.get("centralName"));
+            out.put("niveau",integer(stage,"centralNiveau"));
         } else {
             out.put("type",ActiveStageType.FLEXIBLE.name());
             out.put("taskId",integer(stage,"flexible_task"));
@@ -846,14 +876,14 @@ public final class Curriculum {
             Set<Integer> centralDone=new HashSet<>(),flexibleDone=new HashSet<>();
             for(Object entry:(List<?>)earned.get("completedCentralTasks")) centralDone.add(((CompletedCentralTask)entry).id());
             for(Object entry:(List<?>)earned.get("completedFlexibleTasks")) flexibleDone.add(((CompletedFlexibleTask)entry).id());
-            var activeRows=rows(c,"SELECT a.subject,a.semester,a.central_task,a.flexible_task,ct.name AS centralName,ft.name AS flexibleName "
+            var activeRows=rows(c,"SELECT a.subject,a.semester,a.central_task,a.flexible_task,ct.name AS centralName,ct.niveau AS centralNiveau,ft.name AS flexibleName "
                     + "FROM student_active_curriculum_stages a LEFT JOIN tasks ct ON ct.id=a.central_task LEFT JOIN flexible_tasks ft ON ft.id=a.flexible_task "
                     + "WHERE a.student=? AND a.subject=? AND a.semester=?",studentId,subject,semester);
             ActiveStage activeStage=null;
             if(!activeRows.isEmpty()) {
                 var row=activeRows.get(0);
                 activeStage=row.get("central_task")!=null
-                        ? new ActiveStage(ActiveStageType.CENTRAL,integer(row,"central_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("centralName"))
+                        ? new ActiveStage(ActiveStageType.CENTRAL,integer(row,"central_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("centralName"),integer(row,"centralNiveau"))
                         : new ActiveStage(ActiveStageType.FLEXIBLE,integer(row,"flexible_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("flexibleName"));
             }
             var centralTasks=rows(c,"SELECT t.id,t.name,t.tokens,t.niveau,p.id AS topicId,p.name AS topicName FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=? ORDER BY p.number,t.id",subject,grade,semester);
@@ -897,7 +927,9 @@ public final class Curriculum {
             long centralPlanned=central(c,subject,grade,semester),flexiblePlanned=flexible(c,scope);
             Map<String,Object> out=new LinkedHashMap<>();
             out.put("semesterId",semester);
-            out.put("activeStage",activeStage==null?null:Map.of("type",activeStage.type().name(),"taskId",activeStage.taskId(),"subjectId",activeStage.subjectId(),"semesterId",activeStage.semesterId(),"name",activeStage.name()));
+            Map<String,Object> activeJson=null;
+            if(activeStage!=null) { activeJson=new LinkedHashMap<>(Map.of("type",activeStage.type().name(),"taskId",activeStage.taskId(),"subjectId",activeStage.subjectId(),"semesterId",activeStage.semesterId(),"name",activeStage.name())); if(activeStage.niveau()!=null) activeJson.put("niveau",activeStage.niveau()); }
+            out.put("activeStage",activeJson);
             out.put("centralTopics",visibleTopics);
             out.put("centralTasks",centralTasks);
             out.put("flexibleTopics",visibleFlexibleTopics);

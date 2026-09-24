@@ -50,9 +50,20 @@ class CentralCurriculumImportTest {
         try (PreparedStatement s = db.getSQLConnection().prepareStatement(sql)) { for (int i = 0; i < args.length; i++) s.setObject(i + 1, args[i]); try (ResultSet r = s.executeQuery()) { assertTrue(r.next()); return r.getLong(1); } }
     }
     String csv(String subject, int topic, String topicName, int stage, String stageName, int tokens) {
-        return "Fach;Themennummer;Themenname;Etappennummer;Etappenname;Muenzen\n" + subject + ";" + topic + ";" + topicName + ";" + stage + ";" + stageName + ";" + tokens + "\n";
+        return "Fach;Themennummer;Themenname;Etappennummer;Etappenname;Muenzen\n" + subject + ";" + topic + ";" + topicName + ";" + stage + ";" + topic + ".1." + stage + " " + stageName + ";" + tokens + "\n";
     }
     @SuppressWarnings("unchecked") List<Map<String,Object>> rows(Map<String,Object> result) { return (List<Map<String,Object>>) result.get("rows"); }
+
+    @Test void gradeFiveSixLevelParserUsesMiddleNumberAndAllowsDifferentStageNumber() {
+        assertEquals(TaskLevel.LEVEL1, CentralCurriculumImport.levelFromStageName(1, "5 M 1.1.3 Addition"));
+        assertEquals(TaskLevel.LEVEL2, CentralCurriculumImport.levelFromStageName(1, "5 M 1.2.1 Rechengesetze"));
+        assertEquals(TaskLevel.LEVEL3, CentralCurriculumImport.levelFromStageName(2, "6 DS 2.3.1 Familienfoto"));
+        assertEquals(TaskLevel.LEVEL2, CentralCurriculumImport.levelFromStageName(2, "6 DS 2.2.1 Theorie"));
+        assertThrows(CurriculumException.class, () -> CentralCurriculumImport.levelFromStageName(2, "6 DS 1.2.1 Falsch"));
+        assertThrows(CurriculumException.class, () -> CentralCurriculumImport.levelFromStageName(2, "ohne Nummer"));
+        assertThrows(CurriculumException.class, () -> CentralCurriculumImport.levelFromStageName(2, "2.4.1 Ungültig"));
+        assertThrows(CurriculumException.class, () -> CentralCurriculumImport.levelFromStageName(2, "2.1.1 und 2.3.2 widersprüchlich"));
+    }
 
     @Test void schemaAllowsSameTopicNumberInDifferentSemestersOnly() throws Exception {
         int first = curriculum.createTopic(admin, math, 5, semester1, 1, "Prozentrechnung");
@@ -104,9 +115,9 @@ class CentralCurriculumImportTest {
         String subject = "Mathematik-" + id;
         for (String data : List.of(
                 csv(subject, 1, "Prozentrechnung", 1, "Grundbegriffe", 5),
-                "Fach,Themennummer,Themenname,Etappennummer,Etappenname,Münzen\n" + subject + ",1,Prozentrechnung,1,Grundbegriffe,5\n",
-                "\ufeffFach;Themennummer;Themenname;Etappennummer;Etappenname;Münzen\r\n" + subject + ";1;Üben;1;\"Text; mit Trenner\";5\r\n",
-                "Fach;Themennummer;Themenname;Etappennummer;Etappenname;Münzen\n" + subject + ";1;Äpfel;1;\"Quote \"\" innen\";5\n")) {
+                "Fach,Themennummer,Themenname,Etappennummer,Etappenname,Münzen\n" + subject + ",1,Prozentrechnung,1,1.1.1 Grundbegriffe,5\n",
+                "\ufeffFach;Themennummer;Themenname;Etappennummer;Etappenname;Münzen\r\n" + subject + ";1;Üben;1;\"1.1.1 Text; mit Trenner\";5\r\n",
+                "Fach;Themennummer;Themenname;Etappennummer;Etappenname;Münzen\n" + subject + ";1;Äpfel;1;\"1.1.1 Quote \"\" innen\";5\n")) {
             var preview = importer.preview(admin, 5, semester1, data);
             assertEquals(true, preview.get("canImport"));
             assertEquals(1, rows(preview).size());
@@ -132,12 +143,12 @@ class CentralCurriculumImportTest {
 
     @Test void importIsAtomicIdempotentUpsertAndNeverDeletesMissingRows() throws Exception {
         String subject = "Mathematik-" + id;
-        String initial = "Fach;Themennummer;Themenname;Etappennummer;Etappenname;Muenzen\n" + subject + ";1;Prozentrechnung;1;Grundbegriffe;5\nDeutsch-" + id + ";1;Argumentieren;1;Argumente;6\n";
+        String initial = "Fach;Themennummer;Themenname;Etappennummer;Etappenname;Muenzen\n" + subject + ";1;Prozentrechnung;1;1.1.1 Grundbegriffe;5\nDeutsch-" + id + ";1;Argumentieren;1;1.1.1 Argumente;6\n";
         var result = importer.importCsv(admin, 5, semester1, initial);
         assertEquals(2, result.get("createdTopics")); assertEquals(2, result.get("createdStages"));
         assertEquals(2, scalar("SELECT COUNT(*) FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.semester=?", semester1));
         assertEquals(2, importer.importCsv(admin, 5, semester1, initial).get("unchangedStages"));
-        String update = "Fach;Themennummer;Themenname;Etappennummer;Etappenname;Muenzen\n" + subject + ";1;Prozentrechnung neu;1;Grundbegriffe neu;7\n";
+        String update = "Fach;Themennummer;Themenname;Etappennummer;Etappenname;Muenzen\n" + subject + ";1;Prozentrechnung neu;1;1.1.1 Grundbegriffe neu;7\n";
         importer.importCsv(admin, 5, semester1, update);
         assertEquals(2, scalar("SELECT COUNT(*) FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.semester=?", semester1));
         assertEquals(7, scalar("SELECT tokens FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND t.stage_number=1", math));

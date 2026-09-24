@@ -137,9 +137,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         function selectedContext() {
             return activeContexts.find(context => context.classId === Number(classSelect.value) && context.subjectId === Number(subjectSelect.value)) || null;
         }
+        function niveauText(niveau) { return ({1:'Wanderer',2:'Bergsteiger',3:'Gipfelstürmer'})[niveau] || null; }
         function stageText(stage) {
             if (!stage) return 'Keine Etappe in Bearbeitung';
-            if (stage.type === 'CENTRAL') return `${stage.name || ''} · Zentral`;
+            if (stage.type === 'CENTRAL') return `${stage.name || ''}${niveauText(stage.niveau) ? ` · ${niveauText(stage.niveau)}` : ''} · Zentral`;
             if (stage.type === 'FLEXIBLE') return `${stage.name || ''} · Flexibel`;
             return stage.name || 'Unbekannte Etappe';
         }
@@ -167,7 +168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const stage of Array.isArray(detail.stages) ? detail.stages : []) {
                 const tr = table.insertRow();
                 tr.insertCell().textContent = stage.topicName || 'Ohne Thema';
-                tr.insertCell().textContent = stage.name || '';
+                tr.insertCell().textContent = `${stage.name || ''}${stage.type === 'CENTRAL' && niveauText(stage.niveau) ? ` · ${niveauText(stage.niveau)}` : ''}`;
                 tr.insertCell().textContent = stage.type === 'CENTRAL' ? 'Zentral' : stage.type === 'FLEXIBLE' ? 'Flexibel' : '';
                 tr.insertCell().textContent = String(stage.tokens ?? 0);
                 const assessmentCell=tr.insertCell();assessmentCell.append(el('span',assessmentText(stage.status)));
@@ -729,8 +730,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 for(const row of rows){const tr=table.insertRow();for(const value of row){tr.insertCell().textContent=value == null ? '' : String(value);}}
                 area.append(table);
             }
-            function renderPreview(preview){previewArea.replaceChildren();renderSubjects(preview.subjects||[]);importButton.disabled=preview.canImport!==true;const errors=preview.errors||[];for(const error of errors){const p=el('p',error);p.style.color='darkred';previewArea.append(p);}for(const warning of preview.warnings||[]){const p=el('p',`${warning.subjectName}: ${warning.centralTokens} Münzen überschreiten den regulären Rahmen.`);p.style.color='darkred';previewArea.append(p);}table(['Zeile','Fach','Thema Nr.','Thema','Etappe Nr.','Etappe','Münzen','Aktion','Hinweis'],(preview.rows||[]).map(r=>[r.sourceLine,r.subjectName,r.topicNumber,r.topicName,r.stageNumber,r.stageName,r.tokens,r.action,r.message]),previewArea);}
-            function renderOverview(overview){overviewArea.replaceChildren();renderSubjects(overview.subjects||[]);let rows=overview.rows||[];const apply=()=>{const subject=subjectFilter.value,text=textFilter.value.toLowerCase();const filtered=rows.filter(r=>(!subject||String(r.subjectId)===subject)&&(!text||String(r.topicName).toLowerCase().includes(text)||String(r.stageName).toLowerCase().includes(text)));overviewArea.replaceChildren();table(['Fach','Thema Nr.','Thema','Etappe Nr.','Etappe','Münzen'],filtered.map(r=>[r.subjectName,r.topicNumber,r.topicName,r.stageNumber,r.stageName,r.tokens]),overviewArea);};subjectFilter.onchange=apply;textFilter.oninput=apply;apply();}
+            function renderPreview(preview){previewArea.replaceChildren();renderSubjects(preview.subjects||[]);importButton.disabled=preview.canImport!==true;const errors=preview.errors||[];for(const error of errors){const p=el('p',error);p.style.color='darkred';previewArea.append(p);}for(const warning of preview.warnings||[]){const p=el('p',`${warning.subjectName}: ${warning.centralTokens} Münzen überschreiten den regulären Rahmen.`);p.style.color='darkred';previewArea.append(p);}table(['Zeile','Fach','Thema Nr.','Thema','Etappe Nr.','Etappe','Niveau','Münzen','Aktion','Hinweis'],(preview.rows||[]).map(r=>[r.sourceLine,r.subjectName,r.topicNumber,r.topicName,r.stageNumber,r.stageName,niveauText(r.niveau)||r.niveau,r.tokens,r.action,r.message]),previewArea);}
+            function renderOverview(overview){overviewArea.replaceChildren();renderSubjects(overview.subjects||[]);let rows=overview.rows||[];const apply=()=>{const subject=subjectFilter.value,text=textFilter.value.toLowerCase();const filtered=rows.filter(r=>(!subject||String(r.subjectId)===subject)&&(!text||String(r.topicName).toLowerCase().includes(text)||String(r.stageName).toLowerCase().includes(text)));overviewArea.replaceChildren();table(['Fach','Thema Nr.','Thema','Etappe Nr.','Etappe','Niveau','Münzen'],filtered.map(r=>[r.subjectName,r.topicNumber,r.topicName,r.stageNumber,r.stageName,niveauText(r.niveau)||r.niveau,r.tokens]),overviewArea);};subjectFilter.onchange=apply;textFilter.oninput=apply;apply();}
             async function reloadOverview(){const overview=await post('/central-curriculum-overview',selected());renderOverview(overview);}
             previewButton.addEventListener('click',async()=>{try{currentCsv=await readCsv();currentPreview=await post('/preview-central-curriculum-import',{...selected(),csv:currentCsv});renderPreview(currentPreview);}catch(error){showError(error);}});
             importButton.addEventListener('click',async()=>{try{if(!currentPreview?.canImport)return;if(!confirm('Die angezeigten Themen und Etappen jetzt übernehmen?'))return;await post('/import-central-curriculum',{...selected(),csv:currentCsv});message.textContent='Import erfolgreich.';message.style.color='';importButton.disabled=true;await reloadOverview();}catch(error){showError(error);}});

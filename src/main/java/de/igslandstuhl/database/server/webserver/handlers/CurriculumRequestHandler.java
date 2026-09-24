@@ -216,7 +216,7 @@ public final class CurriculumRequestHandler {
                     if(!actor.admin()) throw new CurriculumException(403,"forbidden","Administrator required.");
                     int level=rq.containsKey("level") ? integer(rq,"level") : TaskLevel.LEVEL1.getNumber();
                     int stageNumber=rq.containsKey("stageNumber") ? integer(rq,"stageNumber") : 0;
-                    result=Map.of("id",service.createCentralTask(integer(rq,"topicId"),name(rq),TaskLevel.get(level),stageNumber,integer(rq,"tokens")));
+                    result=Map.of("id",service.createCentralTaskDerived(integer(rq,"topicId"),name(rq),stageNumber,integer(rq,"tokens")));
                 }
                 default -> throw new CurriculumException(404,"not_found","Unknown curriculum operation.");
             }

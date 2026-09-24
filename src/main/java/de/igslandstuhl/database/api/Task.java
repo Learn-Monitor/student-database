@@ -51,7 +51,7 @@ public class Task implements APIObject {
      * This indicates how challenging the task is, such as LEVEL1, LEVEL2, or LEVEL3.
      * It is also used to calculate the task's ratio in relation to the topic.
      */
-    private final TaskLevel niveau;
+    private volatile TaskLevel niveau;
     private final int stageNumber;
     /**
      * The number of tokens associated with the task.
@@ -261,8 +261,11 @@ public class Task implements APIObject {
 
     /** Update the canonical cached instance, including references in student completion sets. */
     public static void refreshDefinition(int id, String name, int tokens) {
+        refreshDefinition(id, name, tokens, null);
+    }
+    public static void refreshDefinition(int id, String name, int tokens, TaskLevel level) {
         Task task = get(id);
-        if (task != null) { task.name = name; task.tokens = tokens; }
+        if (task != null) { task.name = name; task.tokens = tokens; if (level != null) task.niveau = level; }
     }
 
     @Override
