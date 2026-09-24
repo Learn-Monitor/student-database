@@ -260,7 +260,8 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
      * @throws SQLException
      */
     public void closePendingStatement() throws SQLException {
-        pendingStatement.get().close();
+        PreparedStatement statement = pendingStatement.get();
+        if (statement != null) statement.close();
     }
     /**
      * Creates the necessary tables in the database by executing SQL scripts.
