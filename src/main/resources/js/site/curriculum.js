@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!root && !adminEnrollmentRoot) return;
     let revealSemesterSetup=()=>{};
     const el = (tag, text) => { const node = document.createElement(tag); if (text != null) node.textContent = text; return node; };
+    function niveauText(niveau) { return ({1:'Wanderer',2:'Bergsteiger',3:'Gipfelstürmer'})[niveau] || null; }
     const message = el('p'); message.setAttribute('role', 'status'); root.append(message);
     const permissionDenied = 'Für diese Aktion fehlt die Berechtigung.';
     const hasPM = typeof hasPermission === 'function';
@@ -137,7 +138,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         function selectedContext() {
             return activeContexts.find(context => context.classId === Number(classSelect.value) && context.subjectId === Number(subjectSelect.value)) || null;
         }
-        function niveauText(niveau) { return ({1:'Wanderer',2:'Bergsteiger',3:'Gipfelstürmer'})[niveau] || null; }
         function stageText(stage) {
             if (!stage) return 'Keine Etappe in Bearbeitung';
             if (stage.type === 'CENTRAL') return `${stage.name || ''}${niveauText(stage.niveau) ? ` · ${niveauText(stage.niveau)}` : ''} · Zentral`;

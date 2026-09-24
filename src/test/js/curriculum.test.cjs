@@ -42,14 +42,14 @@ async function setup(admin, options={}){
   classes:admin?[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5}]:[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5},{id:12,label:'Legacy class',grade:8}],
   semesters:[{id:20,label:'H1'},{id:21,label:'H2'}],teachers:[{id:7,first_name:'Test',last_name:'Teacher'}],contexts:options.contexts ?? defaultContexts};
  const defaultRoster=[
-  {id:50,name:'Ada Alpha',firstName:'Ada',lastName:'Alpha',activeStage:{type:'CENTRAL',taskId:3,name:'Central'},signals:{help:true,partner:true,experiment:false,exam:false}},
+  {id:50,name:'Ada Alpha',firstName:'Ada',lastName:'Alpha',activeStage:{type:'CENTRAL',taskId:3,name:'Central',niveau:1},signals:{help:true,partner:true,experiment:false,exam:false}},
   {id:51,name:'Ben Beta',firstName:'Ben',lastName:'Beta',activeStage:{type:'FLEXIBLE',taskId:100,name:'Own task'},signals:{help:false,partner:false,experiment:true,exam:true}},
   {id:52,name:'Cara Gamma',firstName:'Cara',lastName:'Gamma',activeStage:null,signals:{help:false,partner:false,experiment:false,exam:false}}
  ];
  const defaultProgressDetail={studentId:50,studentName:'Ada Alpha',subjectId:1,semesterId:20,stages:[
-  {type:'CENTRAL',stageId:3,topicId:2,topicName:'Topic',name:'Passed central',tokens:5,status:'PASSED',earned:true,inProgress:true},
-  {type:'CENTRAL',stageId:4,topicId:2,topicName:'Topic',name:'Failed once',tokens:6,status:'FAILED_ONCE',earned:false,inProgress:false},
-  {type:'CENTRAL',stageId:5,topicId:2,topicName:'Topic',name:'Failed twice',tokens:7,status:'FAILED_TWICE',earned:false,inProgress:false},
+  {type:'CENTRAL',stageId:3,topicId:2,topicName:'Topic',name:'Passed central',niveau:1,tokens:5,status:'PASSED',earned:true,inProgress:true},
+  {type:'CENTRAL',stageId:4,topicId:2,topicName:'Topic',name:'Failed once',niveau:2,tokens:6,status:'FAILED_ONCE',earned:false,inProgress:false},
+  {type:'CENTRAL',stageId:5,topicId:2,topicName:'Topic',name:'Failed twice',niveau:3,tokens:7,status:'FAILED_TWICE',earned:false,inProgress:false},
   {type:'FLEXIBLE',stageId:100,topicId:null,topicName:null,name:'Locked flexible',tokens:8,status:'LOCKED',earned:true,inProgress:false},
   {type:'FLEXIBLE',stageId:101,topicId:null,topicName:null,name:'Unassessed flexible',tokens:9,status:null,earned:false,inProgress:false}
  ]};
@@ -85,10 +85,10 @@ async function setup(admin, options={}){
    }
   }
   else if(url==='/curriculum-structure')body={centralTokens,topics:centralTopics,tasks:centralTasks};
-  else if(url==='/central-curriculum-overview')body={subjects:[{subjectId:1,subjectName:'Math',centralTokens,remainingRegular:100-centralTokens,remainingHard:105-centralTokens,warning:centralTokens>100}],rows:[{subjectId:1,subjectName:'Math',topicNumber:1,topicName,stageNumber:1,stageName:centralName,tokens:centralTokens}]};
+  else if(url==='/central-curriculum-overview')body={subjects:[{subjectId:1,subjectName:'Math',centralTokens,remainingRegular:100-centralTokens,remainingHard:105-centralTokens,warning:centralTokens>100}],rows:[{subjectId:1,subjectName:'Math',topicNumber:1,topicName,stageNumber:1,stageName:centralName,niveau:1,tokens:centralTokens}]};
   else if(url==='/preview-central-curriculum-import'){
    const bad=data.csv.includes('BAD'), warn=data.csv.includes('104');
-   body={rows:[{sourceLine:2,subjectId:1,subjectName:'Math',topicNumber:1,topicName:'<img src=x>',stageNumber:1,stageName:bad?'BAD':'Imported',tokens:warn?104:5,action:bad?'ERROR':'CREATE',message:bad?'Zeile 2: Fehler':'Neue Etappe.'}],creates:bad?0:1,updates:0,unchanged:0,errors:bad?['Zeile 2: Fehler']:[],warnings:warn?[{subjectId:1,subjectName:'Math',centralTokens:104,remainingRegular:-4,remainingHard:1,warning:true}]:[],subjects:[{subjectId:1,subjectName:'Math',centralTokens:warn?104:5,remainingRegular:warn?-4:95,remainingHard:warn?1:100,warning:warn}],canImport:!bad};
+   body={rows:[{sourceLine:2,subjectId:1,subjectName:'Math',topicNumber:1,topicName:'<img src=x>',stageNumber:1,stageName:bad?'BAD':'Imported',niveau:1,tokens:warn?104:5,action:bad?'ERROR':'CREATE',message:bad?'Zeile 2: Fehler':'Neue Etappe.'}],creates:bad?0:1,updates:0,unchanged:0,errors:bad?['Zeile 2: Fehler']:[],warnings:warn?[{subjectId:1,subjectName:'Math',centralTokens:104,remainingRegular:-4,remainingHard:1,warning:true}]:[],subjects:[{subjectId:1,subjectName:'Math',centralTokens:warn?104:5,remainingRegular:warn?-4:95,remainingHard:warn?1:100,warning:warn}],canImport:!bad};
   }
   else if(url==='/import-central-curriculum'){centralName='Imported';centralTokens=5;body={createdTopics:1,updatedTopics:0,createdStages:1,updatedStages:0,unchangedStages:0,subjects:[{subjectId:1,subjectName:'Math',centralTokens:5,remainingRegular:95,remainingHard:100,warning:false}]};}
   else if(url==='/curriculum-budget'){const f=tasks.reduce((n,t)=>n+t.tokens,0);body={grade:data.classId===11?6:5,centralTokens,flexibleTokens:f,totalTokens:centralTokens+f,remainingRegular:100-centralTokens-f,remainingHard:105-centralTokens-f};}
@@ -278,11 +278,11 @@ test('student progress renders active stages and signals read only',async()=>{
  const{dom,requests}=await setup(false,{progress:true});
  try{
   const progress=dom.window.document.querySelector('#student-progress');
-  assert.match(progress.textContent,/Central · Zentral/);
+  assert.match(progress.textContent,/Central · Wanderer · Zentral/);
   assert.match(progress.textContent,/Own task · Flexibel/);
   assert.match(progress.textContent,/Keine Etappe in Bearbeitung/);
   const rows=[...progress.querySelectorAll('table tr')].slice(1).map(row=>[...row.cells].map(cell=>cell.textContent));
-  assert.deepEqual(rows[0],['Ada Alpha','Central · Zentral','Ja','Ja','—','—','Details']);
+  assert.deepEqual(rows[0],['Ada Alpha','Central · Wanderer · Zentral','Ja','Ja','—','—','Details']);
   assert.deepEqual(rows[1],['Ben Beta','Own task · Flexibel','—','—','Ja','Ja','Details']);
   assert.deepEqual(rows[2],['Cara Gamma','Keine Etappe in Bearbeitung','—','—','—','—','Details']);
   assert.equal(progress.querySelectorAll('form').length,0);
@@ -819,6 +819,25 @@ test('central csv import reads file, renders safe preview and confirms import',a
   assert.equal(requests.some(r=>r.url==='/import-central-curriculum'),true);
   assert.equal(requests.filter(r=>r.url==='/central-curriculum-overview').length>=2,true);
   assert.match(root.textContent,/Import erfolgreich/);
+ }finally{dom.window.close();}
+});
+test('shared level labels render in roster detail preview and overview while flexible stays unlabeled',async()=>{
+ const{dom}=await setup(false,{progress:true,roster:[
+  {id:50,name:'Ada Alpha',activeStage:{type:'CENTRAL',taskId:3,name:'Wanderer stage',niveau:1},signals:{}},
+  {id:51,name:'Ben Beta',activeStage:{type:'FLEXIBLE',taskId:100,name:'Flexible stage'},signals:{}}
+ ],detail:{studentId:50,studentName:'Ada Alpha',stages:[
+  {type:'CENTRAL',stageId:3,name:'Wanderer stage',niveau:1,status:null,tokens:1},
+  {type:'CENTRAL',stageId:4,name:'Bergsteiger stage',niveau:2,status:null,tokens:1},
+  {type:'CENTRAL',stageId:5,name:'Gipfelstürmer stage',niveau:3,status:null,tokens:1},
+  {type:'FLEXIBLE',stageId:100,name:'Flexible stage',status:null,tokens:1}
+ ]}});
+ const progressRoot=dom.window.document.querySelector('#student-progress');
+ try{
+  assert.match(progressRoot.textContent,/Wanderer/);
+  const firstStudent=[...progressRoot.querySelectorAll('button')].find(button=>button.textContent==='Details');
+  assert.ok(firstStudent);firstStudent.click();await tick();
+  assert.match(progressRoot.textContent,/Wanderer/);assert.match(progressRoot.textContent,/Bergsteiger/);assert.match(progressRoot.textContent,/Gipfelstürmer/);
+  assert.doesNotMatch(progressRoot.textContent,/Flexible stage · (Wanderer|Bergsteiger|Gipfelstürmer)/);
  }finally{dom.window.close();}
 });
 test('central csv preview disables import on errors and shows warning range',async()=>{
