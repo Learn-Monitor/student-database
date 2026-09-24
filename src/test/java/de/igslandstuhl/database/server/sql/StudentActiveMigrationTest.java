@@ -80,6 +80,7 @@ class StudentActiveMigrationTest {
 
             connection.migrateTables();
             assertCurrentDataUnchanged(connection);
+            assertEquals(1, rowCount(connection, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='curriculum_class_tutors'"));
             assertEquals(tableIdentities, tableIdentities(connection));
 
             connection.migrateTables();

@@ -77,12 +77,15 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
     private void migrateTables(PreparedStatementSupplier supplier) throws SQLException {
         lock.writeLock().lock();
         try {
-            if (hasColumn("students", "active")) {
+            boolean legacyComplete=hasColumn("students", "active");
+            if (legacyComplete) {
                 LOGGER.info("Legacy database migrations 001-020 are already complete (students.active exists); skipping replay.");
-                return;
             }
-            for (BufferedReader in : Server.getInstance().getResourceManager().openResourcesAsReader(Pattern.compile(".*migrations.+\\.sql"))) {
-                try (in) {
+            Pattern migrations=Pattern.compile(".*migrations.+\\.sql");
+            for (var resource:Server.getInstance().getResourceManager().getResources(migrations)) {
+                if (legacyComplete && resource.resource().matches("0(?:0[1-9]|1[0-9]|20)_.*\\.sql")) continue;
+                try (BufferedReader in=new BufferedReader(new java.io.InputStreamReader(
+                        Server.getInstance().getResourceManager().openResourceAsStream(resource), java.nio.charset.StandardCharsets.UTF_8))) {
                     String request = Server.getInstance().getResourceManager().readResourceCompletely(in);
                     for (String statement : splitSqlScript(request)) {
                         try {
