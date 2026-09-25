@@ -60,3 +60,13 @@ The tutor feature does not change coin calculation, stage completion, level hand
 - Runtime student-database SHA remains `581bcc9812a0c2451ba77715f648fc80950d3f1f7283a408a877328e359cde22`.
 - PROD readiness after the PM correction took `190` seconds; five subsequent health checks were stable with no restart.
 - An unauthenticated direct request to `/tutor-assignments.js` correctly returns `401`; no real PROD credentials were used. The active PM now contains the tutor assignment/context permissions required for the authenticated admin flow.
+
+## Visible tutor-assignment fallback
+
+- Root cause: the dashboard supplied an empty `#admin-tutors` container; if the protected JavaScript was delayed or failed, no visible tutor UI existed. The previous Permission Manager metadata also did not explicitly authorize `/tutor-assignments.js` under `curriculum_manage_enrollment`.
+- `html/admin/dashboard.html` now renders a visible heading, explanation, and loading status before JavaScript runs. `tutor-assignments.js` preserves this markup, renders into its content area, and shows a visible error instead of silently leaving an empty block.
+- Permission Manager explicitly authorizes `/tutor-assignments.js` with GET/POST under the existing `curriculum_manage_enrollment` admin permission. No new role or tutor logic was added.
+- Student commit `6bf822e`; JavaScript suite `225/225 PASS`, Java suite and ShadowJar green. Permission Manager commit `c92387a`; its full test suite and JAR build are green.
+- DEMO release `/srv/arcanum/demo/releases/admin-tutor-fallback-20260925T090726Z-6bf822e-c92387a`; runtime student SHA `9563b40df4b4d0836dd86b0972e09b567cf70b3d6c8fb3ca4138fd577da6c335`, PM SHA `1abb5031002bc0a518aca61da885d9f5a44be390e2715c4efa03cd5a61e2a6e9`. Synthetic admin raw-HTML and interactive save/reload/duplicate checks passed; DEMO was restored to integrity `ok`, FK `756`.
+- PROD release `/srv/arcanum/prod/releases/admin-tutor-fallback-20260925T091133Z-6bf822e-c92387a`; the runtime uses those same SHAs. Readiness succeeded within the controlled 300-second window, followed by five stable health checks. Root/Login remained HTTP 200, integrity `ok`, FK `102`, and tutor-table FK violations `0`. No synthetic PROD data was created.
+- The known Permission Manager startup delay remains operationally relevant: deployment smoke tests must use repeated health checks for up to 300 seconds.
