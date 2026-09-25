@@ -37,4 +37,16 @@
 
 ## Verification boundary
 
-The tutor feature does not change coin calculation, stage completion, level handling, curriculum-stage semantics, or the existing student-progress rendering. DEMO was changed and tested; PROD remained unchanged.
+The tutor feature does not change coin calculation, stage completion, level handling, curriculum-stage semantics, or the existing student-progress rendering. DEMO and PROD were tested without synthetic production data.
+
+## Admin tutor assignment visibility
+
+- The admin dashboard now places `Tutor:innen je Klasse` before the large enrollment/subject-teacher assignment area at `Admin → Schuljahr & Zuordnungen`.
+- The existing semester + class tutor endpoints and server-side duplicate-tutor validation are unchanged.
+- The UI regression suite verifies DOM order, normal-class filtering, two tutor selectors, persisted selections, save payloads, and visible load errors.
+- JavaScript suite: `222/222 PASS`; Java suite and ShadowJar are green.
+- DEMO was accepted with synthetic accounts and restored afterward: tutor block visible before enrollment, 1/2 tutor assignment persisted, duplicate assignment rejected, empty assignment accepted, and tutor weekly-conversation access remained intact.
+- PROD active release: `/srv/arcanum/prod/releases/admin-tutor-visibility-20260925T103442-2ebc7c8`.
+- PROD runtime student-database commit `2ebc7c8`, SHA256 `581bcc9812a0c2451ba77715f648fc80950d3f1f7283a408a877328e359cde22`; existing PROD Permission Manager was unchanged.
+- PROD readiness took `191` seconds; the Permission Manager's long initialization requires a repeated readiness loop of up to 300 seconds.
+- PROD integrity remained `ok`, FK count remained `102`, and `curriculum_class_tutors` has zero FK violations. No synthetic PROD data was created.
