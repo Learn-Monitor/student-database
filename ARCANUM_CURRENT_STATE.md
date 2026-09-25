@@ -50,3 +50,13 @@ The tutor feature does not change coin calculation, stage completion, level hand
 - PROD runtime student-database commit `2ebc7c8`, SHA256 `581bcc9812a0c2451ba77715f648fc80950d3f1f7283a408a877328e359cde22`; existing PROD Permission Manager was unchanged.
 - PROD readiness took `191` seconds; the Permission Manager's long initialization requires a repeated readiness loop of up to 300 seconds.
 - PROD integrity remained `ok`, FK count remained `102`, and `curriculum_class_tutors` has zero FK violations. No synthetic PROD data was created.
+
+## Permission Manager correction
+
+- The PROD browser symptom was traced to a Permission Manager rollback, not to an HTML/plugin dashboard override.
+- PROD had been running PM SHA `4970707aed9c80daba40d3bf453c189b4a27dabc3fe4d95619b4f980cd48ebd3`, whose permission metadata lacked the tutor assignment POST endpoints and `curriculum_tutor_context`.
+- The tested PM artifact SHA `8f9f54976dd1fcb4dd9f58bd4fa829cc0c662ae12b341314b1b180909da3ff52` was restored without changing student-database source or database data.
+- Active PROD release: `/srv/arcanum/prod/releases/admin-tutor-pm9bd0267-20260925T105036`.
+- Runtime student-database SHA remains `581bcc9812a0c2451ba77715f648fc80950d3f1f7283a408a877328e359cde22`.
+- PROD readiness after the PM correction took `190` seconds; five subsequent health checks were stable with no restart.
+- An unauthenticated direct request to `/tutor-assignments.js` correctly returns `401`; no real PROD credentials were used. The active PM now contains the tutor assignment/context permissions required for the authenticated admin flow.
