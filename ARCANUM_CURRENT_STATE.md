@@ -2,13 +2,19 @@
 
 ## Canonical development line
 
-- `student-database`: `arcanum-2026` at `53e7e42` (tutor foundation, weekly-conversation view, web-path registration, and existing migration-runner fix).
+- `student-database`: `arcanum-2026` at `0536be8` (tutor foundation, weekly-conversation view, and static tutor web-path registration).
 - `permission-manager`: `feature/admin-dashboard-polish-20260919` at `9bd0267`.
 - The production source line remains separate; no production deployment was performed by the tutor E2E work.
 
 ## DEMO
 
-- Release: `/srv/arcanum/demo/releases/tutor-weekly-20260924T230000Z-53e7e42`
+- Release: `/srv/arcanum/demo/releases/tutor-static-webpaths-20260925T084500Z-0536be8`
+- The service starts `/srv/arcanum/demo/runtime/student-database.jar` from its fixed runtime working directory; promoting a release therefore requires an explicit release-to-runtime JAR promotion.
+- Active runtime JAR: commit `0536be8`, SHA256 `9c6ee31e921ebf82303d661eca5d0ec482b8d3603fbbf879a883c16898959af4`.
+- `/weekly-conversations.js` and `/tutor-assignments.js` were authenticated HTTP-smoke-tested with synthetic teacher, tutor, and admin accounts and returned HTTP 200.
+- The non-tutor/tutor/admin role regression passed; the tutor saw its own class and received HTTP 403 for a foreign class.
+- JavaScript regression suite: `219/219 PASS` using portable Node `v24.21.0`.
+- DEMO database was restored after the synthetic E2E test; integrity check remained `ok` and the known FK count remained `756`.
 - The DEMO runtime loads the permission manager from `plugins/permission-manager-v1.0.1.jar`; it is built from the Arcanum permission-manager line above.
 - Migration `021_curriculum_class_tutors.sql` is applied through the normal application migration runner and stores semester/class/tutor-slot assignments.
 - The admin assigns zero, one, or two distinct tutors per semester and class. Tutor classes are server-side scoped.
