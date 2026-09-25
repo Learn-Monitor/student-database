@@ -27,7 +27,10 @@
       const byClass=new Map(); list(assignments).forEach(item=>{ if(!byClass.has(item.classId)) byClass.set(item.classId,{}); byClass.get(item.classId)[item.tutorSlot]=item.teacherId; });
       classes.forEach(schoolClass=>{ const current=byClass.get(Number(schoolClass.id))||{}; const row=el('tr'); row.append(el('td',`${schoolClass.label} (Jg. ${schoolClass.grade})`)); const one=select(teachers,current[1]), two=select(teachers,current[2]); const oneCell=el('td'), twoCell=el('td'); oneCell.append(one); twoCell.append(two); row.append(oneCell,twoCell); const button=el('button','Speichern'); button.type='button'; button.addEventListener('click',async()=>{button.disabled=true; try { await post('/assign-class-tutors',{semesterId:Number(semester.value),classId:Number(schoolClass.id),tutor1Id:one.value?Number(one.value):null,tutor2Id:two.value?Number(two.value):null}); button.textContent='Gespeichert'; setTimeout(()=>{button.textContent='Speichern';button.disabled=false;},800);} catch {button.textContent='Fehler';button.disabled=false;}}); const actionCell=el('td'); actionCell.append(button); row.append(actionCell); body.append(row); });
     };
-    semester.addEventListener('change',()=>render().catch(()=>{})); root.append(el('label','Halbjahr '),semester,table); await render();
+    semester.addEventListener('change',()=>render().catch(error=>showError(error))); root.append(el('label','Halbjahr '),semester,table); await render();
   }
-  init().catch(()=>{root.replaceChildren(el('p','Tutorenzuordnungen konnten nicht geladen werden.'));});
+  function showError() {
+    root.replaceChildren(el('h3','Tutor:innen je Klasse'),el('p','Tutorzuordnungen konnten nicht geladen werden.'));
+  }
+  init().catch(error=>{ console.error('Tutorzuordnungen konnten nicht geladen werden.', error); showError(); });
 })();
