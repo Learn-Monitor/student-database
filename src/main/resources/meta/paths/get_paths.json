@@ -288,6 +288,20 @@
         "context": "js",
         "access_level": "admin"
     },
+    "/weekly-conversations.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["teacher"],
+        "context": "js",
+        "access_level": "teacher"
+    },
+    "/tutor-assignments.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
 
     "/style.css": {
         "type": "GET",
