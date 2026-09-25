@@ -15,6 +15,18 @@
 - The non-tutor/tutor/admin role regression passed; the tutor saw its own class and received HTTP 403 for a foreign class.
 - JavaScript regression suite: `219/219 PASS` using portable Node `v24.21.0`.
 - DEMO database was restored after the synthetic E2E test; integrity check remained `ok` and the known FK count remained `756`.
+
+## PROD tutor webpath promotion
+
+- The PROD service starts `/srv/arcanum/prod/runtime/run.sh`; its JAR and plugin paths are connected through the existing `current` release wiring.
+- Active PROD release: `/srv/arcanum/prod/releases/tutor-static-webpaths-20260925T101500Z-0536be8`.
+- Active runtime JAR: student-database commit `0536be8`, SHA256 `9c6ee31e921ebf82303d661eca5d0ec482b8d3603fbbf879a883c16898959af4`.
+- Active Permission Manager: commit `9bd0267`, SHA256 `8f9f54976dd1fcb4dd9f58bd4fa829cc0c662ae12b341314b1b180909da3ff52`.
+- Migration 021 was applied successfully; `curriculum_class_tutors` has zero FK violations.
+- PROD readiness took 206 seconds. The Permission Manager has a long initialization window; deployment smoke tests must use a repeated health-readiness loop rather than a short fixed timeout.
+- After readiness, five additional health checks kept Root/Login at HTTP 200 with a stable MainPID and no restart.
+- PROD was promoted without synthetic test data; integrity remained `ok` and FK count remained `102`.
+- Tutor and weekly-conversation resources are now productive using the same tested binaries as DEMO.
 - The DEMO runtime loads the permission manager from `plugins/permission-manager-v1.0.1.jar`; it is built from the Arcanum permission-manager line above.
 - Migration `021_curriculum_class_tutors.sql` is applied through the normal application migration runner and stores semester/class/tutor-slot assignments.
 - The admin assigns zero, one, or two distinct tutors per semester and class. Tutor classes are server-side scoped.
