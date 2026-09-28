@@ -25,7 +25,7 @@ dependencies {
     implementation("org.jline:jline:4.3.1") // for better console input handling
 
     // Logging
-    implementation("org.slf4j:slf4j-api:2.0.18")
+    implementation("org.slf4j:slf4j-api:2.0.20")
     implementation("ch.qos.logback:logback-classic:1.6.1")
 
     // built-in plugins
