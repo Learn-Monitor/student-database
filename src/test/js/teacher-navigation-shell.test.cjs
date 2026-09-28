@@ -15,11 +15,14 @@ const paths=JSON.parse(fs.readFileSync(path.join(resources,'meta/paths/get_paths
 
 const navigation='<ul><li><a href="/dashboard#overview">Übersicht</a></li><li><a href="/dashboard#curriculum">Themen &amp; Etappen</a></li><li><a href="/dashboard#student-progress">Schülerfortschritt</a></li><li><a href="/attendance">Anwesenheit</a></li></ul>';
 
-function shell(url,markup) {
+function shell(url,markup,classes=null) {
   const dom=new JSDOM(`<!doctype html><html><body>${markup}</body></html>`,{
     url,
     runScripts:'outside-only'
   });
+  dom.window.fetch=classes === null
+    ? (() => new Promise(() => {}))
+    : (async()=>({ok:true,status:200,json:async()=>classes}));
   dom.window.eval(navigationScript);
   dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
   return dom;
@@ -90,6 +93,27 @@ test('hash changes update the active dashboard item without duplicating navigati
     dom.window.dispatchEvent(new dom.window.Event('hashchange'));
     assert.equal(dom.window.document.querySelectorAll('.teacher-main-menu').length,1);
     assert.equal(dom.window.document.querySelector('.teacher-main-menu a[aria-current="page"]').textContent,'Themen & Etappen');
+  } finally { dom.window.close(); }
+});
+
+test('tutor navigation is added only when the canonical tutor-class lookup returns a class',async()=>{
+  const dom=shell('https://school.example.invalid/dashboard',`<nav class="teacher-main-menu">${navigation}</nav>`,[{semesterId:4,classId:7}]);
+  await new Promise(resolve=>setTimeout(resolve,0));
+  try {
+    const link=dom.window.document.querySelector('.teacher-main-menu a[href="/dashboard#tutor-area"]');
+    assert.ok(link);
+    assert.equal(link.textContent,'Tutorenbereich');
+    assert.equal(link.closest('li').previousElementSibling.querySelector('a').textContent,'Schülerfortschritt');
+    assert.equal(dom.window.tutorAreaAccess,true);
+  } finally { dom.window.close(); }
+});
+
+test('non-tutors do not receive a tutor navigation item',async()=>{
+  const dom=shell('https://school.example.invalid/dashboard',`<nav class="teacher-main-menu">${navigation}</nav>`,[]);
+  await new Promise(resolve=>setTimeout(resolve,0));
+  try {
+    assert.equal(dom.window.document.querySelector('a[href="/dashboard#tutor-area"]'),null);
+    assert.equal(dom.window.tutorAreaAccess,false);
   } finally { dom.window.close(); }
 });
 

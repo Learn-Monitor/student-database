@@ -16,6 +16,10 @@
     </section>
     <section class="teacher-function-page" id="student-progress">
         <h2>Schülerfortschritt</h2>
+    </section>
+    <section class="teacher-function-page" id="tutor-area" hidden>
+        <h2>Tutorenbereich</h2>
+        <p>Wochengespräche, Graduierungen und Tutorinformationen für deine Klasse.</p>
         <div id="weekly-conversations-mount"></div>
     </section>
 </main>
@@ -26,9 +30,10 @@
 (() => {
   const pages = [...document.querySelectorAll('.teacher-function-page')];
   const valid = new Set(pages.map(page => page.id));
+  let tutorAreaAllowed = window.tutorAreaAccess === true;
   const show = hash => {
     const requested = hash || 'overview';
-    const active = valid.has(requested) ? requested : 'overview';
+    const active = valid.has(requested) && (requested !== 'tutor-area' || tutorAreaAllowed) ? requested : 'overview';
     pages.forEach(page => { page.hidden = page.id !== active; });
     document.querySelectorAll('.teacher-main-menu a').forEach(link => {
       const linkHash = new URL(link.getAttribute('href'), location.href).hash.slice(1);
@@ -37,6 +42,10 @@
     });
   };
   const select = () => show(location.hash.slice(1));
+  window.addEventListener('tutor-area-access', event => {
+    tutorAreaAllowed = event.detail === true;
+    select();
+  });
   window.addEventListener('hashchange', select);
   select();
 })();

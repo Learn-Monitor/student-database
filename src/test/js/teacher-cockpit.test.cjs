@@ -25,6 +25,11 @@ test('teacher cockpit contains canonical core sections without legacy teacher da
   assert.match(html,/id="overview"/);
   assert.match(html,/id="curriculum"/);
   assert.match(html,/id="student-progress"/);
+  assert.match(html,/id="tutor-area"/);
+  assert.match(html,/id="weekly-conversations-mount"/);
+  assert.ok(html.indexOf('id="student-progress"') < html.indexOf('id="tutor-area"'));
+  assert.ok(html.indexOf('id="weekly-conversations-mount"') > html.indexOf('id="tutor-area"'));
+  assert.doesNotMatch(html.slice(html.indexOf('id="student-progress"'),html.indexOf('id="tutor-area"')),/weekly-conversations-mount/);
   assert.doesNotMatch(html,/%\[teacher_infos\]/);
   assert.doesNotMatch(html,/WPF|Zuordnung speichern|assign-curriculum|curriculum-enrollment/);
 });
@@ -52,6 +57,7 @@ for (const [hash,page,label] of [
   ['#overview', 'overview', 'Übersicht'],
   ['#curriculum', 'curriculum', 'Themen & Etappen'],
   ['#student-progress', 'student-progress', 'Schülerfortschritt'],
+  ['#tutor-area', 'overview', 'Übersicht'],
   ['#ungueltig', 'overview', 'Übersicht']
 ]) test(`teacher hash ${hash || 'default'} opens only ${page}`,()=>{
   const dom=dashboard(hash);

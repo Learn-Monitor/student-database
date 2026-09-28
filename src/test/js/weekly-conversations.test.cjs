@@ -8,12 +8,20 @@ const root=path.join(__dirname,'../../main/resources');
 const script=fs.readFileSync(path.join(root,'js/teacher/weekly-conversations.js'),'utf8');
 
 function dom(response) {
-  const instance=new JSDOM('<main id="student-progress"><div id="weekly-conversations-mount"></div></main>',{url:'https://school.example.invalid/dashboard',runScripts:'outside-only'});
+  const instance=new JSDOM('<main id="tutor-area"><h2>Tutorenbereich</h2><div id="weekly-conversations-mount"></div></main>',{url:'https://school.example.invalid/dashboard#tutor-area',runScripts:'outside-only'});
   instance.window.fetch=async path => ({ok:true,status:200,json:async()=>path==='/my-tutor-classes'?response.classes:response.overview});
   instance.window.eval(script);
   instance.window.document.dispatchEvent(new instance.window.Event('DOMContentLoaded'));
   return instance;
 }
+
+test('weekly-conversations mount belongs to the tutor area',()=>{
+  const instance=new JSDOM('<main id="student-progress"></main><section id="tutor-area"><div id="weekly-conversations-mount"></div></section>');
+  try {
+    assert.equal(instance.window.document.querySelector('#tutor-area #weekly-conversations-mount') !== null,true);
+    assert.equal(instance.window.document.querySelector('#student-progress #weekly-conversations-mount'),null);
+  } finally { instance.window.close(); }
+});
 
 test('non-tutor receives no visible weekly-conversation control',async()=>{
   const instance=dom({classes:[],overview:{}});
