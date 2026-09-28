@@ -85,3 +85,12 @@ The tutor feature does not change coin calculation, stage completion, level hand
 - The canonical current value remains `students.graduation_level`; additive migration `022_graduation_history.sql` stores actual changes with old/new level, timestamp, tutor, and semester.
 - `POST /change-tutor-graduation` reuses semester-scoped tutor authorization and performs current-value update plus history insert atomically. No-op changes create no history entry.
 - Existing student-dashboard graduation display remains read-only and uses the canonical current value.
+
+## Tutor graduation DEMO fixture follow-up (2026-09-28)
+
+- A non-runtime, DEMO-only fixture runner was added at `tools/demo-e2e/DemoFixtureRunner.java`.
+- It requires `ARCANUM_DEMO_FIXTURE=1`, `--confirm-demo-fixture`, the exact DEMO database path, and a marked run id; production paths are rejected.
+- Fixture creation uses the regular Java user/password and class/tutor service paths; no direct SQL inserts are used. Cleanup is run-marker scoped.
+- The runner safety checks passed and one synthetic DEMO run was removed completely. DEMO integrity remained `ok` and FK baseline `756`.
+- The DEMO runtime was corrected to the already approved student JAR SHA `6edb2f568a1ed34370e38d0787924c8ee9bc9ea51b6284f377f2fa8b251e4844`; PROD was not changed.
+- The synthetic login path passed for all four teacher roles. The weekly overview loaded, but the deployed mutation returned `403` for Tutor 1 despite the verified tutor assignment and matching semester. Full graduation E2E therefore remains outstanding; this status is not a final acceptance.
