@@ -1075,7 +1075,7 @@ class CurriculumTest {
         var flexible=service.create(teacher,scope,"Completed flexible",6);service.complete(teacher,flexible.id(),id);
         service.create(teacher,scope,"Not completed",5);
         var result=ownDetails();
-        assertEquals(List.of(new Curriculum.CompletedCentralTask(done,"Central",6,1,topic,"Topic-"+id)),centralDetails(result));
+        assertEquals(List.of(new Curriculum.CompletedCentralTask(done,"Central",6,1,1,topic,"Topic-"+id)),centralDetails(result));
         assertEquals(List.of(new Curriculum.CompletedFlexibleTask(flexible.id(),"Completed flexible",6)),flexibleDetails(result));
         assertEquals(12L,result.get("totalTokens"));
     }
@@ -1085,7 +1085,7 @@ class CurriculumTest {
         assertEquals(409,assertThrows(CurriculumException.class,()->service.editTask(admin,task,"Renamed task",4)).status);
         service.editTask(admin,task,"Renamed task",6);service.renameTopic(admin,topic,"Renamed topic");
         var result=ownDetails();assertEquals(6L,result.get("totalTokens"));
-        assertEquals(new Curriculum.CompletedCentralTask(task,"Renamed task",6,1,topic,"Renamed topic"),centralDetails(result).get(0));
+        assertEquals(new Curriculum.CompletedCentralTask(task,"Renamed task",6,1,1,topic,"Renamed topic"),centralDetails(result).get(0));
     }
     @Test void flexibleDetailsReflectCurrentDefinitionAfterCompletion() throws Exception {
         var task=service.create(teacher,scope,"Flexible",6);service.complete(teacher,task.id(),id);
@@ -1168,7 +1168,7 @@ class CurriculumTest {
         assertEquals(own,jsonResponse(adminUser,"/curriculum-progress",assignmentBody()));
         assertEquals(Set.of("semesterId","centralTokens","flexibleTokens","totalTokens","completedCentralTasks","completedFlexibleTasks"),own.keySet());
         var central=own.getAsJsonArray("completedCentralTasks").get(0).getAsJsonObject();
-        assertEquals(Set.of("id","name","tokens","niveau","topicId","topicName"),central.keySet());
+        assertEquals(Set.of("id","name","tokens","niveau","stageNumber","topicId","topicName"),central.keySet());
         var detail=own.getAsJsonArray("completedFlexibleTasks").get(0).getAsJsonObject();
         assertEquals(Set.of("id","name","tokens"),detail.keySet());assertEquals("Quoted \"name\"",detail.get("name").getAsString());
         long centralSum=0,flexibleSum=0;

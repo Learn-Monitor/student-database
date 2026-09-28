@@ -815,7 +815,12 @@ public final class Curriculum {
     public long completedTokens(int studentId,Scope scope) throws SQLException {
         return transaction(c->{requireAssignment(c,studentId,scope);return flexibleCompleted(c,studentId,scope);});
     }
-    public record CompletedCentralTask(int id, String name, int tokens, int niveau, int topicId, String topicName) {}
+    public record CompletedCentralTask(int id, String name, int tokens, int niveau, int stageNumber, int topicId, String topicName) {
+        /** Compatibility constructor for callers that do not need the stage number. */
+        public CompletedCentralTask(int id, String name, int tokens, int niveau, int topicId, String topicName) {
+            this(id, name, tokens, niveau, 0, topicId, topicName);
+        }
+    }
     public record CompletedFlexibleTask(int id, String name, int tokens) {}
 
     private static List<CompletedFlexibleTask> completedFlexibleTasks(Connection c,int studentId,Scope scope) throws SQLException {
@@ -830,9 +835,9 @@ public final class Curriculum {
         int grade=requireAssignment(c,studentId,scope);
         limit(List.of(Budget.of(scope,grade,central(c,scope.subjectId(),grade,scope.semesterId()),flexible(c,scope))));
         List<CompletedCentralTask> completedCentralTasks=rows(c,
-                "SELECT t.id,t.name,t.tokens,t.niveau,p.id AS topicId,p.name AS topicName FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE x.student=? AND x.status=2 AND p.subject=? AND p.grade=? AND p.semester=? ORDER BY t.id",
+                "SELECT t.id,t.name,t.tokens,t.niveau,t.stage_number AS stageNumber,p.id AS topicId,p.name AS topicName FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE x.student=? AND x.status=2 AND p.subject=? AND p.grade=? AND p.semester=? ORDER BY t.id",
                 studentId,scope.subjectId(),grade,scope.semesterId()).stream()
-                .map(r->new CompletedCentralTask(integer(r,"id"),(String)r.get("name"),integer(r,"tokens"),integer(r,"niveau"),integer(r,"topicId"),(String)r.get("topicName"))).toList();
+                .map(r->new CompletedCentralTask(integer(r,"id"),(String)r.get("name"),integer(r,"tokens"),integer(r,"niveau"),integer(r,"stageNumber"),integer(r,"topicId"),(String)r.get("topicName"))).toList();
         List<CompletedFlexibleTask> completedFlexibleTasks=completedFlexibleTasks(c,studentId,scope);
         // Totals are derived from the exact returned identities in this transaction, never a second query/cache.
         long central=completedCentralTasks.stream().mapToLong(CompletedCentralTask::tokens).sum();
