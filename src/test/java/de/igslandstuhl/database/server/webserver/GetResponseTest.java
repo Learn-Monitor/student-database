@@ -62,7 +62,10 @@ public class GetResponseTest {
         String responseBody = response.getResponseBody();
         assertTrue(responseString.contains(responseBody));
         assertTrue(responseString.contains("HTTP/1.1 200 OK"));
-        assertTrue(responseString.contains("Connection: close\n"));
+        assertTrue(responseString.contains("Connection: close\r\n"));
+        String headerBlock = responseString.substring(0, responseString.indexOf("\r\n\r\n") + 4);
+        assertFalse(headerBlock.replace("\r\n", "").contains("\n"));
+        assertEquals(responseBody + System.lineSeparator(), responseString.substring(responseString.indexOf("\r\n\r\n") + 4));
     }
 
     @Test

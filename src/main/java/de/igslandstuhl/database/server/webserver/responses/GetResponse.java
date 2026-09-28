@@ -206,18 +206,18 @@ public class GetResponse implements HttpResponse {
                 }
             }
 
-            out.print("HTTP/1.1 "); status.write(out); out.println();
-            out.println("Connection: close");
+            out.print("HTTP/1.1 "); status.write(out); out.print("\r\n");
+            out.print("Connection: close\r\n");
             if (contentType != null) {
                 out.print("Content-Type: "); out.print(contentType.getName());
                 if (contentType.isText()) {
                     out.print("; charset=");out.print(charset);
                 }
-                out.println();
-                out.println("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie());
+                out.print("\r\n");
+                out.print("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie() + "\r\n");
             }
-            out.println("Content-Length: " + body.length);
-            out.println();
+            out.print("Content-Length: " + body.length + "\r\n");
+            out.print("\r\n");
             out.write(body);
             out.flush();
         } catch (FileNotFoundException e) {
