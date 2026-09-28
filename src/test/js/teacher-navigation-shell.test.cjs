@@ -34,6 +34,7 @@ test('dashboard and teacher student view each declare one shared teacher navigat
     assert.equal((html.match(/%\[teacher_dashboard_nav\]/g)||[]).length,1);
   }
   assert.ok(studentHtml.indexOf('teacher-main-menu') < studentHtml.indexOf('id="subjects"'));
+  assert.match(studentHtml,/class="teacher-dashboard teacher-student-view"/);
   assert.match(studentHtml,/src="build_student\.js"/);
 });
 
@@ -114,6 +115,19 @@ test('non-tutors do not receive a tutor navigation item',async()=>{
   try {
     assert.equal(dom.window.document.querySelector('a[href="/dashboard#tutor-area"]'),null);
     assert.equal(dom.window.tutorAreaAccess,false);
+  } finally { dom.window.close(); }
+});
+
+test('teacher logout is the final menu item and keeps POST semantics',()=>{
+  const dom=shell('https://school.example.invalid/dashboard',
+    `<header><form action="/logout" method="post"><button type="submit">Ausloggen</button></form></header><nav class="teacher-main-menu">${navigation}</nav>`);
+  try {
+    assert.equal(dom.window.document.querySelector('body > header'),null);
+    const items=dom.window.document.querySelectorAll('.teacher-main-menu-sections > ul > li, .teacher-main-menu > ul > li');
+    const logout=items[items.length-1];
+    assert.equal(logout.className,'teacher-main-menu-logout-item');
+    assert.equal(logout.querySelector('form')?.getAttribute('method'),'post');
+    assert.equal(logout.querySelector('button')?.textContent,'Ausloggen');
   } finally { dom.window.close(); }
 });
 

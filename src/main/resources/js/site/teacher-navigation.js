@@ -37,6 +37,28 @@
         });
     }
 
+    function integrateTeacherLogout(navigation) {
+        if (navigation.querySelector('.teacher-main-menu-logout-item')) return;
+
+        const form = document.querySelector(
+            'body > header form[action="/logout"][method="post"]'
+        );
+        const list = navigation.querySelector(
+            '.teacher-main-menu-sections > ul, .teacher-main-menu > ul'
+        );
+        if (!form || !list) return;
+
+        const header = form.closest('header');
+        const item = document.createElement('li');
+        item.className = 'teacher-main-menu-logout-item';
+        item.append(form);
+        list.append(item);
+
+        if (header && header !== navigation && header.children.length === 0) {
+            header.remove();
+        }
+    }
+
     async function updateTutorAreaVisibility(navigation) {
         try {
             const response = await fetch('/my-tutor-classes', {
@@ -88,9 +110,11 @@
             attendanceNavigation.setAttribute('aria-label', 'Lehrkraftbereiche');
         }
 
+        const navigation = document.querySelector('.teacher-main-menu');
+        if (navigation) integrateTeacherLogout(navigation);
+
         markActive();
 
-        const navigation = document.querySelector('.teacher-main-menu');
         if (navigation && location.pathname !== '/login' && !tutorLookupStarted) {
             tutorLookupStarted = true;
             updateTutorAreaVisibility(navigation);
