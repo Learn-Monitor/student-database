@@ -864,6 +864,9 @@ public final class Curriculum {
             for (var student:students) {
                 int studentId=integer(student,"id");
                 Map<String,Object> row=new LinkedHashMap<>(); row.put("id",studentId); row.put("name",student.get("firstName")+" "+student.get("lastName"));
+                int graduation=integer(require(c,"SELECT graduation_level FROM students WHERE id=?",studentId),"graduation_level");
+                row.put("graduationLevel",graduation); row.put("graduationLabel",GraduationLevel.of(graduation).getGermanTranslation());
+                row.put("graduationHistory",graduationHistory(c,studentId));
                 List<Map<String,Object>> cells=new ArrayList<>();
                 for (var subject:subjects) {
                     int subjectId=integer(subject,"id"), teacherId=integer(subject,"teacherId");
@@ -884,6 +887,27 @@ public final class Curriculum {
                 row.put("subjects",cells); output.add(row);
             }
             Map<String,Object> out=new LinkedHashMap<>(); out.put("semesterId",semester); out.put("semesterLabel",semesterLabel); out.put("classId",classId); out.put("classLabel",classRow.get("label")); out.put("subjects",subjects); out.put("students",output); return out;
+        });
+    }
+    private static String graduationLabel(int level) { return GraduationLevel.of(level).getGermanTranslation(); }
+    private static List<Map<String,Object>> graduationHistory(Connection c,int studentId) throws SQLException {
+        List<Map<String,Object>> result=new ArrayList<>();
+        for(var row:rows(c,"SELECT h.old_graduation_level AS oldLevel,h.new_graduation_level AS newLevel,h.changed_at AS changedAt,t.first_name||' '||t.last_name AS teacherName FROM student_graduation_history h JOIN teachers t ON t.id=h.teacher WHERE h.student=? ORDER BY h.changed_at DESC,h.id DESC",studentId)) {
+            row.put("oldLabel",graduationLabel(integer(row,"oldLevel"))); row.put("newLabel",graduationLabel(integer(row,"newLevel"))); result.add(row);
+        }
+        return result;
+    }
+    public Map<String,Object> changeTutorGraduation(Actor actor,int studentId,int semester,int newLevel) throws SQLException {
+        if(actor==null || actor.admin() || actor.teacherId()<1) throw error(403,"forbidden","Teacher tutor session required.");
+        if(newLevel<0 || newLevel>2) throw error(400,"invalid_input","Graduation level must be Neustarter, Starter or Durchstarter.");
+        return transaction(c -> {
+            var student=require(c,"SELECT id,class,graduation_level FROM students WHERE id=? AND COALESCE(active,1)=1",studentId);
+            int classId=integer(student,"class"); require(c,"SELECT s.id FROM semesters s JOIN school_years y ON y.id=s.school_year WHERE s.id=? AND y.current_semester=s.id",semester);
+            if(number(c,"SELECT COUNT(*) FROM curriculum_class_tutors WHERE semester=? AND class=? AND teacher=?",semester,classId,actor.teacherId())==0)
+                throw error(403,"forbidden","Teacher is not a tutor for this student.");
+            int old=integer(student,"graduation_level");
+            if(old!=newLevel) { write(c,"UPDATE students SET graduation_level=? WHERE id=?",newLevel,studentId); write(c,"INSERT INTO student_graduation_history(student,old_graduation_level,new_graduation_level,teacher,semester) VALUES(?,?,?,?,?)",studentId,old,newLevel,actor.teacherId(),semester); }
+            Map<String,Object> result=new LinkedHashMap<>(); result.put("studentId",studentId); result.put("graduationLevel",newLevel); result.put("graduationLabel",graduationLabel(newLevel)); result.put("changed",old!=newLevel); result.put("history",graduationHistory(c,studentId)); return result;
         });
     }
     /** Assigned total for staff; both their scope access and the student's explicit assignment apply. */

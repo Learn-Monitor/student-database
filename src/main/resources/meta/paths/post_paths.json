@@ -393,6 +393,12 @@
         "namespaces": [],
         "access_level": "teacher"
     },
+    "/change-tutor-graduation": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
     "/my-tutor-classes": {
         "type": "POST",
         "handler_type": "PostRequestHandler",

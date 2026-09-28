@@ -26,6 +26,7 @@ public final class CurriculumRequestHandler {
         HttpHandler.registerPostRequestHandler("/set-curriculum-stage-assessment",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/curriculum-student-progress-detail",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/curriculum-weekly-conversations",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
+        HttpHandler.registerPostRequestHandler("/change-tutor-graduation",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-progress",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-catalog",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-subjects",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
@@ -141,6 +142,11 @@ public final class CurriculumRequestHandler {
                 if(!rq.getJson().keySet().equals(Set.of("semesterId","classId"))) throw new CurriculumException(400,"invalid_input","semesterId and classId are required.");
                 Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
                 return PostResponse.jsonWithNulls(service.weeklyConversationOverview(actor,integer(rq,"semesterId"),integer(rq,"classId")),rq);
+            }
+            if(rq.getPath().equals("/change-tutor-graduation")) {
+                if(!rq.getJson().keySet().equals(Set.of("studentId","semesterId","graduationLevel"))) throw new CurriculumException(400,"invalid_input","studentId, semesterId and graduationLevel are required.");
+                Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
+                return PostResponse.jsonWithNulls(service.changeTutorGraduation(actor,integer(rq,"studentId"),integer(rq,"semesterId"),integer(rq,"graduationLevel")),rq);
             }
             Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
             CurriculumEnrollment enrollment=new CurriculumEnrollment(service);

@@ -32,7 +32,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const head = table.insertRow(); head.append(el('th','Schüler'));
             for (const subject of (data.subjects || [])) head.append(el('th', subject.name));
             for (const student of (data.students || [])) {
-                const row = table.insertRow(); row.append(el('td', student.name || 'Schüler'));
+                const row = table.insertRow(); const nameCell=el('td'); nameCell.append(el('div',student.name || 'Schüler'));
+                const graduation=el('div',`Graduierung: ${student.graduationLabel || '—'}`); graduation.className='teacher-graduation'; nameCell.append(graduation);
+                const select=document.createElement('select'); for(const [value,label] of [[0,'Neustarter'],[1,'Starter'],[2,'Durchstarter']]) { const option=el('option',label); option.value=value; option.selected=Number(student.graduationLevel)===value; select.append(option); }
+                const edit=el('button','ändern'); edit.type='button'; const save=el('button','Speichern'); save.type='button'; save.hidden=true; select.hidden=true;
+                if (Number(student.graduationLevel)>2) edit.disabled=true;
+                edit.addEventListener('click',()=>{select.hidden=false;save.hidden=false;edit.hidden=true;});
+                save.addEventListener('click',async()=>{save.disabled=true; try { const result=await post('/change-tutor-graduation',{studentId:student.id,semesterId:data.semesterId,graduationLevel:Number(select.value)}); student.graduationLevel=result.graduationLevel; student.graduationLabel=result.graduationLabel; student.graduationHistory=result.history||student.graduationHistory; graduation.textContent=`Graduierung: ${result.graduationLabel}`; select.hidden=true;save.hidden=true;edit.hidden=false; status.textContent=result.changed?'Graduierung gespeichert.':'Keine Änderung gespeichert.'; } catch(error){status.textContent=error.message;} finally{save.disabled=false;} });
+                const history=el('button','Verlauf anzeigen'); history.type='button'; const historyOutput=el('div'); historyOutput.hidden=true; history.addEventListener('click',()=>{historyOutput.hidden=!historyOutput.hidden; historyOutput.replaceChildren(...(student.graduationHistory||[]).map(item=>el('small',`${item.changedAt}: ${item.oldLabel} → ${item.newLabel} (${item.teacherName})`)));});
+                nameCell.append(select,edit,save,history,historyOutput); row.append(nameCell);
                 const cells = new Map((student.subjects || []).map(cell => [cell.subjectId, cell]));
                 for (const subject of (data.subjects || [])) {
                     const cell = cells.get(subject.id) || {totalTokens:0,note:6,stages:[]};
