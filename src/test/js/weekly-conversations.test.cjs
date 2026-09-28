@@ -28,9 +28,10 @@ test('tutor view offers only assigned classes and a printable compact table',asy
     overview:{semesterLabel:'2026/27 HJ1',classLabel:'7a',subjects:[{id:3,name:'Mathe'}],students:[{name:'Test Schüler',subjects:[{subjectId:3,totalTokens:75,note:2,stages:[{niveau:2}]}]}]}
   });
   await new Promise(resolve=>setTimeout(resolve,30));
-  assert.equal(instance.window.document.querySelectorAll('.teacher-weekly-conversations option').length,2);
+  assert.equal(instance.window.document.querySelectorAll('.teacher-filter-bar option').length,2);
   assert.ok(instance.window.document.querySelector('.teacher-weekly-conversations').textContent.includes('Test Schüler'));
   assert.ok(instance.window.document.querySelector('.teacher-weekly-conversations').textContent.includes('Note 2'));
-  assert.equal(instance.window.document.querySelectorAll('.teacher-weekly-conversations button').length,2);
+  assert.equal(instance.window.document.querySelectorAll('.teacher-filter-bar button').length,2);
+  assert.equal(instance.window.document.querySelectorAll('.teacher-weekly-conversations table tr:nth-child(2) button').length,3);
   instance.window.close();
 });
