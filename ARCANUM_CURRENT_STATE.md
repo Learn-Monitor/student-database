@@ -35,6 +35,14 @@
 - Printing uses the browser print view and print CSS; no server-side PDF system is introduced.
 - The synthetic DEMO E2E passed, and the database was restored to its pre-E2E snapshot afterward.
 
+## Tutor graduation permission release (2026-09-28)
+
+- Permission Manager commit `b65e952` adds `/change-tutor-graduation` to the existing `curriculum_tutor_context` permission. It does not add a new role or duplicate tutor authorization.
+- The final PM artifact SHA is `059d330ebe9efb5f961e38d8fcb0f70a4b355b627cfa8831d021a6e97cf91bad`.
+- PROD release `/srv/arcanum/prod/releases/tutor-graduation-pm-b65e952-20260928` and DEMO release `/srv/arcanum/demo/releases/tutor-graduation-pm-b65e952-20260928` use the same PM artifact. The student JAR remains `6edb2f568a1ed34370e38d0787924c8ee9bc9ea51b6284f377f2fa8b251e4844`; PROD integrity/FK remained `ok/102`, DEMO `ok/756`.
+- After restarting DEMO after fixture creation, the complete synthetic API E2E passed: Tutor 1 `Neustarter → Starter`, Tutor 2 `Starter → Durchstarter`, foreign tutor/subject teacher/admin/student denied, and no-op produced no history row. The run was cleaned completely.
+- Browser login/Chromium startup passed, but the full scripted visual/responsive run did not complete in the local harness due a resource-related runner abort. This document therefore remains an automated/API-accepted but not final visual acceptance state.
+
 ## Verification boundary
 
 The tutor feature does not change coin calculation, stage completion, level handling, curriculum-stage semantics, or the existing student-progress rendering. DEMO and PROD were tested without synthetic production data.
