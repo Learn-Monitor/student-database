@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const post = async (path, body) => {
         const response = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
         let data = null; try { data = await response.json(); } catch {}
-        if (!response.ok) throw Error(response.status === 403 ? 'Für diese Klasse besteht keine Tutorzuordnung.' : (data?.message || 'Anfrage fehlgeschlagen.'));
+        if (!response.ok) { const error = Error(data?.message || (response.status === 403 ? 'Zugriff auf die Tutor-Funktion verweigert.' : 'Anfrage fehlgeschlagen.')); error.status = response.status; throw error; }
         return data;
     };
     try {
@@ -58,5 +58,5 @@ document.addEventListener('DOMContentLoaded', async () => {
             finally { load.disabled = false; }
         };
         load.addEventListener('click', refresh); await refresh();
-    } catch { /* Non-tutors receive no visible weekly-conversation control. */ }
+    } catch (error) { if (error?.status === 403) mount.append(el('p', 'Die Tutor-Funktion ist für dieses Konto nicht freigeschaltet.')); else if (error?.status) mount.append(el('p', 'Tutor-Klassen konnten nicht geladen werden.')); }
 });
