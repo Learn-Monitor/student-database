@@ -263,6 +263,8 @@ public final class CurriculumEnrollment {
             var canonical=rows(c,"SELECT teacher FROM curriculum_grade_teachers WHERE semester=? AND grade=? AND subject=?",semester,grade,subject);
             if(canonical.isEmpty()) throw error(409,"context_conflict","No grade-wide teacher is assigned for this individual subject.");
             int teacher=integer(canonical.get(0),"teacher");
+            var subjectRow=require(c,"SELECT name FROM subjects WHERE id=?",subject);
+            write(c,"INSERT INTO course_groups(subject,grade,semester,teacher,assignment_group,name) VALUES(?,?,?,?,?,?) ON CONFLICT(subject,grade,semester) DO UPDATE SET teacher=excluded.teacher,assignment_group=excluded.assignment_group,name=excluded.name",subject,grade,semester,teacher,finalGroup,String.valueOf(subjectRow.get("name")));
             var scope=new Scope(teacher,subject,classId,semester);
             var previous=rows(c,"SELECT subject FROM curriculum_individual_assignments WHERE student=? AND semester=? AND assignment_group=?",student,semester,finalGroup);
             Integer old=previous.isEmpty()?null:integer(previous.get(0),"subject");
@@ -308,19 +310,33 @@ public final class CurriculumEnrollment {
         return curriculum.transaction(c->rows(c,"SELECT subject FROM curriculum_individual_assignments WHERE student=? AND semester=? AND assignment_group='WPF'",student,semester).stream().map(r->integer(r,"subject")).toList());
     }
     static boolean released(Connection c,Scope scope,int task,int topic) throws SQLException {
+        if(individualSubject(c,scope.subjectId())) {
+            int group=resolveScope(c,scope).courseGroupId();
+            var override=rows(c,"SELECT active FROM course_group_task_releases WHERE course_group=? AND task=?",group,task);
+            if(!override.isEmpty()) return integer(override.get(0),"active")==1;
+            return topicReleased(c,scope,topic);
+        }
         var override=rows(c,"SELECT active FROM curriculum_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND task=?",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),task);
         if(!override.isEmpty())return integer(override.get(0),"active")==1;
         return topicReleased(c,scope,topic);
     }
     static boolean topicReleased(Connection c,Scope scope,int topic) throws SQLException {
+        if(individualSubject(c,scope.subjectId())) return number(c,"SELECT COUNT(*) FROM course_group_topic_releases WHERE course_group=? AND topic=? AND active=1",resolveScope(c,scope).courseGroupId(),topic)>0;
         return number(c,"SELECT COUNT(*) FROM curriculum_topic_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND topic=? AND active=1",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic)>0;
     }
     static boolean flexibleReleased(Connection c,Scope scope,int task,Integer topic) throws SQLException {
+        if(individualSubject(c,scope.subjectId())) {
+            int group=resolveScope(c,scope).courseGroupId();
+            var override=rows(c,"SELECT active FROM course_group_flexible_task_releases WHERE course_group=? AND flexible_task=?",group,task);
+            if(!override.isEmpty()) return integer(override.get(0),"active")==1;
+            return topic!=null && flexibleTopicReleased(c,scope,topic);
+        }
         var override=rows(c,"SELECT active FROM flexible_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND flexible_task=?",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),task);
         if(!override.isEmpty())return integer(override.get(0),"active")==1;
         return topic!=null && flexibleTopicReleased(c,scope,topic);
     }
     static boolean flexibleTopicReleased(Connection c,Scope scope,int topic) throws SQLException {
+        if(individualSubject(c,scope.subjectId())) return number(c,"SELECT COUNT(*) FROM course_group_flexible_topic_releases WHERE course_group=? AND flexible_topic=? AND active=1",resolveScope(c,scope).courseGroupId(),topic)>0;
         return number(c,"SELECT COUNT(*) FROM flexible_topic_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND flexible_topic=? AND active=1",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic)>0;
     }
     public Map<String,Object> releases(Actor actor,Scope scope) throws SQLException {
@@ -346,24 +362,42 @@ public final class CurriculumEnrollment {
             if(topic!=null || task!=null) {
                 int topicId=topic!=null?topic:integer(require(c,"SELECT topic FROM tasks WHERE id=?",task),"topic");
                 require(c,"SELECT id FROM topics WHERE id=? AND subject=? AND grade=? AND semester=?",topicId,scope.subjectId(),grade,scope.semesterId());
-                String table=topic!=null?"curriculum_topic_releases":"curriculum_task_releases",column=topic!=null?"topic":"task";
-                write(c,"INSERT INTO "+table+"(teacher,class,subject,semester,"+column+",active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,"+column+") DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic!=null?topic:task,active?1:0);
-                if(topic!=null)write(c,"DELETE FROM curriculum_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND task IN(SELECT id FROM tasks WHERE topic=?)",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic);
+                if(individualSubject(c,scope.subjectId())) {
+                    int group=resolveScope(c,scope).courseGroupId();
+                    if(topic!=null) write(c,"INSERT INTO course_group_topic_releases(course_group,topic,active) VALUES(?,?,?) ON CONFLICT(course_group,topic) DO UPDATE SET active=excluded.active",group,topic,active?1:0);
+                    else write(c,"INSERT INTO course_group_task_releases(course_group,task,active) VALUES(?,?,?) ON CONFLICT(course_group,task) DO UPDATE SET active=excluded.active",group,task,active?1:0);
+                    if(topic!=null) write(c,"DELETE FROM course_group_task_releases WHERE course_group=? AND task IN(SELECT id FROM tasks WHERE topic=?)",group,topic);
+                } else {
+                    String table=topic!=null?"curriculum_topic_releases":"curriculum_task_releases",column=topic!=null?"topic":"task";
+                    write(c,"INSERT INTO "+table+"(teacher,class,subject,semester,"+column+",active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,"+column+") DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic!=null?topic:task,active?1:0);
+                    if(topic!=null)write(c,"DELETE FROM curriculum_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND task IN(SELECT id FROM tasks WHERE topic=?)",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),topic);
+                }
                 return active?List.of():stopActiveCentralStages(c,scope,topic,task);
             }
             if(flexibleTopic!=null) {
                 var row=require(c,"SELECT * FROM flexible_topics WHERE id=?",flexibleTopic);
                 if(integer(row,"owner_teacher")!=scope.teacherId() || integer(row,"class")!=scope.classId() || integer(row,"subject")!=scope.subjectId() || integer(row,"semester")!=scope.semesterId() || integer(row,"grade")!=grade)
                     throw error(403,"forbidden","Flexible topic does not belong to this context.");
-                write(c,"INSERT INTO flexible_topic_releases(teacher,class,subject,semester,flexible_topic,active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,flexible_topic) DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),flexibleTopic,active?1:0);
-                write(c,"DELETE FROM flexible_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND flexible_task IN(SELECT flexible_task FROM flexible_task_topics WHERE flexible_topic=?)",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),flexibleTopic);
+                if(individualSubject(c,scope.subjectId())) {
+                    int group=resolveScope(c,scope).courseGroupId();
+                    if(integer(row,"course_group")!=group) throw error(403,"forbidden","Flexible topic does not belong to this course group.");
+                    write(c,"INSERT INTO course_group_flexible_topic_releases(course_group,flexible_topic,active) VALUES(?,?,?) ON CONFLICT(course_group,flexible_topic) DO UPDATE SET active=excluded.active",group,flexibleTopic,active?1:0);
+                    write(c,"DELETE FROM course_group_flexible_task_releases WHERE course_group=? AND flexible_task IN(SELECT flexible_task FROM flexible_task_topics WHERE flexible_topic=?)",group,flexibleTopic);
+                } else {
+                    write(c,"INSERT INTO flexible_topic_releases(teacher,class,subject,semester,flexible_topic,active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,flexible_topic) DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),flexibleTopic,active?1:0);
+                    write(c,"DELETE FROM flexible_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND flexible_task IN(SELECT flexible_task FROM flexible_task_topics WHERE flexible_topic=?)",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),flexibleTopic);
+                }
                 if(!active)stopActiveFlexibleStages(c,scope,flexibleTopic,null);
                 return List.of();
             }
             var row=require(c,"SELECT t.*,p.flexible_topic AS topic FROM flexible_tasks t LEFT JOIN flexible_task_topics p ON p.flexible_task=t.id WHERE t.id=?",flexibleTask);
             if(integer(row,"owner_teacher")!=scope.teacherId() || integer(row,"class")!=scope.classId() || integer(row,"subject")!=scope.subjectId() || integer(row,"semester")!=scope.semesterId() || integer(row,"grade")!=grade)
                 throw error(403,"forbidden","Flexible task does not belong to this context.");
-            write(c,"INSERT INTO flexible_task_releases(teacher,class,subject,semester,flexible_task,active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,flexible_task) DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),integer(row,"id"),active?1:0);
+            if(individualSubject(c,scope.subjectId())) {
+                int group=resolveScope(c,scope).courseGroupId();
+                if(row.get("course_group")==null || integer(row,"course_group")!=group) throw error(403,"forbidden","Flexible task does not belong to this course group.");
+                write(c,"INSERT INTO course_group_flexible_task_releases(course_group,flexible_task,active) VALUES(?,?,?) ON CONFLICT(course_group,flexible_task) DO UPDATE SET active=excluded.active",group,integer(row,"id"),active?1:0);
+            } else write(c,"INSERT INTO flexible_task_releases(teacher,class,subject,semester,flexible_task,active) VALUES(?,?,?,?,?,?) ON CONFLICT(teacher,class,subject,semester,flexible_task) DO UPDATE SET active=excluded.active",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),integer(row,"id"),active?1:0);
             if(!active)stopActiveFlexibleStages(c,scope,null,flexibleTask);
             return List.of();
         });

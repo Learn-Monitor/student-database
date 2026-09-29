@@ -187,6 +187,10 @@ public final class Curriculum {
         return number(c,"SELECT COALESCE(SUM(t.tokens),0) FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=?",subject,grade,semester);
     }
     static long flexible(Connection c,Scope s) throws SQLException {
+        if(individualSubject(c,s.subjectId())) {
+            int grade=integer(require(c,"SELECT grade FROM classes WHERE id=?",s.classId()),"grade");
+            return number(c,"SELECT COALESCE(SUM(tokens),0) FROM flexible_tasks WHERE course_group=?",CourseGroup.resolve(c,s.subjectId(),grade,s.semesterId()).id());
+        }
         return number(c,"SELECT COALESCE(SUM(tokens),0) FROM flexible_tasks WHERE owner_teacher=? AND subject=? AND class=? AND semester=?",
                 s.teacherId(),s.subjectId(),s.classId(),s.semesterId());
     }
@@ -270,8 +274,9 @@ public final class Curriculum {
         return new FlexibleTask(integer(r,"id"),integer(r,"owner_teacher"),integer(r,"subject"),integer(r,"class"),integer(r,"semester"),integer(r,"grade"),(String)r.get("name"),integer(r,"tokens"));
     }
     public List<FlexibleTask> list(Actor actor,Scope scope) throws SQLException {
-        return transaction(c->{authorize(c,actor,scope,false);return rows(c,"SELECT * FROM flexible_tasks WHERE owner_teacher=? AND subject=? AND class=? AND semester=? ORDER BY id",
-                scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId()).stream().map(Curriculum::task).toList();});
+        return transaction(c->{authorize(c,actor,scope,false);boolean individual=individualSubject(c,scope.subjectId());
+            var data=individual?rows(c,"SELECT * FROM flexible_tasks WHERE course_group=? ORDER BY id",resolveScope(c,scope).courseGroupId()):rows(c,"SELECT * FROM flexible_tasks WHERE owner_teacher=? AND subject=? AND class=? AND semester=? ORDER BY id",scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId());
+            return data.stream().map(Curriculum::task).toList();});
     }
     public FlexibleTask create(Actor actor,Scope scope,String name,int tokenValue) throws SQLException {
         return create(actor,scope,name,tokenValue,null);
@@ -280,8 +285,9 @@ public final class Curriculum {
         String value=validName(name);tokens(tokenValue);
         return transaction(c->{int grade=authorize(c,actor,scope,true);
             limit(List.of(Budget.of(scope,grade,central(c,scope.subjectId(),grade,scope.semesterId()),flexible(c,scope)+tokenValue)));
-            write(c,"INSERT INTO flexible_tasks(owner_teacher,subject,class,semester,grade,name,tokens) VALUES(?,?,?,?,?,?,?)",
-                    scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade,value,tokenValue);
+            Integer group=individualSubject(c,scope.subjectId())?resolveScope(c,scope).courseGroupId():null;
+            write(c,"INSERT INTO flexible_tasks(owner_teacher,subject,class,semester,grade,name,tokens,course_group) VALUES(?,?,?,?,?,?,?,?)",
+                    scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade,value,tokenValue,group);
             var created=task(require(c,"SELECT * FROM flexible_tasks WHERE id=last_insert_rowid()"));
             setFlexibleTopic(c,created,topicId);
             return created;});
@@ -308,17 +314,20 @@ public final class Curriculum {
             return;
         }
         var topic=require(c,"SELECT * FROM flexible_topics WHERE id=?",topicId);
+        boolean individual=individualSubject(c,task.subjectId());
         if(integer(topic,"owner_teacher")!=task.ownerTeacher() || integer(topic,"subject")!=task.subjectId()
-                || integer(topic,"class")!=task.classId() || integer(topic,"semester")!=task.semesterId()
-                || integer(topic,"grade")!=task.grade())
+                || integer(topic,"semester")!=task.semesterId() || integer(topic,"grade")!=task.grade()
+                || (individual ? !Objects.equals(topic.get("course_group"),taskGroup(c,task.id())) : integer(topic,"class")!=task.classId()))
             throw error(403,"forbidden","Topic does not belong to this task's context.");
         write(c,"INSERT INTO flexible_task_topics(flexible_task,flexible_topic) VALUES(?,?) ON CONFLICT(flexible_task) DO UPDATE SET flexible_topic=excluded.flexible_topic",task.id(),topicId);
     }
     private static List<Map<String,Object>> flexibleTopics(Connection c,Scope scope) throws SQLException {
+        if(individualSubject(c,scope.subjectId())) return rows(c,"SELECT id,name FROM flexible_topics WHERE course_group=? ORDER BY id",resolveScope(c,scope).courseGroupId());
         return rows(c,"SELECT id,name FROM flexible_topics WHERE owner_teacher=? AND subject=? AND class=? AND semester=? ORDER BY id",
                 scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId());
     }
     private static List<Map<String,Object>> plannedFlexibleTasks(Connection c,Scope scope) throws SQLException {
+        if(individualSubject(c,scope.subjectId())) return rows(c,"SELECT t.id,t.name,t.tokens,p.id AS topicId,p.name AS topicName FROM flexible_tasks t LEFT JOIN flexible_task_topics m ON m.flexible_task=t.id LEFT JOIN flexible_topics p ON p.id=m.flexible_topic WHERE t.course_group=? ORDER BY t.id",resolveScope(c,scope).courseGroupId());
         return rows(c,"SELECT t.id,t.name,t.tokens,p.id AS topicId,p.name AS topicName FROM flexible_tasks t "
                 + "LEFT JOIN flexible_task_topics m ON m.flexible_task=t.id LEFT JOIN flexible_topics p ON p.id=m.flexible_topic "
                 + "AND p.owner_teacher=t.owner_teacher AND p.subject=t.subject AND p.class=t.class AND p.semester=t.semester AND p.grade=t.grade "
@@ -332,9 +341,15 @@ public final class Curriculum {
     public int createFlexibleTopic(Actor actor,Scope scope,String name) throws SQLException {
         String value=validName(name);
         return transaction(c->{int grade=authorize(c,actor,scope,true);
-            write(c,"INSERT INTO flexible_topics(owner_teacher,subject,class,semester,grade,name) VALUES(?,?,?,?,?,?)",
-                    scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade,value);
+            Integer group=individualSubject(c,scope.subjectId())?resolveScope(c,scope).courseGroupId():null;
+            write(c,"INSERT INTO flexible_topics(owner_teacher,subject,class,semester,grade,name,course_group) VALUES(?,?,?,?,?,?,?)",
+                    scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade,value,group);
             return (int)number(c,"SELECT last_insert_rowid()");});
+    }
+    private static int taskGroup(Connection c,int taskId) throws SQLException {
+        var row=require(c,"SELECT course_group FROM flexible_tasks WHERE id=?",taskId);
+        if(row.get("course_group")==null) throw error(409,"course_group_missing","Flexible task has no course group.");
+        return integer(row,"course_group");
     }
     public void renameFlexibleTopic(Actor actor,int topicId,String name) throws SQLException {
         String value=validName(name);

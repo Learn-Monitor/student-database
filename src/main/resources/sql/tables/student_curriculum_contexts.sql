@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS student_curriculum_contexts (
     teacher INTEGER NOT NULL REFERENCES teachers(id),
     class INTEGER NOT NULL REFERENCES classes(id),
     grade INTEGER NOT NULL CHECK(grade BETWEEN 1 AND 13),
+    course_group INTEGER REFERENCES course_groups(id),
     PRIMARY KEY(student, subject, semester)
 );

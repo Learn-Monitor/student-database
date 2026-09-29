@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS flexible_topics (
     class INTEGER NOT NULL REFERENCES classes(id),
     semester INTEGER NOT NULL REFERENCES semesters(id),
     grade INTEGER NOT NULL,
+    course_group INTEGER REFERENCES course_groups(id),
     name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 200),
     UNIQUE(owner_teacher, subject, class, semester, name)
 );
