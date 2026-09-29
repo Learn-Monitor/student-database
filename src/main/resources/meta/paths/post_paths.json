@@ -483,6 +483,12 @@
         "namespaces": [],
         "access_level": "admin"
     },
+    "/curriculum-course-groups": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
     "/set-curriculum-subject-type": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
