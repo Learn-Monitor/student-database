@@ -155,6 +155,45 @@ class CourseGroupFoundationTest {
         try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"INSERT INTO flexible_tasks VALUES(301,20,1,30,10,6,'F',3,NULL)"); exec(c,"INSERT INTO curriculum_topic_releases VALUES(20,30,1,10,100,1),(20,31,1,10,100,0)"); assertThrows(CurriculumException.class,()->CourseGroupA2Backfill.run(c)); assertEquals(0,scalar(c,"SELECT COUNT(*) FROM flexible_tasks WHERE course_group IS NOT NULL")); assertEquals(0,scalar(c,"SELECT COUNT(*) FROM course_group_task_releases")); assertEquals(2,scalar(c,"SELECT COUNT(*) FROM curriculum_topic_releases WHERE subject=1")); }
     }
 
+    @Test void rejectsFutureCourseGroupDuplicateTasksWithDifferentTokens() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); duplicateTasks(c,3,4); assertBackfillConflict(c); assertEquals(0,scalar(c,"SELECT COUNT(*) FROM flexible_tasks WHERE course_group IS NOT NULL")); assertEquals(2,scalar(c,"SELECT COUNT(*) FROM flexible_tasks")); }
+    }
+
+    @Test void rejectsFutureCourseGroupDuplicateTasksWithDifferentTopics() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"INSERT INTO flexible_topics VALUES(300,20,1,30,10,6,'Topic A',NULL),(301,20,1,31,10,6,'Topic B',NULL)"); exec(c,"INSERT INTO flexible_tasks VALUES(302,20,1,30,10,6,'Same',3,NULL),(303,20,1,31,10,6,'Same',3,NULL)"); exec(c,"INSERT INTO flexible_task_topics VALUES(302,300),(303,301)"); assertBackfillConflict(c); assertEquals(2,scalar(c,"SELECT COUNT(*) FROM flexible_task_topics")); }
+    }
+
+    @Test void rejectsDuplicateFlexibleTaskWhenCompletionWouldBeAtRisk() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"CREATE TABLE completed_flexible_tasks(student INTEGER,flexible_task INTEGER)"); duplicateTasks(c,3,3); exec(c,"INSERT INTO completed_flexible_tasks VALUES(40,302)"); assertBackfillConflict(c); assertEquals(302,scalar(c,"SELECT flexible_task FROM completed_flexible_tasks")); }
+    }
+
+    @Test void rejectsDuplicateFlexibleTaskWhenActiveStageWouldBeAtRisk() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"CREATE TABLE student_active_curriculum_stages(student INTEGER,subject INTEGER,semester INTEGER,task INTEGER)"); duplicateTasks(c,3,3); exec(c,"INSERT INTO student_active_curriculum_stages VALUES(40,1,10,302)"); assertBackfillConflict(c); assertEquals(302,scalar(c,"SELECT task FROM student_active_curriculum_stages")); }
+    }
+
+    @Test void rejectsDuplicateFlexibleDataWithDifferentReleaseSemantics() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); duplicateTasks(c,3,3); exec(c,"INSERT INTO flexible_task_releases VALUES(20,30,1,10,302,1),(20,31,1,10,303,0)"); assertBackfillConflict(c); assertEquals(2,scalar(c,"SELECT COUNT(*) FROM flexible_task_releases")); }
+    }
+
+    @Test void regularFlexibleTasksMayShareNamesAcrossClasses() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"INSERT INTO flexible_tasks VALUES(302,20,2,30,10,6,'Experiment',3,NULL),(303,20,2,31,10,6,'Experiment',4,NULL)"); CourseGroupA2Backfill.run(c); assertEquals(2,scalar(c,"SELECT COUNT(*) FROM flexible_tasks WHERE course_group IS NULL AND name='Experiment'")); assertEquals(1,scalar(c,"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='uq_flexible_tasks_course_group_name'")); }
+    }
+
+    @Test void freshDatabaseCreatesCourseGroupUniqueIndexesAfterBackfill() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); CourseGroupA2Backfill.run(c); assertEquals(1,scalar(c,"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='uq_flexible_topics_course_group_name' AND sql LIKE '%UNIQUE INDEX%course_group,name%WHERE course_group IS NOT NULL%'")); assertEquals(1,scalar(c,"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='uq_flexible_tasks_course_group_name' AND sql LIKE '%UNIQUE INDEX%course_group,name%WHERE course_group IS NOT NULL%'")); }
+    }
+
+    @Test void conflictingLegacyDatabaseFailsInPreflightBeforeUniqueIndexCreation() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); duplicateTasks(c,3,4); assertBackfillConflict(c); assertEquals(0,scalar(c,"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('uq_flexible_topics_course_group_name','uq_flexible_tasks_course_group_name')")); assertEquals(2,scalar(c,"SELECT COUNT(*) FROM flexible_tasks WHERE course_group IS NULL")); }
+    }
+
+    @Test void successfulA2BackfillIsFullyIdempotentOnReplay() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"INSERT INTO flexible_topics VALUES(300,20,1,30,10,6,'FTopic',NULL)"); exec(c,"INSERT INTO flexible_tasks VALUES(302,20,1,30,10,6,'FTask',3,NULL)"); exec(c,"INSERT INTO flexible_task_topics VALUES(302,300)"); exec(c,"INSERT INTO curriculum_topic_releases VALUES(20,30,1,10,100,1)"); exec(c,"INSERT INTO flexible_topic_releases VALUES(20,30,1,10,300,1)"); exec(c,"INSERT INTO flexible_task_releases VALUES(20,30,1,10,302,1)"); CourseGroupA2Backfill.run(c); long groups=scalar(c,"SELECT COUNT(*) FROM course_groups"),members=scalar(c,"SELECT COUNT(*) FROM course_group_members"),topics=scalar(c,"SELECT COUNT(*) FROM course_group_topic_releases"),flex=scalar(c,"SELECT COUNT(*) FROM course_group_flexible_task_releases"); CourseGroupA2Backfill.run(c); assertEquals(groups,scalar(c,"SELECT COUNT(*) FROM course_groups")); assertEquals(members,scalar(c,"SELECT COUNT(*) FROM course_group_members")); assertEquals(topics,scalar(c,"SELECT COUNT(*) FROM course_group_topic_releases")); assertEquals(flex,scalar(c,"SELECT COUNT(*) FROM course_group_flexible_task_releases")); assertEquals(302,scalar(c,"SELECT id FROM flexible_tasks WHERE name='FTask'")); assertEquals(1,scalar(c,"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='uq_flexible_tasks_course_group_name'")); }
+    }
+
+    static void duplicateTasks(Connection c,int tokensA,int tokensB)throws SQLException { exec(c,"INSERT INTO flexible_tasks VALUES(302,20,1,30,10,6,'Collision',?,NULL),(303,20,1,31,10,6,'Collision',?,NULL)",tokensA,tokensB); }
+    static void assertBackfillConflict(Connection c) { assertThrows(CurriculumException.class,()->CourseGroupA2Backfill.run(c)); }
+
     static void migrationSchema(Connection c)throws SQLException {
         releaseSchema(c); exec(c,"CREATE TABLE course_group_members(course_group INTEGER,student INTEGER,PRIMARY KEY(course_group,student))"); exec(c,"CREATE TABLE flexible_topics(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,course_group INTEGER)"); exec(c,"CREATE TABLE flexible_tasks(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,tokens INTEGER,course_group INTEGER)"); exec(c,"CREATE TABLE flexible_task_topics(flexible_task INTEGER,flexible_topic INTEGER)");
     }
