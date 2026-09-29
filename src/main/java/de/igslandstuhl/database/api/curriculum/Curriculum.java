@@ -21,7 +21,13 @@ public final class Curriculum {
             throw error(403, "forbidden", "Teacher or administrator required.");
         }
     }
-    public record Scope(int teacherId, int subjectId, int classId, int semesterId) {}
+    public record Scope(int teacherId, int subjectId, int classId, int semesterId, Integer courseGroupId) {
+        public Scope(int teacherId, int subjectId, int classId, int semesterId) { this(teacherId,subjectId,classId,semesterId,null); }
+    }
+    /** Canonical scope resolution. A regular subject remains class-scoped; an individual subject is group-scoped. */
+    public record ResolvedScope(Scope requested, String mode, String assignmentGroup, int grade, Integer courseGroupId, int teacherId) {
+        public boolean individual() { return "INDIVIDUAL".equals(mode); }
+    }
     public record Budget(int teacherId, int subjectId, int classId, int semesterId, int grade,
                          long centralTokens, long flexibleTokens, long totalTokens,
                          int regularLimit, int hardLimit, long remainingRegular, long remainingHard) {
@@ -150,6 +156,21 @@ public final class Curriculum {
         if(rows.isEmpty() || rows.get(0).get("assignment_group")==null)
             throw error(400,"invalid_input","Individual subject requires an assignment group.");
         return String.valueOf(rows.get(0).get("assignment_group"));
+    }
+    public static ResolvedScope resolveScope(Connection c, Scope scope) throws SQLException {
+        var subject=require(c,"SELECT id FROM subjects WHERE id=?",scope.subjectId());
+        var classRow=require(c,"SELECT grade FROM classes WHERE id=?",scope.classId());
+        int grade=integer(classRow,"grade");
+        if(!individualSubject(c,scope.subjectId()))
+            return new ResolvedScope(scope,"REGULAR",null,grade,null,scope.teacherId());
+        String group=assignmentGroup(c,scope.subjectId());
+        CourseGroup resolved=scope.courseGroupId()==null
+                ? CourseGroup.resolve(c,scope.subjectId(),grade,scope.semesterId())
+                : CourseGroup.resolve(c,scope.subjectId(),grade,scope.semesterId());
+        if(!group.equals(resolved.assignmentGroup())) throw error(409,"course_group_subject_type_conflict","Course group assignment group does not match subject type.");
+        if(scope.teacherId()!=resolved.teacherId()) throw error(403,"forbidden","Teacher is not assigned to this course group.");
+        if(scope.courseGroupId()!=null && scope.courseGroupId()!=resolved.id()) throw error(409,"course_group_conflict","Requested course group does not match the subject context.");
+        return new ResolvedScope(scope,"INDIVIDUAL",group,grade,resolved.id(),resolved.teacherId());
     }
     static boolean managedTeacher(Connection c,Scope s,int grade) throws SQLException {
         if(individualSubject(c,s.subjectId()))
