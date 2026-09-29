@@ -9,12 +9,22 @@ public final class CourseGroupA2Backfill {
     public static void run(Connection c) throws SQLException {
         c.setAutoCommit(false);
         try {
+            preflightFlexibleDuplicates(c);
             backfillFlexible(c);
             migrateCentralReleases(c);
             migrateFlexibleReleases(c);
             c.commit();
         } catch(SQLException|RuntimeException e) { try { c.rollback(); } catch(SQLException ignored) {} throw e; }
         finally { c.setAutoCommit(true); }
+    }
+    private static void preflightFlexibleDuplicates(Connection c) throws SQLException {
+        for (String table : List.of("flexible_topics","flexible_tasks")) {
+            String sql="SELECT course_group,name,COUNT(*) AS n FROM "+table+" WHERE course_group IS NOT NULL GROUP BY course_group,name HAVING COUNT(*)>1";
+            for (var row:Curriculum.rows(c,sql))
+                throw Curriculum.error(409,"flexible_duplicate_conflict",table+" duplicate for course_group "+Curriculum.integer(row,"course_group")+" and name '"+row.get("name")+"'.");
+        }
+        for (var row:Curriculum.rows(c,"SELECT t.course_group,t.name,COUNT(*) AS n FROM flexible_tasks t JOIN flexible_task_topics m ON m.flexible_task=t.id WHERE t.course_group IS NOT NULL GROUP BY t.course_group,t.name HAVING COUNT(DISTINCT m.flexible_topic)>1"))
+            throw Curriculum.error(409,"flexible_topic_conflict","Flexible task duplicate topic mapping for course_group "+Curriculum.integer(row,"course_group")+" and name '"+row.get("name")+"'.");
     }
     private static CourseGroup group(Connection c,int subject,int grade,int semester,int teacher) throws SQLException {
         CourseGroup g=CourseGroup.resolve(c,subject,grade,semester);

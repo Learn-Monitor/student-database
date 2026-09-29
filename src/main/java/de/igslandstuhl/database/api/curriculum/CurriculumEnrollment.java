@@ -410,12 +410,20 @@ public final class CurriculumEnrollment {
     private static List<CentralCacheUpdate> stopActiveCentralStages(Connection c,Scope scope,Integer topic,Integer task) throws SQLException {
         String predicate=task!=null ? "a.central_task=?" : "t.topic=?";
         int id=task!=null ? task : topic;
+        String filter=individualSubject(c,scope.subjectId())
+                ? "JOIN course_group_members gm ON gm.student=a.student "
+                : "";
+        String where=individualSubject(c,scope.subjectId())
+                ? "gm.course_group=? AND "
+                : "x.teacher=? AND x.class=? AND ";
+        Object[] args=individualSubject(c,scope.subjectId())
+                ? new Object[]{resolveScope(c,scope).courseGroupId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),id}
+                : new Object[]{scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),id};
         var active=rows(c,"SELECT a.student,a.central_task FROM student_active_curriculum_stages a "
                 + "JOIN student_curriculum_contexts x ON x.student=a.student AND x.subject=a.subject AND x.semester=a.semester "
-                + "JOIN tasks t ON t.id=a.central_task JOIN topics p ON p.id=t.topic "
-                + "WHERE x.teacher=? AND x.class=? AND x.subject=? AND x.semester=? AND x.grade=p.grade "
-                + "AND a.subject=? AND a.semester=? AND p.subject=? AND p.semester=? AND "+predicate,
-                scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),id);
+                + filter+"JOIN tasks t ON t.id=a.central_task JOIN topics p ON p.id=t.topic "
+                + "WHERE "+where+"x.subject=? AND x.semester=? AND a.subject=? AND a.semester=? AND p.subject=? AND p.semester=? AND "+predicate,
+                args);
         List<CentralCacheUpdate> cache=new ArrayList<>();
         for(var row:active) {
             int student=integer(row,"student"), centralTask=integer(row,"central_task");
@@ -429,12 +437,17 @@ public final class CurriculumEnrollment {
         String join=flexibleTopic!=null ? "JOIN flexible_task_topics m ON m.flexible_task=a.flexible_task " : "";
         String predicate=flexibleTopic!=null ? "m.flexible_topic=?" : "a.flexible_task=?";
         int id=flexibleTopic!=null ? flexibleTopic : flexibleTask;
+        boolean individual=individualSubject(c,scope.subjectId());
+        String groupJoin=individual?"JOIN course_group_members gm ON gm.student=a.student ":"";
+        String groupWhere=individual?"gm.course_group=? AND ":"x.teacher=? AND x.class=? AND ";
+        Object[] args=individual
+                ? new Object[]{resolveScope(c,scope).courseGroupId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),id}
+                : new Object[]{scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),id};
         var active=rows(c,"SELECT a.student,a.flexible_task FROM student_active_curriculum_stages a "
                 + "JOIN student_curriculum_contexts x ON x.student=a.student AND x.subject=a.subject AND x.semester=a.semester "
-                + "JOIN flexible_tasks t ON t.id=a.flexible_task "+join
-                + "WHERE x.teacher=? AND x.class=? AND x.subject=? AND x.semester=? AND x.grade=t.grade "
-                + "AND a.subject=? AND a.semester=? AND t.owner_teacher=? AND t.class=? AND t.subject=? AND t.semester=? AND "+predicate,
-                scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),id);
+                + "JOIN flexible_tasks t ON t.id=a.flexible_task "+groupJoin+join
+                + "WHERE "+groupWhere+"x.subject=? AND x.semester=? AND a.subject=? AND a.semester=? AND "+(individual?"t.subject=? AND t.semester=? AND ":"t.owner_teacher=? AND t.class=? AND t.subject=? AND t.semester=? AND ")+predicate,
+                args);
         for(var row:active)
             write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=? AND semester=? AND flexible_task=?",
                     integer(row,"student"),scope.subjectId(),scope.semesterId(),integer(row,"flexible_task"));
