@@ -50,4 +50,22 @@ class CourseGroupFoundationTest {
             assertThrows(CurriculumException.class,()->Curriculum.resolveScope(c,new Curriculum.Scope(31,2,10,20)));
         }
     }
+
+    @Test void a2DuplicatePreflightRollsBackBeforeIndexCreation() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            exec(c,"CREATE TABLE subjects(id INTEGER PRIMARY KEY,name TEXT)"); exec(c,"CREATE TABLE semesters(id INTEGER PRIMARY KEY)"); exec(c,"CREATE TABLE teachers(id INTEGER PRIMARY KEY)"); exec(c,"CREATE TABLE classes(id INTEGER PRIMARY KEY,grade INTEGER)");
+            exec(c,"CREATE TABLE curriculum_subject_types(subject INTEGER,mode TEXT,assignment_group TEXT)"); exec(c,"CREATE TABLE curriculum_grade_teachers(semester INTEGER,grade INTEGER,subject INTEGER,teacher INTEGER)");
+            exec(c,"CREATE TABLE students(id INTEGER PRIMARY KEY,class INTEGER)"); exec(c,"CREATE TABLE student_curriculum_contexts(student INTEGER,subject INTEGER,semester INTEGER,teacher INTEGER,class INTEGER,grade INTEGER,course_group INTEGER)"); exec(c,"CREATE TABLE curriculum_individual_assignments(student INTEGER,semester INTEGER,assignment_group TEXT,subject INTEGER)");
+            exec(c,"CREATE TABLE course_groups(id INTEGER PRIMARY KEY,subject INTEGER,grade INTEGER,semester INTEGER,teacher INTEGER,assignment_group TEXT,name TEXT,active INTEGER,UNIQUE(subject,grade,semester))"); exec(c,"CREATE TABLE course_group_members(course_group INTEGER,student INTEGER,PRIMARY KEY(course_group,student))");
+            exec(c,"CREATE TABLE flexible_topics(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,course_group INTEGER)"); exec(c,"CREATE TABLE flexible_tasks(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,tokens INTEGER,course_group INTEGER)");
+            exec(c,"CREATE TABLE flexible_task_topics(flexible_task INTEGER,flexible_topic INTEGER)"); exec(c,"CREATE TABLE curriculum_topic_releases(teacher INTEGER,class INTEGER,subject INTEGER,semester INTEGER,topic INTEGER,active INTEGER)"); exec(c,"CREATE TABLE curriculum_task_releases(teacher INTEGER,class INTEGER,subject INTEGER,semester INTEGER,task INTEGER,active INTEGER)");
+            exec(c,"CREATE TABLE flexible_topic_releases(teacher INTEGER,class INTEGER,subject INTEGER,semester INTEGER,flexible_topic INTEGER,active INTEGER)"); exec(c,"CREATE TABLE flexible_task_releases(teacher INTEGER,class INTEGER,subject INTEGER,semester INTEGER,flexible_task INTEGER,active INTEGER)");
+            exec(c,"CREATE TABLE course_group_topic_releases(course_group INTEGER,topic INTEGER,active INTEGER,PRIMARY KEY(course_group,topic))"); exec(c,"CREATE TABLE course_group_task_releases(course_group INTEGER,task INTEGER,active INTEGER,PRIMARY KEY(course_group,task))"); exec(c,"CREATE TABLE course_group_flexible_topic_releases(course_group INTEGER,flexible_topic INTEGER,active INTEGER,PRIMARY KEY(course_group,flexible_topic))"); exec(c,"CREATE TABLE course_group_flexible_task_releases(course_group INTEGER,flexible_task INTEGER,active INTEGER,PRIMARY KEY(course_group,flexible_task))"); exec(c,"CREATE TABLE topics(id INTEGER PRIMARY KEY,subject INTEGER,grade INTEGER,semester INTEGER)"); exec(c,"CREATE TABLE tasks(id INTEGER PRIMARY KEY,topic INTEGER)");
+            exec(c,"INSERT INTO subjects VALUES(1,'WPF Test')"); exec(c,"INSERT INTO semesters VALUES(10)"); exec(c,"INSERT INTO teachers VALUES(20)"); exec(c,"INSERT INTO classes VALUES(30,6)"); exec(c,"INSERT INTO curriculum_subject_types VALUES(1,'INDIVIDUAL','WPF')"); exec(c,"INSERT INTO curriculum_grade_teachers VALUES(10,6,1,20)");
+            exec(c,"INSERT INTO flexible_tasks VALUES(1,20,1,30,10,6,'Collision',3,NULL)"); exec(c,"INSERT INTO flexible_tasks VALUES(2,20,1,10,10,6,'Collision',4,NULL)");
+            assertThrows(CurriculumException.class,()->CourseGroupA2Backfill.run(c));
+            assertEquals(0,scalar(c,"SELECT COUNT(*) FROM flexible_tasks WHERE course_group IS NOT NULL"));
+            assertEquals(0,scalar(c,"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='uq_flexible_tasks_course_group_name'"));
+        }
+    }
 }

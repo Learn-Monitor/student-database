@@ -21,13 +21,25 @@ public final class CourseGroupA2Backfill {
         finally { c.setAutoCommit(true); }
     }
     private static void preflightFlexibleDuplicates(Connection c) throws SQLException {
-        for (String table : List.of("flexible_topics","flexible_tasks")) {
-            String sql="SELECT course_group,name,COUNT(*) AS n FROM "+table+" WHERE course_group IS NOT NULL GROUP BY course_group,name HAVING COUNT(*)>1";
-            for (var row:Curriculum.rows(c,sql))
-                throw Curriculum.error(409,"flexible_duplicate_conflict",table+" duplicate for course_group "+Curriculum.integer(row,"course_group")+" and name '"+row.get("name")+"'.");
+        Map<String,List<Integer>> topics=new LinkedHashMap<>(), tasks=new LinkedHashMap<>();
+        for(var r:Curriculum.rows(c,"SELECT id,owner_teacher,subject,semester,grade,name,course_group FROM flexible_topics")) {
+            if(!Curriculum.individualSubject(c,Curriculum.integer(r,"subject"))) continue;
+            int g=r.get("course_group")==null
+                    ? group(c,Curriculum.integer(r,"subject"),Curriculum.integer(r,"grade"),Curriculum.integer(r,"semester"),Curriculum.integer(r,"owner_teacher")).id()
+                    : Curriculum.integer(r,"course_group");
+            topics.computeIfAbsent(g+":"+r.get("name"),k->new ArrayList<>()).add(Curriculum.integer(r,"id"));
         }
-        for (var row:Curriculum.rows(c,"SELECT t.course_group,t.name,COUNT(*) AS n FROM flexible_tasks t JOIN flexible_task_topics m ON m.flexible_task=t.id WHERE t.course_group IS NOT NULL GROUP BY t.course_group,t.name HAVING COUNT(DISTINCT m.flexible_topic)>1"))
-            throw Curriculum.error(409,"flexible_topic_conflict","Flexible task duplicate topic mapping for course_group "+Curriculum.integer(row,"course_group")+" and name '"+row.get("name")+"'.");
+        for(var e:topics.entrySet()) if(e.getValue().size()>1)
+            throw Curriculum.error(409,"flexible_duplicate_conflict","Flexible topic collision for course group/name "+e.getKey()+" IDs "+e.getValue());
+        for(var r:Curriculum.rows(c,"SELECT id,owner_teacher,subject,semester,grade,name,course_group,tokens FROM flexible_tasks")) {
+            if(!Curriculum.individualSubject(c,Curriculum.integer(r,"subject"))) continue;
+            int g=r.get("course_group")==null
+                    ? group(c,Curriculum.integer(r,"subject"),Curriculum.integer(r,"grade"),Curriculum.integer(r,"semester"),Curriculum.integer(r,"owner_teacher")).id()
+                    : Curriculum.integer(r,"course_group");
+            tasks.computeIfAbsent(g+":"+r.get("name"),k->new ArrayList<>()).add(Curriculum.integer(r,"id"));
+        }
+        for(var e:tasks.entrySet()) if(e.getValue().size()>1)
+            throw Curriculum.error(409,"flexible_duplicate_conflict","Flexible task collision for course group/name "+e.getKey()+" IDs "+e.getValue());
     }
     private static CourseGroup group(Connection c,int subject,int grade,int semester,int teacher) throws SQLException {
         CourseGroup g=CourseGroup.resolve(c,subject,grade,semester);
