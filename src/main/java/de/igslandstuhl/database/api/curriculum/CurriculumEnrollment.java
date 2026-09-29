@@ -83,8 +83,10 @@ public final class CurriculumEnrollment {
     private static void copyFrame(Connection c,int from,int to) throws SQLException {
         write(c,"INSERT INTO curriculum_grade_subjects(grade,semester,subject) SELECT grade,?,subject FROM curriculum_grade_subjects WHERE semester=? ON CONFLICT DO NOTHING",to,from);
         write(c,"INSERT INTO curriculum_enrolled_students(student,semester,grade) SELECT student,?,grade FROM curriculum_enrolled_students WHERE semester=? ON CONFLICT DO NOTHING",to,from);
-        write(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) SELECT student,subject,?,teacher,class,grade FROM student_curriculum_contexts WHERE semester=? ON CONFLICT DO NOTHING",to,from);
         write(c,"INSERT INTO curriculum_individual_assignments(student,semester,assignment_group,subject) SELECT student,?,assignment_group,subject FROM curriculum_individual_assignments WHERE semester=? ON CONFLICT DO NOTHING",to,from);
+        write(c,"INSERT INTO course_groups(subject,grade,semester,teacher,assignment_group,name,active) SELECT subject,grade,?,teacher,assignment_group,name,active FROM course_groups WHERE semester=? ON CONFLICT(subject,grade,semester) DO NOTHING",to,from);
+        write(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade,course_group) SELECT x.student,x.subject,?,x.teacher,x.class,x.grade,g.id FROM student_curriculum_contexts x LEFT JOIN course_groups g ON g.subject=x.subject AND g.grade=x.grade AND g.semester=? WHERE x.semester=? ON CONFLICT DO NOTHING",to,to,from);
+        write(c,"INSERT INTO course_group_members(course_group,student) SELECT g.id,a.student FROM curriculum_individual_assignments a JOIN student_curriculum_contexts x ON x.student=a.student AND x.subject=a.subject AND x.semester=? JOIN course_groups g ON g.subject=a.subject AND g.grade=x.grade AND g.semester=? JOIN curriculum_subject_types st ON st.subject=a.subject AND st.mode='INDIVIDUAL' WHERE a.semester=? ON CONFLICT DO NOTHING",to,to,to);
         write(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) SELECT ?,class,subject,teacher FROM curriculum_class_teachers WHERE semester=? ON CONFLICT DO NOTHING",to,from);
         write(c,"INSERT INTO curriculum_grade_teachers(semester,grade,subject,teacher) SELECT ?,grade,subject,teacher FROM curriculum_grade_teachers WHERE semester=? ON CONFLICT DO NOTHING",to,from);
     }
@@ -157,6 +159,18 @@ public final class CurriculumEnrollment {
             "teachers",rows(c,"SELECT id,first_name,last_name FROM teachers ORDER BY last_name,first_name"),
             "teaching",rows(c,"SELECT teacher AS teacherId,class AS classId,NULL AS grade,subject AS subjectId,semester AS semesterId FROM curriculum_class_teachers UNION SELECT teacher AS teacherId,NULL AS classId,grade,subject AS subjectId,semester AS semesterId FROM curriculum_grade_teachers"),
             "gradeSubjects",rows(c,"SELECT grade,semester AS semesterId,subject AS subjectId FROM curriculum_grade_subjects")));
+    }
+    public List<Map<String,Object>> courseGroups(Actor actor,Integer semesterId,Integer grade,String assignmentGroup) throws SQLException {
+        admin(actor);
+        return curriculum.transaction(c->{
+            StringBuilder sql=new StringBuilder("SELECT g.id,g.name,g.subject AS subjectId,s.name AS subjectName,g.grade,g.semester AS semesterId,g.teacher AS teacherId,trim(t.first_name||' '||t.last_name) AS teacherName,g.assignment_group AS assignmentGroup,g.active,COUNT(m.student) AS memberCount FROM course_groups g JOIN subjects s ON s.id=g.subject JOIN teachers t ON t.id=g.teacher LEFT JOIN course_group_members m ON m.course_group=g.id WHERE 1=1");
+            List<Object> args=new ArrayList<>();
+            if(semesterId!=null){sql.append(" AND g.semester=?");args.add(semesterId);}
+            if(grade!=null){sql.append(" AND g.grade=?");args.add(grade);}
+            if(assignmentGroup!=null){sql.append(" AND g.assignment_group=?");args.add(assignmentGroup.strip().toUpperCase(Locale.ROOT));}
+            sql.append(" GROUP BY g.id ORDER BY g.grade,g.semester,s.name,g.id");
+            return rows(c,sql.toString(),args.toArray());
+        });
     }
     public void subjectType(Actor actor,int subject,boolean isWpf) throws SQLException {
         subjectType(actor,subject,isWpf?"INDIVIDUAL":"REGULAR",isWpf?"WPF":null);
@@ -273,6 +287,10 @@ public final class CurriculumEnrollment {
                 long completed=number(c,"SELECT COUNT(*) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE x.student=? AND x.status<>0 AND p.subject=? AND p.semester=?",student,old,scope.semesterId())
                     +number(c,"SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task WHERE x.student=? AND t.subject=? AND t.semester=?",student,old,semester);
                 if(completed>0)throw error(409,"context_conflict","Individual subject with existing work requires an explicit transfer.");
+                var oldContext=rows(c,"SELECT course_group FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",student,old,semester);
+                if(!oldContext.isEmpty() && oldContext.get(0).get("course_group")!=null)
+                    write(c,"DELETE FROM course_group_members WHERE course_group=? AND student=?",integer(oldContext.get(0),"course_group"),student);
+                write(c,"DELETE FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",student,old,semester);
             }
             Curriculum.assign(c,student,scope);
             var previousEnrollment=rows(c,"SELECT grade FROM curriculum_enrolled_students WHERE student=? AND semester=?",student,semester);

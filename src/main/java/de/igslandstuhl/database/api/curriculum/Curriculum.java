@@ -372,9 +372,12 @@ public final class Curriculum {
             // A change of context must not combine or silently discard previously completed flexible work.
             compatibleCompletions(c, studentId, scope, grade);
             limit(List.of(Budget.of(scope,grade,central(c,scope.subjectId(),grade,scope.semesterId()),flexible(c,scope))));
-            write(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,?) "
-                    + "ON CONFLICT(student,subject,semester) DO UPDATE SET teacher=excluded.teacher,class=excluded.class,grade=excluded.grade",
-                    studentId,scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),grade);
+            Integer courseGroup=null;
+            if(individualSubject(c,scope.subjectId())) courseGroup=resolveScope(c,scope).courseGroupId();
+            write(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade,course_group) VALUES(?,?,?,?,?,?,?) "
+                    + "ON CONFLICT(student,subject,semester) DO UPDATE SET teacher=excluded.teacher,class=excluded.class,grade=excluded.grade,course_group=excluded.course_group",
+                    studentId,scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),grade,courseGroup);
+            if(courseGroup!=null) write(c,"INSERT INTO course_group_members(course_group,student) VALUES(?,?) ON CONFLICT(course_group,student) DO NOTHING",courseGroup,studentId);
     }
     private static final String ACTIVE_COMPLETION = " NOT EXISTS (SELECT 1 FROM curriculum_completion_transfers m WHERE m.student=x.student AND m.source_task=x.flexible_task) ";
     public record Transfer(int sourceTaskId,int targetTaskId,int tokens) {}
