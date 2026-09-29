@@ -4,6 +4,22 @@ async function fetchJson(url, options) {
         return await res.json();
     }
 }
+async function fetchJsonStrict(url, options) {
+    const res = await fetch(url, options);
+    let payload;
+    try {
+        payload = await res.json();
+    } catch (_) {
+        payload = null;
+    }
+    if (!res.ok) {
+        const error = new Error(payload && payload.message ? payload.message : `HTTP ${res.status}`);
+        error.status = res.status;
+        error.code = payload && payload.error ? payload.error : null;
+        throw error;
+    }
+    return payload;
+}
 async function getJson(url) {
     return await fetchJson(url);
 }
@@ -16,6 +32,13 @@ async function getJsonWithPost(url, data) {
 }
 async function post(url, data) {
     return await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+}
+async function postStrict(url, data) {
+    return await fetchJsonStrict(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -64,6 +87,20 @@ async function fetchMySubjects() {
 }
 async function fetchMyCurriculumSubjects() {
     return await getJsonWithPost('/my-curriculum-subjects', {});
+}
+async function fetchMyManagedSubjects() {
+    return await fetchJsonStrict('/my-curriculum-subjects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    });
+}
+async function fetchMyCurriculumCatalog(subjectId) {
+    return await fetchJsonStrict('/my-curriculum-catalog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjectId })
+    });
 }
 async function fetchStudentSubjects(studentId) {
     const subjects = await getJsonWithPost('/student-subjects', { studentId });
@@ -426,10 +463,11 @@ async function buildTeacherDashboard(classes, subjects) {
 
     teacherDashboardLoadEvent();
 }
-function createRequestButton(subject, type, label, readOnly) {
+function createRequestButton(subject, type, label, readOnly, options = {}) {
     if (readOnly) return document.createTextNode('');
     const btn = document.createElement('button');
     btn.textContent = label;
+    const managed = options.managed === true;
 
     // Helper to check if this request is active
     function isActive() {
@@ -447,26 +485,38 @@ function createRequestButton(subject, type, label, readOnly) {
         } else {
           btn.classList.remove('active-request');
         }
+        // A stale request may still be removed, but new requests require an active stage.
+        btn.disabled = managed && !options.activeStage && !isActive();
+        if (btn.disabled) btn.title = 'Wähle zuerst eine aktive Etappe.';
     }
     updateButton();
 
     btn.addEventListener('click', async () => {
-        if (isActive()) {
-            await removeSubjectRequest(subject.id, type);
-            // Update local state
-            if (studentData.currentRequests[subject.id]) {
-                studentData.currentRequests[subject.id] = studentData.currentRequests[subject.id].filter(t => t !== type);
-                if (studentData.currentRequests[subject.id].length === 0) {
-                    delete studentData.currentRequests[subject.id];
+        if (btn.disabled) return;
+        try {
+            if (isActive()) {
+                const response = await removeSubjectRequest(subject.id, type);
+                if (!response || !response.ok) return;
+                // Update local state only after the server accepted the removal.
+                if (studentData.currentRequests[subject.id]) {
+                    studentData.currentRequests[subject.id] = studentData.currentRequests[subject.id].filter(t => t !== type);
+                    if (studentData.currentRequests[subject.id].length === 0) {
+                        delete studentData.currentRequests[subject.id];
+                    }
                 }
+            } else {
+                if (managed && !options.activeStage) return;
+                const response = await addSubjectRequest(subject.id, type);
+                if (!response || !response.ok) return;
+                // Update local state only after the server accepted the addition.
+                if (!studentData.currentRequests[subject.id]) {
+                    studentData.currentRequests[subject.id] = [];
+                }
+                studentData.currentRequests[subject.id].push(type);
             }
-        } else {
-            await addSubjectRequest(subject.id, type);
-            // Update local state
-            if (!studentData.currentRequests[subject.id]) {
-                studentData.currentRequests[subject.id] = [];
-            }
-            studentData.currentRequests[subject.id].push(type);
+        } catch (_) {
+            // Keep the last confirmed server state visible after a network/API error.
+            return;
         }
         updateButton();
     });
@@ -509,7 +559,7 @@ function createPanel(header, bodyContent, loadCallback) {
     panel.refresh = refreshPanel;
     return panel;
 }
-function createSubjectPanel(subject, studentData, teacherPerms) {
+function createLegacySubjectPanel(subject, studentData, teacherPerms) {
     const body = document.createElement('div');
     function createRequestButtons(body) {
         ['hilfe', 'partner', 'betreuung', 'gelingensnachweis'].forEach(type => {
@@ -532,6 +582,12 @@ function createSubjectPanel(subject, studentData, teacherPerms) {
         createRequestButtons(body);
         // Load current topic for this subject
         const topic = await fetchCurrentTopic(subject.id, studentId);
+        if (!topic) {
+            const empty = document.createElement('p');
+            empty.textContent = 'Für dieses Fach ist aktuell kein Thema ausgewählt.';
+            body.appendChild(empty);
+            return;
+        }
 
         const topicTitle = document.createElement('p');
         if (teacherPerms) {
@@ -566,7 +622,7 @@ function createSubjectPanel(subject, studentData, teacherPerms) {
         );
         let allTasks = [];
         if (Array.isArray(topic.tasks) && topic.tasks.length > 0) {
-            allTasks = await fetchTasks(topic.tasks, studentId);
+            allTasks = await fetchTasks(topic.tasks, studentId) || [];
         }
 
         const otherTasks = allTasks.filter(
@@ -647,18 +703,131 @@ function createSubjectPanel(subject, studentData, teacherPerms) {
     });
     return panel;
 }
+function curriculumLevelLabel(level) {
+    return {1: 'Wanderer', 2: 'Bergsteiger', 3: 'Gipfelstürmer'}[level] || '';
+}
+function curriculumStageLabel(task) {
+    const stage = task.stageNumber == null ? '' : `Etappe ${task.stageNumber} · `;
+    const topic = task.topicName ? `${decodeEntities(task.topicName)} · ` : '';
+    const level = curriculumLevelLabel(task.niveau);
+    const levelText = level ? ` · ${level}` : '';
+    const activeText = task.inProgress ? ' · Aktive Etappe' : '';
+    return `${stage}${topic}${decodeEntities(task.name || '')} · ${task.tokens ?? 0} Münzen${levelText}${activeText}`;
+}
+function appendCurriculumStageSection(body, title, tasks, onClick) {
+    if (!Array.isArray(tasks) || tasks.length === 0) return;
+    const section = createList(tasks, curriculumStageLabel, title, onClick);
+    body.appendChild(section.label);
+    body.appendChild(section.list);
+}
+function renderManagedActiveStage(body, catalog) {
+    const heading = document.createElement('h4');
+    heading.textContent = 'Aktive Etappe';
+    body.appendChild(heading);
+    const active = catalog && catalog.activeStage;
+    const message = document.createElement('p');
+    if (!active) {
+        message.textContent = 'Noch keine aktive Etappe gewählt.';
+    } else {
+        const allTasks = [...(catalog.centralTasks || []), ...(catalog.flexibleTasks || [])];
+        const task = allTasks.find(candidate => Number(candidate.id) === Number(active.taskId));
+        const topic = task && task.topicName ? ` · ${decodeEntities(task.topicName)}` : '';
+        const level = active.niveau ? ` · ${curriculumLevelLabel(active.niveau)}` : '';
+        message.textContent = `${decodeEntities(active.name || (task && task.name) || '')}${topic}${level}`;
+    }
+    body.appendChild(message);
+}
+function renderManagedSubjectPanel(body, subject, panel, catalog) {
+    renderManagedActiveStage(body, catalog);
+    const activeStage = catalog && catalog.activeStage;
+    const requests = document.createElement('div');
+    ['hilfe', 'partner', 'betreuung', 'gelingensnachweis'].forEach(type => {
+        const label = {
+            hilfe: 'Schüler braucht Hilfe',
+            partner: 'Schüler sucht einen Partner',
+            betreuung: 'Schüler braucht Betreuung für ein Experiment',
+            gelingensnachweis: 'Schüler ist bereit für den Gelingensnachweis'
+        }[type];
+        requests.appendChild(createRequestButton(subject, type, label, false, {managed: true, activeStage}));
+    });
+    body.appendChild(requests);
+    if (!activeStage) {
+        const hint = document.createElement('p');
+        hint.textContent = 'Wähle zuerst eine aktive Etappe.';
+        body.appendChild(hint);
+    }
+
+    const centralOpen = (catalog.centralTasks || []).filter(task => task.active && !task.completed);
+    const flexibleOpen = (catalog.flexibleTasks || []).filter(task => task.active && !task.completed);
+    const completed = [...(catalog.centralTasks || []), ...(catalog.flexibleTasks || [])].filter(task => task.completed);
+    const changeStage = async (path, task) => {
+        try {
+            await postStrict(path, {taskId: task.id});
+            panel.refresh();
+        } catch (error) {
+            const failure = document.createElement('p');
+            failure.textContent = error.message || 'Die Etappe konnte nicht aktiviert werden.';
+            failure.className = 'curriculum-error';
+            body.appendChild(failure);
+        }
+    };
+    appendCurriculumStageSection(body, 'Freigegebene zentrale Etappen:', centralOpen,
+        task => changeStage(task.inProgress ? '/cancel-task' : '/begin-task', task));
+    appendCurriculumStageSection(body, 'Freigegebene flexible Etappen:', flexibleOpen,
+        task => changeStage(task.inProgress ? '/cancel-flexible-task' : '/begin-flexible-task', task));
+    if (centralOpen.length === 0 && flexibleOpen.length === 0) {
+        const empty = document.createElement('p');
+        empty.textContent = 'Für dieses Fach sind noch keine Etappen freigeschaltet.';
+        body.appendChild(empty);
+    }
+    appendCurriculumStageSection(body, 'Abgeschlossene Etappen:', completed);
+}
+function createSubjectPanel(subject, studentData, teacherPerms, managedSubjectIds) {
+    const managed = !teacherPerms && managedSubjectIds && typeof managedSubjectIds.has === 'function'
+        && managedSubjectIds.has(Number(subject.id));
+    const managedLookupFailed = !teacherPerms && managedSubjectIds === null;
+    if (managed || managedLookupFailed) {
+        const body = document.createElement('div');
+        const panel = createPanel(subject.name, body, async (header, body) => {
+            body.innerHTML = '';
+            if (managedLookupFailed) {
+                const error = document.createElement('p');
+                error.textContent = 'Der verwaltete Curriculum-Kontext konnte nicht geladen werden.';
+                error.className = 'curriculum-error';
+                body.appendChild(error);
+                return;
+            }
+            try {
+                const catalog = await fetchMyCurriculumCatalog(subject.id);
+                renderManagedSubjectPanel(body, subject, panel, catalog);
+            } catch (error) {
+                const failure = document.createElement('p');
+                failure.textContent = error.code === 'context_unassigned'
+                    ? 'Für dieses Fach ist kein verwalteter Curriculum-Kontext zugeordnet.'
+                    : error.message || 'Der Curriculum-Katalog konnte nicht geladen werden.';
+                failure.className = 'curriculum-error';
+                body.appendChild(failure);
+            }
+        });
+        return panel;
+    }
+    return createLegacySubjectPanel(subject, studentData, teacherPerms);
+}
 function decodeEntities(str) {
     const txt = document.createElement("textarea");
     txt.innerHTML = str;
     return txt.value;
 }
-function loadStudentDashboard(studentData, subjects, teacherPerms) { // Show student info
+function loadStudentDashboard(studentData, subjects, teacherPerms, managedSubjects) { // Show student info
     setStudentInfo(studentData);
 
     // Show subjects
     const subjectList = document.getElementById('subject-list');
+    const managedSubjectIds = teacherPerms ? undefined
+        : managedSubjects === null ? null
+        : new Set((managedSubjects || []).map(subject => Number(subject.id)));
     subjects.forEach(subject => {
-        const panel = createSubjectPanel(subject, studentData, teacherPerms);
+        const panel = createSubjectPanel(subject, studentData, teacherPerms, managedSubjectIds);
         subjectList.appendChild(panel);
     });
 

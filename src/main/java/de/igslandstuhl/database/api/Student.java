@@ -543,7 +543,7 @@ public class Student extends User {
     public void addSubjectRequest(int subjectId, String type) throws SQLException {
         SubjectRequest request = SubjectRequest.fromGermanTranslation(type);
         int semesterId = currentSemesterId();
-        requireSubjectRequestContext(subjectId, semesterId);
+        requireActiveSubjectRequestContext(subjectId, semesterId);
         Server.getInstance().getConnection().writeTransaction(c -> {
             try (var s = c.prepareStatement("INSERT INTO student_subject_requests(student,subject,semester,request_type,last_updated) VALUES(?,?,?,?,CURRENT_TIMESTAMP) "
                     + "ON CONFLICT(student,subject,semester,request_type) DO UPDATE SET last_updated=CURRENT_TIMESTAMP")) {
@@ -623,6 +623,19 @@ public class Student extends User {
             s.setInt(4, schoolClass.getId());
             try (var r = s.executeQuery()) {
                 if (!r.next() || r.getLong(1) == 0) throw new CurriculumException(403, "forbidden", "Subject is not assigned to this student.");
+            }
+        }
+    }
+    private void requireActiveSubjectRequestContext(int subjectId, int semesterId) throws SQLException {
+        requireSubjectRequestContext(subjectId, semesterId);
+        try (var s = Server.getInstance().getConnection().getSQLConnection().prepareStatement(
+                "SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=? AND semester=?")) {
+            s.setInt(1, id);
+            s.setInt(2, subjectId);
+            s.setInt(3, semesterId);
+            try (var r = s.executeQuery()) {
+                if (!r.next() || r.getLong(1) == 0)
+                    throw new CurriculumException(409, "active_stage_required", "Wähle zuerst eine aktive Etappe.");
             }
         }
     }

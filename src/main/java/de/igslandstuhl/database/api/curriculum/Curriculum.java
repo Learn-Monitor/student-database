@@ -587,6 +587,7 @@ public final class Curriculum {
                                               AssessmentStatus status) throws SQLException {
         if(actor==null || actor.admin()) throw error(403,"forbidden","Teacher required for student assessment.");
         if(status==null) throw error(400,"invalid_input","Assessment status is required.");
+        boolean[] requestsCleared={false};
         transaction(c -> {
             if(stageType==ActiveStageType.FLEXIBLE && status==AssessmentStatus.PASSED) {
                 if(!actor.admin() && actor.teacherId()!=scope.teacherId())
@@ -596,6 +597,7 @@ public final class Curriculum {
             }
             int grade=validateAssessmentStage(c,actor,studentId,scope,stageType,stageId);
             if(status==AssessmentStatus.PASSED) {
+                requestsCleared[0]=clearRequestsWhenStageEnds(c,studentId,scope.subjectId(),scope.semesterId(),stageType,stageId);
                 if(stageType==ActiveStageType.CENTRAL) {
                     setCentralStatus(c,studentId,stageId,Task.STATUS_COMPLETED);
                     write(c,"DELETE FROM student_curriculum_stage_assessments WHERE student=? AND subject=? AND semester=? AND stage_type=? AND stage_id=?",
@@ -616,6 +618,7 @@ public final class Curriculum {
             }
             return null;
         });
+        if(requestsCleared[0]) Student.get(studentId).clearSubjectRequest(scope.subjectId());
         if(stageType==ActiveStageType.CENTRAL && status==AssessmentStatus.PASSED) {
             Student student=Student.get(studentId);Task task=Task.get(stageId);
             if(student!=null && task!=null) student.applyTaskStatusCache(task,Task.STATUS_COMPLETED);
@@ -634,6 +637,29 @@ public final class Curriculum {
     }
     private static void clearActiveCentral(Connection c,int studentId,CentralTask task) throws SQLException {
         write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=? AND central_task=?",studentId,task.subjectId(),task.id());
+    }
+    private static boolean activeStageMatches(Connection c,int studentId,int subjectId,int semesterId,
+                                              ActiveStageType type,int taskId) throws SQLException {
+        String column=type==ActiveStageType.CENTRAL?"central_task":"flexible_task";
+        return number(c,"SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=? AND semester=? AND "+column+"=?",
+                studentId,subjectId,semesterId,taskId)>0;
+    }
+    private static boolean clearSubjectRequests(Connection c,int studentId,int subjectId,int semesterId) throws SQLException {
+        long count=number(c,"SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=?",
+                studentId,subjectId,semesterId);
+        if(count==0)return false;
+        write(c,"DELETE FROM student_subject_requests WHERE student=? AND subject=? AND semester=?",studentId,subjectId,semesterId);
+        return true;
+    }
+    private static boolean clearRequestsWhenStageChanges(Connection c,int studentId,int subjectId,int semesterId,
+                                                         ActiveStageType type,int taskId) throws SQLException {
+        if(activeStageMatches(c,studentId,subjectId,semesterId,type,taskId))return false;
+        return clearSubjectRequests(c,studentId,subjectId,semesterId);
+    }
+    private static boolean clearRequestsWhenStageEnds(Connection c,int studentId,int subjectId,int semesterId,
+                                                      ActiveStageType type,int taskId) throws SQLException {
+        if(!activeStageMatches(c,studentId,subjectId,semesterId,type,taskId))return false;
+        return clearSubjectRequests(c,studentId,subjectId,semesterId);
     }
     private static void resetCentralInProgress(Connection c,int studentId,int subjectId) throws SQLException {
         write(c,"UPDATE taskstats SET status=0,last_updated=CURRENT_TIMESTAMP WHERE student=? AND status=1 AND task IN("
@@ -655,6 +681,7 @@ public final class Curriculum {
         });
     }
     public void activateCentralStage(int studentId,int taskId) throws SQLException {
+        boolean[] requestsCleared={false};
         CentralTask activated=transaction(c->{
             CentralTask task=centralTask(c,taskId);
             var assignment=assigned(c,studentId,task.subjectId(),task.semesterId());
@@ -663,17 +690,20 @@ public final class Curriculum {
             authorize(c,new Actor(false,scope.teacherId()),scope,false);
             if(!CurriculumEnrollment.released(c,scope,task.id(),task.topicId()))
                 throw error(403,"forbidden","This task has not been released for the student's class.");
+            requestsCleared[0]=clearRequestsWhenStageChanges(c,studentId,task.subjectId(),task.semesterId(),ActiveStageType.CENTRAL,task.id());
             resetCentralInProgress(c,studentId,task.subjectId());
             putActiveCentral(c,studentId,task);
             setCentralStatus(c,studentId,task.id(),Task.STATUS_IN_PROGRESS);
             return task;
         });
         if(activated==null) throw error(404,"not_found","Requested curriculum object does not exist.");
+        if(requestsCleared[0]) Student.get(studentId).clearSubjectRequest(activated.subjectId());
         Student student=Student.get(studentId);
         Task cached=Task.get(activated.id());
         if(student!=null && cached!=null) student.selectOnlyTaskForSubject(cached);
     }
     public void activateFlexibleStage(int studentId,int taskId) throws SQLException {
+        boolean[] requestsCleared={false};
         FlexibleTask activated=transaction(c->{
             var row=require(c,"SELECT t.*,p.flexible_topic AS topic FROM flexible_tasks t LEFT JOIN flexible_task_topics p ON p.flexible_task=t.id WHERE t.id=?",taskId);
             FlexibleTask task=task(row);
@@ -683,42 +713,56 @@ public final class Curriculum {
             if(grade!=task.grade()) throw error(409,"context_conflict","Context contains inconsistent historical grades.");
             if(!CurriculumEnrollment.flexibleReleased(c,task.scope(),task.id(),row.get("topic")==null?null:integer(row,"topic")))
                 throw error(403,"forbidden","This flexible task has not been released for the student's class.");
+            requestsCleared[0]=clearRequestsWhenStageChanges(c,studentId,task.subjectId(),task.semesterId(),ActiveStageType.FLEXIBLE,task.id());
             resetCentralInProgress(c,studentId,task.subjectId());
             putActiveFlexible(c,studentId,task);
             return task;
         });
         if(activated==null) throw error(404,"not_found","Requested curriculum object does not exist.");
+        if(requestsCleared[0]) Student.get(studentId).clearSubjectRequest(activated.subjectId());
         Student student=Student.get(studentId);
         Subject subject=Subject.get(activated.subjectId());
         if(student!=null && subject!=null) student.clearSelectedTasksForSubject(subject);
     }
     public void deactivateFlexibleStage(int studentId,int taskId) throws SQLException {
+        boolean[] requestsCleared={false};
         FlexibleTask deactivated=transaction(c->{
             FlexibleTask task=task(require(c,"SELECT * FROM flexible_tasks WHERE id=?",taskId));
             var student=require(c,"SELECT class FROM students WHERE id=?",studentId);
             if(integer(student,"class")!=task.classId()) throw error(403,"forbidden","Student does not belong to this task's class.");
             int grade=requireAssignment(c,studentId,task.scope());
             if(grade!=task.grade()) throw error(409,"context_conflict","Context contains inconsistent historical grades.");
+            requestsCleared[0]=clearRequestsWhenStageEnds(c,studentId,task.subjectId(),task.semesterId(),ActiveStageType.FLEXIBLE,task.id());
             write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=? AND flexible_task=?",studentId,task.subjectId(),task.id());
             return task;
         });
         if(deactivated==null) throw error(404,"not_found","Requested curriculum object does not exist.");
+        if(requestsCleared[0]) Student.get(studentId).clearSubjectRequest(deactivated.subjectId());
     }
     public void clearActiveStage(int studentId,int subjectId) throws SQLException {
-        transaction(c->{write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=?",studentId,subjectId);return null;});
+        boolean[] requestsCleared={false};
+        transaction(c->{
+            var active=rows(c,"SELECT semester FROM student_active_curriculum_stages WHERE student=? AND subject=?",studentId,subjectId);
+            if(!active.isEmpty())requestsCleared[0]=clearSubjectRequests(c,studentId,subjectId,integer(active.get(0),"semester"));
+            write(c,"DELETE FROM student_active_curriculum_stages WHERE student=? AND subject=?",studentId,subjectId);return null;
+        });
+        if(requestsCleared[0]) Student.get(studentId).clearSubjectRequest(subjectId);
     }
     public void changeCentralStageStatus(int studentId,int taskId,int newStatus) throws SQLException {
         if(newStatus==Task.STATUS_IN_PROGRESS) {
             activateCentralStage(studentId,taskId);
             return;
         }
+        boolean[] requestsCleared={false};
         CentralTask changed=transaction(c->{
             CentralTask task=centralTask(c,taskId);
+            requestsCleared[0]=clearRequestsWhenStageEnds(c,studentId,task.subjectId(),task.semesterId(),ActiveStageType.CENTRAL,task.id());
             setCentralStatus(c,studentId,task.id(),newStatus);
             clearActiveCentral(c,studentId,task);
             return task;
         });
         if(changed==null) throw error(404,"not_found","Requested curriculum object does not exist.");
+        if(requestsCleared[0]) Student.get(studentId).clearSubjectRequest(changed.subjectId());
         Student student=Student.get(studentId);
         Task cached=Task.get(changed.id());
         if(student!=null && cached!=null) student.applyTaskStatusCache(cached,newStatus);
@@ -789,6 +833,9 @@ public final class Curriculum {
         return out;
     }
     private static Map<String,Object> teacherRosterSignals(Connection c,int studentId,Scope scope) throws SQLException {
+        if(number(c,"SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=? AND semester=?",
+                studentId,scope.subjectId(),scope.semesterId())==0)
+            return new LinkedHashMap<>(Map.of("help",false,"partner",false,"experiment",false,"exam",false));
         Set<String> requests=new HashSet<>();
         for(var row:rows(c,"SELECT request_type FROM student_subject_requests WHERE student=? AND subject=? AND semester=?",
                 studentId,scope.subjectId(),scope.semesterId())) requests.add(String.valueOf(row.get("request_type")));
@@ -969,12 +1016,14 @@ public final class Curriculum {
                         ? new ActiveStage(ActiveStageType.CENTRAL,integer(row,"central_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("centralName"),integer(row,"centralNiveau"))
                         : new ActiveStage(ActiveStageType.FLEXIBLE,integer(row,"flexible_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("flexibleName"));
             }
-            var centralTasks=rows(c,"SELECT t.id,t.name,t.tokens,t.niveau,p.id AS topicId,p.name AS topicName FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=? ORDER BY p.number,t.id",subject,grade,semester);
+            var centralTasks=rows(c,"SELECT t.id,t.name,t.tokens,t.niveau,t.stage_number AS stageNumber,p.id AS topicId,p.name AS topicName FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=? ORDER BY p.number,t.stage_number,t.id",subject,grade,semester);
             var visibleCentral=new ArrayList<Map<String,Object>>();
             for(var task:centralTasks) {
                 boolean active=CurriculumEnrollment.released(c,scope,integer(task,"id"),integer(task,"topicId"));
                 task.put("active",active);
-                if(active || centralDone.contains(integer(task,"id")))visibleCentral.add(task);
+                boolean inProgress=activeStage!=null && activeStage.type()==ActiveStageType.CENTRAL
+                        && activeStage.taskId()==integer(task,"id");
+                if(active || centralDone.contains(integer(task,"id")) || inProgress)visibleCentral.add(task);
             }
             centralTasks=visibleCentral;
             var visibleTopics=new ArrayList<Map<String,Object>>();
@@ -988,7 +1037,9 @@ public final class Curriculum {
                 int taskId=integer(task,"id");
                 boolean active=CurriculumEnrollment.flexibleReleased(c,scope,taskId,task.get("topicId")==null?null:integer(task,"topicId"));
                 task.put("active",active);
-                if(active || flexibleDone.contains(taskId))visibleFlexibleTasks.add(task);
+                boolean inProgress=activeStage!=null && activeStage.type()==ActiveStageType.FLEXIBLE
+                        && activeStage.taskId()==taskId;
+                if(active || flexibleDone.contains(taskId) || inProgress)visibleFlexibleTasks.add(task);
             }
             flexibleTasks=visibleFlexibleTasks;
             var flexibleTopics=flexibleTopics(c,scope);

@@ -230,7 +230,7 @@ class CurriculumTest {
         assertEquals(1,scalar("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=? AND status=2",id,task));
         assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_stage_assessments WHERE student=? AND stage_id=?",id,task));
         assertEquals(0,scalar("SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=? AND central_task=?",id,id,task));
-        assertEquals(1,scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND request_type='PARTNER'",id,id));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND request_type='PARTNER'",id,id));
         service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task,Curriculum.AssessmentStatus.PASSED);
         assertEquals(1,scalar("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=?",id,task));
         for(Curriculum.AssessmentStatus status:List.of(Curriculum.AssessmentStatus.FAILED_ONCE,Curriculum.AssessmentStatus.FAILED_TWICE,Curriculum.AssessmentStatus.LOCKED)) {
@@ -240,7 +240,11 @@ class CurriculumTest {
         }
     }
     @Test void flexibleAssessmentTransitionsPreserveCompletionAndActiveStageSemantics() throws Exception {
-        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'HELP')",id,id,id);
+            return null;
+        });
         var task=service.create(teacher,scope,"Transition flexible",5);
         db.writeTransaction(c->{exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?,NULL,?)",id,id,id,task.id());return null;});
         var failed=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id(),Curriculum.AssessmentStatus.FAILED_ONCE);
@@ -251,6 +255,7 @@ class CurriculumTest {
         assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,task.id()));
         assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_stage_assessments WHERE student=? AND stage_id=?",id,task.id()));
         assertEquals(0,scalar("SELECT COUNT(*) FROM student_active_curriculum_stages WHERE student=? AND subject=? AND flexible_task=?",id,id,task.id()));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=?",id,id,id));
         service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id(),Curriculum.AssessmentStatus.PASSED);
         assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,task.id()));
         var locked=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id(),Curriculum.AssessmentStatus.LOCKED);
@@ -570,13 +575,19 @@ class CurriculumTest {
         row=byId(service.teacherRoster(teacher,scope),id);
         assertNull(row.get("activeStage"));
         signals=(Map<String,Object>)row.get("signals");
-        assertEquals(true,signals.get("help"));
-        assertEquals(true,signals.get("partner"));
+        assertEquals(false,signals.get("help"));
+        assertEquals(false,signals.get("partner"));
     }
     @SuppressWarnings("unchecked")
     @Test void teacherRosterMapsExperimentAndExamTogether() throws Exception {
         db.writeTransaction(c->{
             exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);
+            return null;
+        });
+        int central = centralNamed("Roster request stage",5);
+        releaseAllCentral();
+        service.activateCentralStage(id,central);
+        db.writeTransaction(c->{
             exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'EXPERIMENT')",id,id,id);
             exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'EXAM')",id,id,id);
             return null;
@@ -615,8 +626,8 @@ class CurriculumTest {
         assertTrue(row.get("activeStage").isJsonNull());
         var signals=row.getAsJsonObject("signals");
         assertEquals(Set.of("help","partner","experiment","exam"),signals.keySet());
-        assertTrue(signals.get("help").getAsBoolean());
-        assertTrue(signals.get("partner").getAsBoolean());
+        assertFalse(signals.get("help").getAsBoolean());
+        assertFalse(signals.get("partner").getAsBoolean());
         assertFalse(signals.get("experiment").getAsBoolean());
         assertFalse(signals.get("exam").getAsBoolean());
         assertThrows(AssertionError.class,()->byId(roster,unassigned));

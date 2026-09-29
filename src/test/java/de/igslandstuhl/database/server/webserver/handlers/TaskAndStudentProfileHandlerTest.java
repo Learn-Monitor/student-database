@@ -177,6 +177,7 @@ class TaskAndStudentProfileHandlerTest {
 
     @Test
     void subjectRequestsPersistMultipleTypesAndRemoveOnlyMatchingSignal() throws Exception {
+        curriculum.activateCentralStage(id, task);
         assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
         assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
 
@@ -191,16 +192,17 @@ class TaskAndStudentProfileHandlerTest {
             exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, otherSubject, id, id, id);
             return null;
         });
-        assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + otherSubject + ",\"subjectRequest\":\"betreuung\"}").getStatus());
+        assertEquals(Status.CONFLICT, subjectRequest(Student.get(id), "{\"subjectId\":" + otherSubject + ",\"subjectRequest\":\"betreuung\"}").getStatus());
         assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\",\"remove\":true}").getStatus());
         assertEquals(0, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
         assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='PARTNER'", id, id, id));
-        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='EXPERIMENT'", id, otherSubject, id));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='EXPERIMENT'", id, otherSubject, id));
         assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\",\"remove\":true}").getStatus());
     }
 
     @Test
     void allSubjectRequestTypesSurviveReloadAndRenderGermanJsonValues() throws Exception {
+        curriculum.activateCentralStage(id, task);
         for (String type : List.of("hilfe", "partner", "betreuung", "gelingensnachweis"))
             assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"" + type + "\"}").getStatus());
         assertEquals(4, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=?", id, id, id));
@@ -229,9 +231,16 @@ class TaskAndStudentProfileHandlerTest {
     }
 
     @Test
-    void subjectRequestsAreIsolatedBySemesterAndNotChangedByStageTransitions() throws Exception {
+    void subjectRequestsAreIsolatedBySemesterAndClearedByStageTransitions() throws Exception {
+        curriculum.activateCentralStage(id, task);
         assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
         assertTrue(Student.get(id).getCurrentRequests(Subject.get(id)).contains(SubjectRequest.HELP));
+        curriculum.activateCentralStage(id, task);
+        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
+        int secondTask = curriculum.createCentralTask(topic, "Central B", TaskLevel.LEVEL2, 5);
+        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
+        curriculum.activateCentralStage(id, secondTask);
+        assertEquals(0, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=?", id, id, id));
 
         db.writeTransaction(c -> {
             exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, id, id + 1, id, id);
@@ -239,9 +248,9 @@ class TaskAndStudentProfileHandlerTest {
             return null;
         });
         assertFalse(Student.get(id).getCurrentRequests(Subject.get(id)).contains(SubjectRequest.HELP));
-        assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"partner\"}").getStatus());
-        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
-        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='PARTNER'", id, id, id + 1));
+        assertEquals(Status.CONFLICT, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"partner\"}").getStatus());
+        assertEquals(0, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='PARTNER'", id, id, id + 1));
 
         db.writeTransaction(c -> { exec(c, "UPDATE school_years SET current_semester=? WHERE id=?", id, id); return null; });
         var flexible = curriculum.create(teacher, scope, "Flexible signal", 5);
@@ -250,7 +259,17 @@ class TaskAndStudentProfileHandlerTest {
         assertEquals(Status.OK, flexibleChange(Student.get(id), "/begin-flexible-task", flexible.id()).getStatus());
         assertEquals(Status.OK, flexibleChange(Student.get(id), "/cancel-flexible-task", flexible.id()).getStatus());
         new CurriculumEnrollment(curriculum).release(teacher, scope, null, task, false);
-        assertEquals(1, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM student_subject_requests WHERE student=? AND subject=? AND semester=? AND request_type='HELP'", id, id, id));
+    }
+
+    @Test
+    void subjectRequestAddRequiresActiveStageButRemovalDoesNot() throws Exception {
+        assertEquals(Status.CONFLICT, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());
+        db.writeTransaction(c -> {
+            exec(c, "INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'HELP')", id, id, id);
+            return null;
+        });
+        assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\",\"remove\":true}").getStatus());
     }
 
     @Test
