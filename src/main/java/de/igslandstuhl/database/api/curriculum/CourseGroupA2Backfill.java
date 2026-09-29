@@ -13,6 +13,9 @@ public final class CourseGroupA2Backfill {
             backfillFlexible(c);
             migrateCentralReleases(c);
             migrateFlexibleReleases(c);
+            // Deliberately last: legacy data has passed the duplicate/conflict preflight.
+            Curriculum.write(c,"CREATE UNIQUE INDEX IF NOT EXISTS uq_flexible_topics_course_group_name ON flexible_topics(course_group,name) WHERE course_group IS NOT NULL");
+            Curriculum.write(c,"CREATE UNIQUE INDEX IF NOT EXISTS uq_flexible_tasks_course_group_name ON flexible_tasks(course_group,name) WHERE course_group IS NOT NULL");
             c.commit();
         } catch(SQLException|RuntimeException e) { try { c.rollback(); } catch(SQLException ignored) {} throw e; }
         finally { c.setAutoCommit(true); }
