@@ -68,4 +68,69 @@ class CourseGroupFoundationTest {
             assertEquals(0,scalar(c,"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='uq_flexible_tasks_course_group_name'"));
         }
     }
+
+    @Test void centralGroupReleaseIsSharedAcrossThreeHomeClasses() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); seedGroup(c);
+            exec(c,"INSERT INTO course_group_topic_releases VALUES(7,100,1)");
+            assertTrue(CurriculumEnrollment.topicReleased(c,new Curriculum.Scope(20,1,30,10),100));
+            assertTrue(CurriculumEnrollment.topicReleased(c,new Curriculum.Scope(20,1,31,10),100));
+            assertTrue(CurriculumEnrollment.topicReleased(c,new Curriculum.Scope(20,1,32,10),100));
+            exec(c,"INSERT INTO course_groups VALUES(8,1,6,11,20,'WPF','Other',1)");
+            assertFalse(CurriculumEnrollment.topicReleased(c,new Curriculum.Scope(20,1,30,11),100));
+        }
+    }
+
+    @Test void centralTaskOverrideIsSharedAndOverridesGroupTopicRelease() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); seedGroup(c); exec(c,"INSERT INTO topics VALUES(100,1,6,10)"); exec(c,"INSERT INTO tasks VALUES(200,100)");
+            exec(c,"INSERT INTO course_group_topic_releases VALUES(7,100,1)"); exec(c,"INSERT INTO course_group_task_releases VALUES(7,200,0)");
+            assertTrue(CurriculumEnrollment.topicReleased(c,new Curriculum.Scope(20,1,30,10),100));
+            assertFalse(CurriculumEnrollment.released(c,new Curriculum.Scope(20,1,31,10),200,100));
+        }
+    }
+
+    @Test void flexibleGroupReleaseReturnsSameIdsAndStateAcrossClasses() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); seedGroup(c);
+            exec(c,"CREATE TABLE flexible_topics(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,course_group INTEGER)");
+            exec(c,"CREATE TABLE flexible_tasks(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,tokens INTEGER,course_group INTEGER)");
+            exec(c,"INSERT INTO flexible_topics VALUES(300,20,1,30,10,6,'Flex',7)"); exec(c,"INSERT INTO flexible_tasks VALUES(301,20,1,30,10,6,'Flex task',10,7)");
+            exec(c,"INSERT INTO course_group_flexible_topic_releases VALUES(7,300,1)"); exec(c,"INSERT INTO course_group_flexible_task_releases VALUES(7,301,1)");
+            assertTrue(CurriculumEnrollment.flexibleTopicReleased(c,new Curriculum.Scope(20,1,31,10),300));
+            assertTrue(CurriculumEnrollment.flexibleReleased(c,new Curriculum.Scope(20,1,31,10),301,300));
+            assertEquals(300,scalar(c,"SELECT id FROM flexible_topics WHERE course_group=7")); assertEquals(301,scalar(c,"SELECT id FROM flexible_tasks WHERE course_group=7"));
+        }
+    }
+
+    @Test void individualBudgetIsEqualForThreeHomeClasses() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); seedGroup(c); exec(c,"CREATE TABLE flexible_tasks(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,tokens INTEGER,course_group INTEGER)");
+            exec(c,"INSERT INTO flexible_tasks VALUES(301,20,1,30,10,6,'Flex',10,7)");
+            assertEquals(10,Curriculum.flexible(c,new Curriculum.Scope(20,1,30,10)));
+            assertEquals(10,Curriculum.flexible(c,new Curriculum.Scope(20,1,31,10)));
+            assertEquals(10,Curriculum.flexible(c,new Curriculum.Scope(20,1,32,10)));
+        }
+    }
+
+    @Test void crossClassCatalogInputsResolveToSameCourseGroupData() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); seedGroup(c);
+            exec(c,"CREATE TABLE course_group_members(course_group INTEGER,student INTEGER,PRIMARY KEY(course_group,student))");
+            exec(c,"INSERT INTO course_group_members VALUES(7,40),(7,41)");
+            var a=CourseGroup.resolveForStudent(c,40,1,10); var b=CourseGroup.resolveForStudent(c,41,1,10);
+            assertEquals(a.id(),b.id()); assertEquals(a.subjectId(),b.subjectId()); assertEquals(a.grade(),b.grade()); assertEquals(a.semesterId(),b.semesterId());
+        }
+    }
+
+    static void releaseSchema(Connection c)throws SQLException {
+        exec(c,"CREATE TABLE subjects(id INTEGER PRIMARY KEY,name TEXT)"); exec(c,"CREATE TABLE classes(id INTEGER PRIMARY KEY,grade INTEGER)"); exec(c,"CREATE TABLE curriculum_subject_types(subject INTEGER,mode TEXT,assignment_group TEXT)");
+        exec(c,"CREATE TABLE topics(id INTEGER PRIMARY KEY,subject INTEGER,grade INTEGER,semester INTEGER)"); exec(c,"CREATE TABLE tasks(id INTEGER PRIMARY KEY,topic INTEGER)");
+        exec(c,"CREATE TABLE course_groups(id INTEGER PRIMARY KEY,subject INTEGER,grade INTEGER,semester INTEGER,teacher INTEGER,assignment_group TEXT,name TEXT,active INTEGER)");
+        exec(c,"CREATE TABLE course_group_topic_releases(course_group INTEGER,topic INTEGER,active INTEGER,PRIMARY KEY(course_group,topic))"); exec(c,"CREATE TABLE course_group_task_releases(course_group INTEGER,task INTEGER,active INTEGER,PRIMARY KEY(course_group,task))");
+        exec(c,"CREATE TABLE course_group_flexible_topic_releases(course_group INTEGER,flexible_topic INTEGER,active INTEGER,PRIMARY KEY(course_group,flexible_topic))"); exec(c,"CREATE TABLE course_group_flexible_task_releases(course_group INTEGER,flexible_task INTEGER,active INTEGER,PRIMARY KEY(course_group,flexible_task))");
+    }
+    static void seedGroup(Connection c)throws SQLException {
+        exec(c,"INSERT INTO subjects VALUES(1,'WPF Test')"); exec(c,"INSERT INTO classes VALUES(30,6),(31,6),(32,6)"); exec(c,"INSERT INTO curriculum_subject_types VALUES(1,'INDIVIDUAL','WPF')"); exec(c,"INSERT INTO course_groups VALUES(7,1,6,10,20,'WPF','WPF Test',1)");
+    }
 }
