@@ -101,6 +101,11 @@ public final class Curriculum {
             }
         }
     }
+    private static Object[] concatArgs(Object[] first,List<Object> second) {
+        Object[] result=Arrays.copyOf(first,first.length+second.size());
+        for(int i=0;i<second.size();i++) result[first.length+i]=second.get(i);
+        return result;
+    }
     static long number(Connection c, String sql, Object... args) throws SQLException {
         return ((Number)rows(c,sql,args).get(0).values().iterator().next()).longValue();
     }
@@ -507,15 +512,19 @@ public final class Curriculum {
             var stage=active.get(0);
             String stageColumn=stage.get("central_task")!=null?"central_task":"flexible_task";
             int taskId=integer(stage,stageColumn);
+            Integer courseGroup=null;
+            if(individualSubject(c,subjectId)) courseGroup=integer(require(c,"SELECT course_group FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=? AND course_group IS NOT NULL",studentId,subjectId,semester),"course_group");
+            String groupFilter=courseGroup==null?"":" AND x.course_group=? AND EXISTS (SELECT 1 FROM course_group_members gm WHERE gm.course_group=? AND gm.student=a.student)";
+            List<Object> groupArgs=courseGroup==null?List.of():List.of(courseGroup,courseGroup);
             return rows(c,"SELECT s.id,(s.first_name || ' ' || s.last_name) AS name "
                     + "FROM student_active_curriculum_stages a "
                     + "JOIN students s ON s.id=a.student "
                     + "JOIN student_curriculum_contexts x ON x.student=a.student AND x.subject=a.subject AND x.semester=a.semester "
                     + "JOIN student_subject_requests r ON r.student=a.student AND r.subject=a.subject AND r.semester=a.semester AND r.request_type='PARTNER' "
                     + "WHERE a.subject=? AND a.semester=? AND a.student<>? AND COALESCE(s.active,1)=1 AND x.grade=? "
-                    + "AND a." + stageColumn + "=? AND a." + ("central_task".equals(stageColumn)?"flexible_task":"central_task") + " IS NULL "
+                    + "AND a." + stageColumn + "=? AND a." + ("central_task".equals(stageColumn)?"flexible_task":"central_task") + " IS NULL " + groupFilter
                     + "ORDER BY s.last_name,s.first_name,s.id",
-                    subjectId,semester,studentId,grade,taskId).stream()
+                    concatArgs(new Object[]{subjectId,semester,studentId,grade,taskId},groupArgs)).stream()
                     .map(r->new PartnerCandidate(integer(r,"id"),(String)r.get("name"))).toList();
         });
     }
@@ -818,11 +827,17 @@ public final class Curriculum {
     public List<Map<String,Object>> teacherRoster(Actor actor,Scope scope) throws SQLException {
         return transaction(c->{
             int grade=authorizeTeacherRoster(c,actor,scope);
+            boolean individual=individualSubject(c,scope.subjectId());
+            Integer courseGroup=individual && number(c,"SELECT COUNT(*) FROM course_groups WHERE subject=? AND grade=? AND semester=?",scope.subjectId(),grade,scope.semesterId())>0
+                    ?resolveScope(c,scope).courseGroupId():null;
+            boolean grouped=individual && courseGroup!=null;
+            String filter=grouped?"x.course_group=?":"x.teacher=? AND x.class=?";
+            Object[] args=grouped?new Object[]{courseGroup,scope.subjectId(),scope.semesterId(),grade}:new Object[]{scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),grade};
             var roster=rows(c,"SELECT DISTINCT s.id,s.first_name AS firstName,s.last_name AS lastName "
                     + "FROM student_curriculum_contexts x JOIN students s ON s.id=x.student "
-                    + "WHERE x.teacher=? AND x.class=? AND x.subject=? AND x.semester=? AND x.grade=? AND s.active=1 "
+                    + "WHERE "+filter+" AND x.subject=? AND x.semester=? AND x.grade=? AND s.active=1 "
                     + "ORDER BY s.last_name,s.first_name,s.id",
-                    scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),grade);
+                    args);
             for(var student:roster) {
                 int studentId=integer(student,"id");
                 student.put("name",student.get("firstName")+" "+student.get("lastName"));
@@ -842,8 +857,8 @@ public final class Curriculum {
             throw error(409,"context_unassigned","This class is not available for a current curriculum context.");
         int grade=integer(classRow,"grade");
         if(individualSubject(c,scope.subjectId())) {
-            if(number(c,"SELECT COUNT(*) FROM student_curriculum_contexts WHERE teacher=? AND class=? AND subject=? AND semester=? AND grade=?",
-                    scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),grade)==0)
+            if(number(c,"SELECT COUNT(*) FROM course_groups WHERE subject=? AND grade=? AND semester=?",scope.subjectId(),grade,scope.semesterId())>0) resolveScope(c,scope);
+            else if(number(c,"SELECT COUNT(*) FROM student_curriculum_contexts WHERE teacher=? AND class=? AND subject=? AND semester=? AND grade=?",scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),grade)==0)
                 throw error(403,"forbidden","Teacher must be assigned to this canonical curriculum context.");
         } else if(number(c,"SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=? AND class=? AND subject=? AND teacher=?",
                 scope.semesterId(),scope.classId(),scope.subjectId(),scope.teacherId())==0) {
