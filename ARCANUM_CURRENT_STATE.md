@@ -20,9 +20,9 @@
 
 ## Canonical development line
 
-- `student-database`: `arcanum-2026` at `0536be8` (tutor foundation, weekly-conversation view, and static tutor web-path registration).
-- `permission-manager`: `feature/admin-dashboard-polish-20260919` at `9bd0267`.
-- The production source line remains separate; no production deployment was performed by the tutor E2E work.
+- `student-database`: `arcanum-2026` at `894276c` (active curriculum-stage dashboard fix, deterministic current-school-year resolution, and final release documentation).
+- Permission Manager and shared plugins were not changed by this release; the active PROD Permission Manager artifact remains `b9a0fdb86a3c8ecee720a842564d3d1eb18cffec6a0ee8248038474e9fdefe27`.
+- The active runtime and release details are recorded in the authoritative section above; the following sections are retained historical release notes.
 
 ## DEMO
 
