@@ -18,6 +18,14 @@
 - PROD was promoted only with the new student core; Attendance, Overlay, Permission Manager, and Results were preserved byte-for-byte. Active PROD release: `/srv/arcanum/prod/releases/active-stage-dashboard-a953ec9-final-20260929T113313Z`; student SHA `9ff325ab554bb4fd54d9f5fdcc40231e7d6e693f2837b37234fab885d6973b72`; Root/Login `200/200`; service active; `integrity_check=ok`; FK baseline `102`.
 - The first PROD cutover was rolled back because a generic symlink operation made `current` self-referential. A separate exact pre-deployment rollback release was reconstructed from `be96341` (SHA `51eb0a212ba60c4c39eb6baae88237b110ece0ba649e420ba903a4b8c362f0be`), verified healthy, and the corrected cutover then succeeded. No PROD database or curriculum data was mutated.
 
+### Admin tutor-assignment static resource permission (2026-09-29)
+
+- Root cause of the persistent admin placeholder: the active PROD Permission Manager allowed `/curriculum-enrollment-catalog` and `/curriculum-tutor-assignments`, but not the GET resource `/tutor-assignments.js`. The authenticated request therefore returned `403` with an HTML error page; the JavaScript never executed.
+- Permission Manager commit `3a0d72d` adds `/tutor-assignments.js` and GET to the existing `curriculum_manage_enrollment` permission. No new role or data permission was introduced.
+- PM tests: Java `38/38 PASS`, JavaScript `5/5 PASS`, JAR build and `git diff --check` PASS. Artifact SHA: `0aaa7716fc47a5a44e6cce26350e50e68a796bf264c7f9445dd013cb913b7a01`.
+- DEMO release `/srv/arcanum/demo/releases/admin-tutor-static-path-3a0d72d-20260929T123606Z` and PROD release `/srv/arcanum/prod/releases/admin-tutor-static-path-3a0d72d-20260929T123706Z` use the same PM artifact. Authenticated DEMO and PROD checks return JavaScript `200`; enrollment catalog and tutor-assignment APIs return `200`. No tutor assignment was changed.
+- PROD remains `integrity_check=ok`, FK baseline `102`, service active with `NRestarts=0`; the student core and all non-PM plugins remain unchanged.
+
 ## Canonical development line
 
 - `student-database`: `arcanum-2026` at `894276c` (active curriculum-stage dashboard fix, deterministic current-school-year resolution, and final release documentation).
