@@ -458,14 +458,18 @@ public final class Curriculum {
         });
     }
     static void compatibleCompletions(Connection c, int studentId, Scope scope, int grade) throws SQLException {
+        boolean individual=individualSubject(c,scope.subjectId());
+        String identity=individual ? "t.course_group<>?" : "t.owner_teacher<>? OR t.class<>?";
+        Object[] args=individual
+                ? new Object[]{studentId,scope.subjectId(),scope.semesterId(),resolveScope(c,scope).courseGroupId(),grade}
+                : new Object[]{studentId,scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),grade};
         if (number(c,"SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task "
-                + "WHERE x.student=? AND t.subject=? AND t.semester=? AND " + ACTIVE_COMPLETION + " AND (t.owner_teacher<>? OR t.class<>? OR t.grade<>?)",
-                studentId,scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),grade)>0)
+                + "WHERE x.student=? AND t.subject=? AND t.semester=? AND " + ACTIVE_COMPLETION + " AND ("+identity+" OR t.grade<>?)",args)>0)
             throw error(409,"context_conflict","Completed flexible tasks belong to a different context; an explicit correction is required.");
     }
     static Map<String,Object> assigned(Connection c,int studentId,int subject,int semester) throws SQLException {
         CurriculumEnrollment.requireSelectedWpf(c,studentId,subject,semester);
-        var found=rows(c,"SELECT teacher,class,grade FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",studentId,subject,semester);
+        var found=rows(c,"SELECT teacher,class,grade,course_group FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",studentId,subject,semester);
         if(found.isEmpty()) throw error(409,"context_unassigned","No curriculum context is assigned for this subject and semester.");
         int currentClass=integer(require(c,"SELECT class FROM students WHERE id=?",studentId),"class");
         int assignedClass=integer(found.get(0),"class");
@@ -475,7 +479,11 @@ public final class Curriculum {
     }
     private static int requireAssignment(Connection c,int studentId,Scope scope) throws SQLException {
         var assignment=assigned(c,studentId,scope.subjectId(),scope.semesterId());
-        if(integer(assignment,"teacher")!=scope.teacherId() || integer(assignment,"class")!=scope.classId())
+        boolean individual=individualSubject(c,scope.subjectId());
+        boolean validTeacher=integer(assignment,"teacher")==scope.teacherId();
+        boolean validGroup=!individual || (assignment.get("course_group")!=null
+                && integer(assignment,"course_group")==resolveScope(c,scope).courseGroupId());
+        if(!validTeacher || !validGroup || (!individual && integer(assignment,"class")!=scope.classId()))
             throw error(403,"forbidden","Student is assigned to another curriculum context.");
         int grade=integer(assignment,"grade");
         compatibleCompletions(c,studentId,scope,grade);
