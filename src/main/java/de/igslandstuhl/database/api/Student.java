@@ -616,7 +616,7 @@ public class Student extends User {
     }
     private void requireSubjectRequestContext(int subjectId, int semesterId) throws SQLException {
         try (var s = Server.getInstance().getConnection().getSQLConnection().prepareStatement(
-                "SELECT COUNT(*) FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=? AND class=?")) {
+                "SELECT COUNT(*) FROM student_curriculum_contexts x LEFT JOIN curriculum_subject_types st ON st.subject=x.subject WHERE x.student=? AND x.subject=? AND x.semester=? AND (COALESCE(st.mode,'REGULAR')<>'INDIVIDUAL' AND x.class=? OR st.mode='INDIVIDUAL' AND x.course_group IS NOT NULL AND EXISTS (SELECT 1 FROM course_group_members m WHERE m.course_group=x.course_group AND m.student=x.student))")) {
             s.setInt(1, id);
             s.setInt(2, subjectId);
             s.setInt(3, semesterId);

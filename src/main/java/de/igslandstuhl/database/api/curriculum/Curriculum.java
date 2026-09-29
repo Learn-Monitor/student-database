@@ -356,6 +356,7 @@ public final class Curriculum {
         if(row.get("course_group")==null) throw error(409,"course_group_missing","Flexible task has no course group.");
         return integer(row,"course_group");
     }
+    private static int taskScopeGroup(Connection c,int taskId) throws SQLException { return taskGroup(c,taskId); }
     public void renameFlexibleTopic(Actor actor,int topicId,String name) throws SQLException {
         String value=validName(name);
         transaction(c->{var topic=require(c,"SELECT * FROM flexible_topics WHERE id=?",topicId);
@@ -537,10 +538,17 @@ public final class Curriculum {
         int grade=integer(require(c,"SELECT grade FROM classes WHERE id=?",scope.classId()),"grade");
         if(!managedTeacher(c,scope,grade))
             throw error(403,"forbidden","Teacher must be assigned to this managed curriculum context.");
-        var context=rows(c,"SELECT teacher,class,grade FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",
+        var context=rows(c,"SELECT teacher,class,grade,course_group FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",
                 studentId,scope.subjectId(),scope.semesterId());
-        if(context.isEmpty() || integer(context.get(0),"teacher")!=scope.teacherId()
-                || integer(context.get(0),"class")!=scope.classId() || integer(context.get(0),"grade")!=grade)
+        boolean individual=individualSubject(c,scope.subjectId());
+        boolean valid=!context.isEmpty() && integer(context.get(0),"teacher")==scope.teacherId()
+                && integer(context.get(0),"grade")==grade;
+        if(individual && valid) {
+            Integer group=context.get(0).get("course_group")==null?null:integer(context.get(0),"course_group");
+            valid=group!=null && group==resolveScope(c,scope).courseGroupId()
+                    && number(c,"SELECT COUNT(*) FROM course_group_members WHERE course_group=? AND student=?",group,studentId)>0;
+        } else if(!individual && valid) valid=integer(context.get(0),"class")==scope.classId();
+        if(!valid)
             throw error(403,"forbidden","Student is not assigned to this curriculum context.");
         return grade;
     }
@@ -552,7 +560,9 @@ public final class Curriculum {
             require(c,"SELECT t.id FROM tasks t JOIN topics p ON p.id=t.topic WHERE t.id=? AND p.subject=? AND p.semester=? AND p.grade=?",
                     stageId,scope.subjectId(),scope.semesterId(),grade);
         } else {
-            require(c,"SELECT id FROM flexible_tasks WHERE id=? AND owner_teacher=? AND subject=? AND class=? AND semester=? AND grade=?",
+            if(individualSubject(c,scope.subjectId())) require(c,"SELECT id FROM flexible_tasks WHERE id=? AND subject=? AND semester=? AND grade=? AND course_group=?",
+                    stageId,scope.subjectId(),scope.semesterId(),grade,resolveScope(c,scope).courseGroupId());
+            else require(c,"SELECT id FROM flexible_tasks WHERE id=? AND owner_teacher=? AND subject=? AND class=? AND semester=? AND grade=?",
                     stageId,scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade);
         }
         return grade;
@@ -561,8 +571,8 @@ public final class Curriculum {
         return stageType==ActiveStageType.CENTRAL
                 ? number(c,"SELECT COUNT(*) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE x.student=? AND x.task=? AND x.status=? AND p.subject=? AND p.semester=? AND p.grade=?",
                         studentId,stageId,Task.STATUS_COMPLETED,scope.subjectId(),scope.semesterId(),grade)>0
-                : number(c,"SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task WHERE x.student=? AND x.flexible_task=? AND t.owner_teacher=? AND t.subject=? AND t.class=? AND t.semester=? AND t.grade=? AND " + ACTIVE_COMPLETION,
-                        studentId,stageId,scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade)>0;
+                : number(c,"SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task WHERE x.student=? AND x.flexible_task=? AND t.subject=? AND t.semester=? AND t.grade=? AND " + (individualSubject(c,scope.subjectId())?"t.course_group=?":"t.owner_teacher=? AND t.class=?") + " AND " + ACTIVE_COMPLETION,
+                        individualSubject(c,scope.subjectId())?new Object[]{studentId,stageId,scope.subjectId(),scope.semesterId(),grade,resolveScope(c,scope).courseGroupId()}:new Object[]{studentId,stageId,scope.subjectId(),scope.semesterId(),grade,scope.teacherId(),scope.classId()})>0;
     }
     private static AssessmentStatus assessmentOverride(Connection c,int studentId,Scope scope,ActiveStageType stageType,int stageId) throws SQLException {
         var override=rows(c,"SELECT status FROM student_curriculum_stage_assessments WHERE student=? AND subject=? AND semester=? AND stage_type=? AND stage_id=?",
@@ -618,8 +628,8 @@ public final class Curriculum {
                     + "FROM flexible_tasks t LEFT JOIN flexible_task_topics m ON m.flexible_task=t.id "
                     + "LEFT JOIN flexible_topics p ON p.id=m.flexible_topic AND p.owner_teacher=t.owner_teacher "
                     + "AND p.subject=t.subject AND p.class=t.class AND p.semester=t.semester AND p.grade=t.grade "
-                    + "WHERE t.owner_teacher=? AND t.subject=? AND t.class=? AND t.semester=? AND t.grade=? "
-                    + "ORDER BY p.id IS NULL,p.id,t.id",scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade)) {
+                    + (individualSubject(c,scope.subjectId())?"WHERE t.subject=? AND t.semester=? AND t.grade=? AND t.course_group=? ":"WHERE t.owner_teacher=? AND t.subject=? AND t.class=? AND t.semester=? AND t.grade=? ")
+                    + "ORDER BY p.id IS NULL,p.id,t.id",individualSubject(c,scope.subjectId())?new Object[]{scope.subjectId(),scope.semesterId(),grade,resolveScope(c,scope).courseGroupId()}:new Object[]{scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade})) {
                 int stageId=integer(row,"id");
                 StageAssessment assessment=stageAssessment(c,studentId,scope,ActiveStageType.FLEXIBLE,stageId,grade);
                 Integer topicId=row.get("topicId")==null?null:integer(row,"topicId");
@@ -756,7 +766,10 @@ public final class Curriculum {
             var row=require(c,"SELECT t.*,p.flexible_topic AS topic FROM flexible_tasks t LEFT JOIN flexible_task_topics p ON p.flexible_task=t.id WHERE t.id=?",taskId);
             FlexibleTask task=task(row);
             var student=require(c,"SELECT class FROM students WHERE id=?",studentId);
-            if(integer(student,"class")!=task.classId()) throw error(403,"forbidden","Student does not belong to this task's class.");
+            if(individualSubject(c,task.subjectId())) {
+                CourseGroup group=CourseGroup.resolveForStudent(c,studentId,task.subjectId(),task.semesterId());
+                if(taskScopeGroup(c,task.id())!=group.id()) throw error(403,"forbidden","Student does not belong to this task's course group.");
+            } else if(integer(student,"class")!=task.classId()) throw error(403,"forbidden","Student does not belong to this task's class.");
             int grade=requireAssignment(c,studentId,task.scope());
             if(grade!=task.grade()) throw error(409,"context_conflict","Context contains inconsistent historical grades.");
             if(!CurriculumEnrollment.flexibleReleased(c,task.scope(),task.id(),row.get("topic")==null?null:integer(row,"topic")))
@@ -777,7 +790,10 @@ public final class Curriculum {
         FlexibleTask deactivated=transaction(c->{
             FlexibleTask task=task(require(c,"SELECT * FROM flexible_tasks WHERE id=?",taskId));
             var student=require(c,"SELECT class FROM students WHERE id=?",studentId);
-            if(integer(student,"class")!=task.classId()) throw error(403,"forbidden","Student does not belong to this task's class.");
+            if(individualSubject(c,task.subjectId())) {
+                CourseGroup group=CourseGroup.resolveForStudent(c,studentId,task.subjectId(),task.semesterId());
+                if(taskScopeGroup(c,task.id())!=group.id()) throw error(403,"forbidden","Student does not belong to this task's course group.");
+            } else if(integer(student,"class")!=task.classId()) throw error(403,"forbidden","Student does not belong to this task's class.");
             int grade=requireAssignment(c,studentId,task.scope());
             if(grade!=task.grade()) throw error(409,"context_conflict","Context contains inconsistent historical grades.");
             requestsCleared[0]=clearRequestsWhenStageEnds(c,studentId,task.subjectId(),task.semesterId(),ActiveStageType.FLEXIBLE,task.id());
