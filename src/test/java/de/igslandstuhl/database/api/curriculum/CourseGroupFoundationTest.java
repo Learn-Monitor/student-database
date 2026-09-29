@@ -129,8 +129,68 @@ class CourseGroupFoundationTest {
         exec(c,"CREATE TABLE course_groups(id INTEGER PRIMARY KEY,subject INTEGER,grade INTEGER,semester INTEGER,teacher INTEGER,assignment_group TEXT,name TEXT,active INTEGER)");
         exec(c,"CREATE TABLE course_group_topic_releases(course_group INTEGER,topic INTEGER,active INTEGER,PRIMARY KEY(course_group,topic))"); exec(c,"CREATE TABLE course_group_task_releases(course_group INTEGER,task INTEGER,active INTEGER,PRIMARY KEY(course_group,task))");
         exec(c,"CREATE TABLE course_group_flexible_topic_releases(course_group INTEGER,flexible_topic INTEGER,active INTEGER,PRIMARY KEY(course_group,flexible_topic))"); exec(c,"CREATE TABLE course_group_flexible_task_releases(course_group INTEGER,flexible_task INTEGER,active INTEGER,PRIMARY KEY(course_group,flexible_task))");
+        exec(c,"CREATE TABLE curriculum_topic_releases(teacher INTEGER,class INTEGER,subject INTEGER,semester INTEGER,topic INTEGER,active INTEGER)"); exec(c,"CREATE TABLE curriculum_task_releases(teacher INTEGER,class INTEGER,subject INTEGER,semester INTEGER,task INTEGER,active INTEGER)");
+        exec(c,"CREATE TABLE flexible_topic_releases(teacher INTEGER,class INTEGER,subject INTEGER,semester INTEGER,flexible_topic INTEGER,active INTEGER)"); exec(c,"CREATE TABLE flexible_task_releases(teacher INTEGER,class INTEGER,subject INTEGER,semester INTEGER,flexible_task INTEGER,active INTEGER)");
     }
     static void seedGroup(Connection c)throws SQLException {
         exec(c,"INSERT INTO subjects VALUES(1,'WPF Test')"); exec(c,"INSERT INTO classes VALUES(30,6),(31,6),(32,6)"); exec(c,"INSERT INTO curriculum_subject_types VALUES(1,'INDIVIDUAL','WPF')"); exec(c,"INSERT INTO course_groups VALUES(7,1,6,10,20,'WPF','WPF Test',1)");
+    }
+
+    @Test void centralGroupReleaseDisableClearsActiveStagesAcrossHomeClasses() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); seedGroup(c); exec(c,"CREATE TABLE course_group_members(course_group INTEGER,student INTEGER,PRIMARY KEY(course_group,student))"); exec(c,"INSERT INTO course_group_members VALUES(7,40),(7,41)"); exec(c,"INSERT INTO course_group_topic_releases VALUES(7,100,1)");
+            assertTrue(CurriculumEnrollment.topicReleased(c,new Curriculum.Scope(20,1,30,10),100));
+            exec(c,"UPDATE course_group_topic_releases SET active=0 WHERE course_group=7 AND topic=100");
+            assertFalse(CurriculumEnrollment.topicReleased(c,new Curriculum.Scope(20,1,31,10),100));
+            assertEquals(2,scalar(c,"SELECT COUNT(*) FROM course_group_members WHERE course_group=7"));
+        }
+    }
+
+    @Test void flexibleGroupReleaseDisableClearsActiveStagesAcrossHomeClasses() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); seedGroup(c); exec(c,"CREATE TABLE flexible_topics(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,course_group INTEGER)"); exec(c,"CREATE TABLE flexible_tasks(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,tokens INTEGER,course_group INTEGER)");
+            exec(c,"INSERT INTO flexible_topics VALUES(300,20,1,30,10,6,'F',7)"); exec(c,"INSERT INTO flexible_tasks VALUES(301,20,1,30,10,6,'F',10,7)"); exec(c,"INSERT INTO course_group_flexible_topic_releases VALUES(7,300,1)"); exec(c,"INSERT INTO course_group_flexible_task_releases VALUES(7,301,1)");
+            assertTrue(CurriculumEnrollment.flexibleReleased(c,new Curriculum.Scope(20,1,31,10),301,300));
+            exec(c,"UPDATE course_group_flexible_task_releases SET active=0 WHERE course_group=7 AND flexible_task=301");
+            assertFalse(CurriculumEnrollment.flexibleReleased(c,new Curriculum.Scope(20,1,31,10),301,300));
+        }
+    }
+
+    @Test void centralTaskAccessIsSharedAcrossCourseGroupHomeClasses() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); seedGroup(c); exec(c,"INSERT INTO topics VALUES(100,1,6,10)"); exec(c,"INSERT INTO tasks VALUES(200,100)"); exec(c,"INSERT INTO course_group_topic_releases VALUES(7,100,1)");
+            assertTrue(CurriculumEnrollment.released(c,new Curriculum.Scope(20,1,30,10),200,100)); assertTrue(CurriculumEnrollment.released(c,new Curriculum.Scope(20,1,32,10),200,100));
+        }
+    }
+
+    @Test void centralTaskAccessRejectsStudentOutsideCourseGroup() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); seedGroup(c); exec(c,"CREATE TABLE course_group_members(course_group INTEGER,student INTEGER,PRIMARY KEY(course_group,student))"); exec(c,"INSERT INTO course_group_members VALUES(7,40)");
+            assertThrows(CurriculumException.class,()->CourseGroup.resolveForStudent(c,41,1,10));
+        }
+    }
+
+    @Test void flexibleTaskAccessIsSharedAcrossCourseGroupHomeClasses() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); seedGroup(c); exec(c,"CREATE TABLE flexible_topics(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,course_group INTEGER)"); exec(c,"CREATE TABLE flexible_tasks(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,tokens INTEGER,course_group INTEGER)");
+            exec(c,"INSERT INTO flexible_topics VALUES(300,20,1,30,10,6,'F',7)"); exec(c,"INSERT INTO flexible_tasks VALUES(301,20,1,30,10,6,'F',10,7)"); exec(c,"INSERT INTO course_group_flexible_task_releases VALUES(7,301,1)");
+            assertTrue(CurriculumEnrollment.flexibleReleased(c,new Curriculum.Scope(20,1,30,10),301,null)); assertTrue(CurriculumEnrollment.flexibleReleased(c,new Curriculum.Scope(20,1,32,10),301,null));
+        }
+    }
+
+    @Test void flexibleTaskAccessRejectsStudentOutsideCourseGroup() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); seedGroup(c); exec(c,"CREATE TABLE course_group_members(course_group INTEGER,student INTEGER,PRIMARY KEY(course_group,student))"); exec(c,"INSERT INTO course_group_members VALUES(7,40)");
+            assertThrows(CurriculumException.class,()->CourseGroup.resolveForStudent(c,41,1,10));
+        }
+    }
+
+    @Test void regularTaskAccessRemainsClassScoped() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            releaseSchema(c); exec(c,"INSERT INTO subjects VALUES(2,'Mathe')"); exec(c,"INSERT INTO curriculum_subject_types VALUES(2,'REGULAR',NULL)"); exec(c,"INSERT INTO course_groups VALUES(8,2,6,10,20,'REGULAR','Mathe',1)");
+            exec(c,"INSERT INTO curriculum_topic_releases VALUES(20,30,2,10,100,1)");
+            assertTrue(CurriculumEnrollment.topicReleased(c,new Curriculum.Scope(20,2,30,10),100));
+            assertFalse(CurriculumEnrollment.topicReleased(c,new Curriculum.Scope(20,2,31,10),100));
+        }
     }
 }
