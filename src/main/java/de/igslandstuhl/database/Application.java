@@ -12,6 +12,8 @@ import de.igslandstuhl.database.api.SchoolYear;
 import de.igslandstuhl.database.api.SerializationException;
 import de.igslandstuhl.database.api.Subject;
 import de.igslandstuhl.database.api.Topic;
+import de.igslandstuhl.database.api.curriculum.CourseGroupA2Backfill;
+import de.igslandstuhl.database.api.curriculum.CourseGroupBackfill;
 import de.igslandstuhl.database.client.HTMLTemplate;
 import de.igslandstuhl.database.events.EventListener;
 import de.igslandstuhl.database.holidays.Holiday;
@@ -144,6 +146,13 @@ public final class Application {
 
         Server.getInstance().getConnection().createTables();
         Server.getInstance().getConnection().migrateTables();
+        // CourseGroup data transitions are part of normal startup, after the
+        // additive schema migrations have completed.  Both operations are
+        // idempotent and transactional; keeping them here ensures an
+        // upgraded database cannot run with only the new nullable columns
+        // while its individual-subject data is still class-scoped.
+        CourseGroupBackfill.run(Server.getInstance().getConnection().getSQLConnection());
+        CourseGroupA2Backfill.run(Server.getInstance().getConnection().getSQLConnection());
 
         Holiday.setupCurrentSchoolYear();
         PostRequestHandler.registerHandlers();
