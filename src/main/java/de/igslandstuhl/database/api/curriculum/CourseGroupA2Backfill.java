@@ -70,7 +70,10 @@ public final class CourseGroupA2Backfill {
     }
     private static void migrateReleaseTable(Connection c,String source,String stageColumn,String stageTable,String target) throws SQLException {
         Map<String,Set<Integer>> seen=new HashMap<>();
-        for(var r:Curriculum.rows(c,"SELECT r."+stageColumn+" AS stage,r.active,x.subject,x.semester,cl.grade,r.teacher FROM "+source+" r JOIN "+stageTable+" x ON x.id=r."+stageColumn+" JOIN classes cl ON cl.id=r.class JOIN curriculum_subject_types st ON st.subject=x.subject AND st.mode='INDIVIDUAL'")) {
+        String stageSubject = stageColumn.equals("task") ? "t.subject" : "x.subject";
+        String stageSemester = stageColumn.equals("task") ? "t.semester" : "x.semester";
+        String taskJoin = stageColumn.equals("task") ? " JOIN topics t ON t.id=x.topic" : "";
+        for(var r:Curriculum.rows(c,"SELECT r."+stageColumn+" AS stage,r.active,"+stageSubject+" AS subject,"+stageSemester+" AS semester,cl.grade,r.teacher FROM "+source+" r JOIN "+stageTable+" x ON x.id=r."+stageColumn+taskJoin+" JOIN classes cl ON cl.id=r.class JOIN curriculum_subject_types st ON st.subject="+stageSubject+" AND st.mode='INDIVIDUAL'")) {
             CourseGroup g=group(c,Curriculum.integer(r,"subject"),Curriculum.integer(r,"grade"),Curriculum.integer(r,"semester"),Curriculum.integer(r,"teacher"));
             String key=g.id()+":"+Curriculum.integer(r,"stage"); Set<Integer> vals=seen.computeIfAbsent(key,k->new HashSet<>()); vals.add(Curriculum.integer(r,"active"));
             if(vals.size()>1) throw Curriculum.error(409,"release_conflict","Individual class releases disagree within one course group.");

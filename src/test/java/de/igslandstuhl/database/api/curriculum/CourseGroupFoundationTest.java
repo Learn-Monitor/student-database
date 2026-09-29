@@ -124,7 +124,7 @@ class CourseGroupFoundationTest {
     }
 
     static void releaseSchema(Connection c)throws SQLException {
-        exec(c,"CREATE TABLE subjects(id INTEGER PRIMARY KEY,name TEXT)"); exec(c,"CREATE TABLE classes(id INTEGER PRIMARY KEY,grade INTEGER)"); exec(c,"CREATE TABLE curriculum_subject_types(subject INTEGER,mode TEXT,assignment_group TEXT)");
+        exec(c,"CREATE TABLE subjects(id INTEGER PRIMARY KEY,name TEXT)"); exec(c,"CREATE TABLE semesters(id INTEGER PRIMARY KEY)"); exec(c,"CREATE TABLE teachers(id INTEGER PRIMARY KEY)"); exec(c,"CREATE TABLE classes(id INTEGER PRIMARY KEY,grade INTEGER)"); exec(c,"CREATE TABLE curriculum_subject_types(subject INTEGER,mode TEXT,assignment_group TEXT)"); exec(c,"CREATE TABLE curriculum_grade_teachers(semester INTEGER,grade INTEGER,subject INTEGER,teacher INTEGER)");
         exec(c,"CREATE TABLE topics(id INTEGER PRIMARY KEY,subject INTEGER,grade INTEGER,semester INTEGER)"); exec(c,"CREATE TABLE tasks(id INTEGER PRIMARY KEY,topic INTEGER)");
         exec(c,"CREATE TABLE course_groups(id INTEGER PRIMARY KEY,subject INTEGER,grade INTEGER,semester INTEGER,teacher INTEGER,assignment_group TEXT,name TEXT,active INTEGER)");
         exec(c,"CREATE TABLE course_group_topic_releases(course_group INTEGER,topic INTEGER,active INTEGER,PRIMARY KEY(course_group,topic))"); exec(c,"CREATE TABLE course_group_task_releases(course_group INTEGER,task INTEGER,active INTEGER,PRIMARY KEY(course_group,task))");
@@ -134,6 +134,32 @@ class CourseGroupFoundationTest {
     }
     static void seedGroup(Connection c)throws SQLException {
         exec(c,"INSERT INTO subjects VALUES(1,'WPF Test')"); exec(c,"INSERT INTO classes VALUES(30,6),(31,6),(32,6)"); exec(c,"INSERT INTO curriculum_subject_types VALUES(1,'INDIVIDUAL','WPF')"); exec(c,"INSERT INTO course_groups VALUES(7,1,6,10,20,'WPF','WPF Test',1)");
+    }
+
+    @Test void migratesIdenticalIndividualTopicReleasesToOneCourseGroupRelease() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"INSERT INTO curriculum_topic_releases VALUES(20,30,1,10,100,1),(20,31,1,10,100,1)"); CourseGroupA2Backfill.run(c); assertEquals(1,scalar(c,"SELECT COUNT(*) FROM course_group_topic_releases")); assertEquals(0,scalar(c,"SELECT COUNT(*) FROM curriculum_topic_releases WHERE subject=1")); assertEquals(100,scalar(c,"SELECT topic FROM course_group_topic_releases")); }
+    }
+    @Test void migratesIdenticalIndividualTaskReleasesToOneCourseGroupRelease() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"INSERT INTO curriculum_task_releases VALUES(20,30,1,10,200,1),(20,31,1,10,200,1)"); CourseGroupA2Backfill.run(c); assertEquals(1,scalar(c,"SELECT COUNT(*) FROM course_group_task_releases")); assertEquals(0,scalar(c,"SELECT COUNT(*) FROM curriculum_task_releases WHERE subject=1")); assertEquals(200,scalar(c,"SELECT task FROM course_group_task_releases")); }
+    }
+    @Test void migratesIndividualFlexibleTopicReleaseToCourseGroupRelease() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"INSERT INTO flexible_topics VALUES(300,20,1,30,10,6,'F',NULL)"); exec(c,"INSERT INTO flexible_topic_releases VALUES(20,30,1,10,300,1)"); CourseGroupA2Backfill.run(c); assertEquals(7,scalar(c,"SELECT course_group FROM flexible_topics")); assertEquals(1,scalar(c,"SELECT active FROM course_group_flexible_topic_releases")); assertEquals(0,scalar(c,"SELECT COUNT(*) FROM flexible_topic_releases WHERE subject=1")); assertEquals(300,scalar(c,"SELECT flexible_topic FROM course_group_flexible_topic_releases")); }
+    }
+    @Test void migratesIndividualFlexibleTaskReleaseToCourseGroupRelease() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"INSERT INTO flexible_tasks VALUES(301,20,1,30,10,6,'F',3,NULL)"); exec(c,"INSERT INTO flexible_task_releases VALUES(20,30,1,10,301,1)"); CourseGroupA2Backfill.run(c); assertEquals(7,scalar(c,"SELECT course_group FROM flexible_tasks")); assertEquals(1,scalar(c,"SELECT active FROM course_group_flexible_task_releases")); assertEquals(0,scalar(c,"SELECT COUNT(*) FROM flexible_task_releases WHERE subject=1")); assertEquals(301,scalar(c,"SELECT flexible_task FROM course_group_flexible_task_releases")); }
+    }
+    @Test void rejectsConflictingIndividualReleaseStatesBeforeMigration() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"INSERT INTO curriculum_topic_releases VALUES(20,30,1,10,100,1),(20,31,1,10,100,0)"); assertThrows(CurriculumException.class,()->CourseGroupA2Backfill.run(c)); assertEquals(0,scalar(c,"SELECT COUNT(*) FROM course_group_topic_releases")); assertEquals(2,scalar(c,"SELECT COUNT(*) FROM curriculum_topic_releases WHERE subject=1")); }
+    }
+    @Test void rollsBackEntireA2BackfillWhenLateMigrationConflictOccurs() throws Exception {
+        try(Connection c=DriverManager.getConnection("jdbc:sqlite::memory:")) { migrationSchema(c); migrationSeed(c); exec(c,"INSERT INTO flexible_tasks VALUES(301,20,1,30,10,6,'F',3,NULL)"); exec(c,"INSERT INTO curriculum_topic_releases VALUES(20,30,1,10,100,1),(20,31,1,10,100,0)"); assertThrows(CurriculumException.class,()->CourseGroupA2Backfill.run(c)); assertEquals(0,scalar(c,"SELECT COUNT(*) FROM flexible_tasks WHERE course_group IS NOT NULL")); assertEquals(0,scalar(c,"SELECT COUNT(*) FROM course_group_task_releases")); assertEquals(2,scalar(c,"SELECT COUNT(*) FROM curriculum_topic_releases WHERE subject=1")); }
+    }
+
+    static void migrationSchema(Connection c)throws SQLException {
+        releaseSchema(c); exec(c,"CREATE TABLE course_group_members(course_group INTEGER,student INTEGER,PRIMARY KEY(course_group,student))"); exec(c,"CREATE TABLE flexible_topics(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,course_group INTEGER)"); exec(c,"CREATE TABLE flexible_tasks(id INTEGER PRIMARY KEY,owner_teacher INTEGER,subject INTEGER,class INTEGER,semester INTEGER,grade INTEGER,name TEXT,tokens INTEGER,course_group INTEGER)"); exec(c,"CREATE TABLE flexible_task_topics(flexible_task INTEGER,flexible_topic INTEGER)");
+    }
+    static void migrationSeed(Connection c)throws SQLException {
+        exec(c,"INSERT INTO subjects VALUES(1,'WPF Test'),(2,'Mathe')"); exec(c,"INSERT INTO classes VALUES(30,6),(31,6)"); exec(c,"INSERT INTO curriculum_subject_types VALUES(1,'INDIVIDUAL','WPF'),(2,'REGULAR',NULL)"); exec(c,"INSERT INTO course_groups VALUES(7,1,6,10,20,'WPF','WPF Test',1)"); exec(c,"INSERT INTO topics VALUES(100,1,6,10),(101,2,6,10)"); exec(c,"INSERT INTO tasks VALUES(200,100)"); exec(c,"INSERT INTO curriculum_topic_releases VALUES(20,30,2,10,101,1)"); exec(c,"INSERT INTO curriculum_grade_teachers VALUES(10,6,1,20)");
     }
 
     @Test void centralGroupReleaseDisableClearsActiveStagesAcrossHomeClasses() throws Exception {
