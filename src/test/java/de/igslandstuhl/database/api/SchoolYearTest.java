@@ -61,6 +61,17 @@ public class SchoolYearTest {
     }
 
     @Test
+    public void newestOverlappingDatedSchoolYearIsCurrent() throws SQLException {
+        LocalDate today = LocalDate.now();
+        SchoolYear older = SchoolYear.addSchoolYear("overlap-older", 40, 1, today.minusDays(1), today.plusDays(1));
+        older.setCurrentSemester(Semester.addSemester("overlap-older-semester", 1, older));
+        SchoolYear newer = SchoolYear.addSchoolYear("overlap-newer", 40, 1, today.minusDays(1), today.plusDays(1));
+        newer.setCurrentSemester(Semester.addSemester("overlap-newer-semester", 1, newer));
+
+        assertEquals(newer.getId(), SchoolYear.getCurrentYear(false).getId());
+    }
+
+    @Test
     public void addSchoolYearWithDates() throws SQLException {
         LocalDate start = LocalDate.of(2005, 8, 1);
         LocalDate end = LocalDate.of(2006, 7, 15);

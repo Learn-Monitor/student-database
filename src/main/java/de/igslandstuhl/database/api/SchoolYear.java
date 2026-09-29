@@ -235,7 +235,7 @@ public class SchoolYear implements APIObject {
             .filter((s) -> {
                 LocalDate now = LocalDate.now();
                 return !now.isBefore(s.getStartDate()) && !now.isAfter(s.getEndDate());
-            }).findAny();
+            }).max(Comparator.comparingInt(SchoolYear::getId));
         if (currentYear.isPresent()) return currentYear.get();
         if (!allowLegacyFallback) return null;
         try {
