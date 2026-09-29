@@ -1,5 +1,23 @@
 # Arcanum current state
 
+## Active curriculum stages / student dashboard (2026-09-29)
+
+- The student dashboard now uses the canonical managed-curriculum catalog (`/my-curriculum-catalog`) for managed subjects. It no longer requires a legacy `/current-topic` row and does not crash when that legacy endpoint has no topic.
+- Released, unfinished central and flexible stages are selectable; completed history remains visible but is not restartable. `student_active_curriculum_stages` remains the sole active-stage source and enforces at most one active stage per student and subject.
+- HELP, PARTNER, EXPERIMENT, and EXAM/Gelingensnachweis requests require an active stage on creation (`409 active_stage_required`). Removing a stale request remains allowed. Stage changes/end states clear stale subject requests atomically and refresh the server-side student request cache; teacher roster signals do not expose requests without an active stage.
+- The current school-year resolver now deterministically selects the newest configured school year when date ranges overlap, keeping catalog, release, and activation lookups on the same semester.
+- No schema migration or data migration was added; no automatic curriculum release was introduced.
+
+### Verification and release
+
+- Integrated and pushed `arcanum-2026`: `a953ec9` (`fix: resolve current school year deterministically`). The short-lived branch `fix/student-active-stage-dashboard` was deleted locally and remotely.
+- Final student artifact: `9ff325ab554bb4fd54d9f5fdcc40231e7d6e693f2837b37234fab885d6973b72`.
+- Full Java suite: `311/311 PASS`; full JavaScript suite: `236/236 PASS`; ShadowJar and `git diff --check` PASS.
+- DEMO synthetic API E2E PASS: managed catalog, three released stages, central activation/switch/cancel, active-stage request gate, cache invalidation, identity-spoof rejection, tutor-1/tutor-2 graduation authorization, and negative teacher/admin authorization. Fixtures were restored from the disposable snapshot; DEMO is `integrity_check=ok`, FK baseline `756`, with zero run-marker remnants.
+- The local Chromium visual harness could authenticate and reach the application, but its renderer/CDP transport aborted during the dynamic dashboard run (page crash, then Playwright internal assertion). This is recorded as test-harness infrastructure failure; no application source or browser flags were used as a product fix.
+- PROD was promoted only with the new student core; Attendance, Overlay, Permission Manager, and Results were preserved byte-for-byte. Active PROD release: `/srv/arcanum/prod/releases/active-stage-dashboard-a953ec9-final-20260929T113313Z`; student SHA `9ff325ab554bb4fd54d9f5fdcc40231e7d6e693f2837b37234fab885d6973b72`; Root/Login `200/200`; service active; `integrity_check=ok`; FK baseline `102`.
+- The first PROD cutover was rolled back because a generic symlink operation made `current` self-referential. A separate exact pre-deployment rollback release was reconstructed from `be96341` (SHA `51eb0a212ba60c4c39eb6baae88237b110ece0ba649e420ba903a4b8c362f0be`), verified healthy, and the corrected cutover then succeeded. No PROD database or curriculum data was mutated.
+
 ## Canonical development line
 
 - `student-database`: `arcanum-2026` at `0536be8` (tutor foundation, weekly-conversation view, and static tutor web-path registration).
