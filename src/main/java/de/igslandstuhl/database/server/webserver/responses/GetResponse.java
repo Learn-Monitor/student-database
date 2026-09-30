@@ -10,6 +10,7 @@ import de.igslandstuhl.database.client.TemplatingPreprocessor;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.server.webserver.ContentType;
+import de.igslandstuhl.database.server.webserver.StaticAssetPolicy;
 import de.igslandstuhl.database.server.webserver.NoWebResourceException;
 import de.igslandstuhl.database.server.webserver.Status;
 import de.igslandstuhl.database.server.webserver.access.AccessManager;
@@ -158,6 +159,9 @@ public class GetResponse implements HttpResponse {
     }
     public static GetResponse getResource(HttpRequest request, ResourceLocation resourceLocation, String user, boolean isTemplating, boolean isMerging, String path) {
         try {
+            if (StaticAssetPolicy.isSessionlessPublicLoginAsset(path)) {
+                return new GetResponse(request, Status.OK, resourceLocation, ContentType.ofResourceLocation(resourceLocation), user, isTemplating, isMerging);
+            }
             if (AccessManager.getInstance().hasAccess(user, path, request, RequestType.GET)) {
                 return new GetResponse(request, Status.OK, resourceLocation, ContentType.ofResourceLocation(resourceLocation), user, isTemplating, isMerging);
             } else {
@@ -214,7 +218,13 @@ public class GetResponse implements HttpResponse {
                     out.print("; charset=");out.print(charset);
                 }
                 out.print("\r\n");
-                out.print("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie() + "\r\n");
+                boolean publicLoginAsset = StaticAssetPolicy.isSessionlessPublicLoginAsset(request.getPath());
+                if (!publicLoginAsset) {
+                    out.print("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie() + "\r\n");
+                }
+                if (status == Status.OK && StaticAssetPolicy.isImmutablePublicLoginAsset(request.getPath())) {
+                    out.print("Cache-Control: public, max-age=31536000, immutable\r\n");
+                }
             }
             out.print("Content-Length: " + body.length + "\r\n");
             out.print("\r\n");

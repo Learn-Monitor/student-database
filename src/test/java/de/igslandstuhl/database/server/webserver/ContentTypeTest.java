@@ -61,6 +61,7 @@ public class ContentTypeTest {
         assertEquals(ContentType.JAVASCRIPT.getName(), "text/javascript");
         assertEquals(ContentType.CSS.getName(), "text/css");
         assertEquals(ContentType.PNG.getName(), "image/png");
+        assertEquals(ContentType.WEBP.getName(), "image/webp");
         assertEquals(ContentType.JSON.getName(), "text/json");
     }
 
@@ -70,6 +71,7 @@ public class ContentTypeTest {
         assertEquals(ContentType.ofResourceLocation(err404), ContentType.HTML);
         ResourceLocation icon = ResourceLocation.get("imgs", "icons:favicon.ico");
         assertEquals(ContentType.ofResourceLocation(icon), ContentType.PNG);
+        assertEquals(ContentType.ofResourceLocation(ResourceLocation.get("imgs", "login:arcanum-test-0123456789abcdef.webp")), ContentType.WEBP);
         ResourceLocation dashboardJs = WebResourceHandler.locationFromPath("/build_dashboard.js", student);
         assertEquals(ContentType.ofResourceLocation(dashboardJs), ContentType.JAVASCRIPT);
         ResourceLocation css = WebResourceHandler.locationFromPath("/style.css", student);

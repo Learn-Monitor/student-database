@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.Status;
+import de.igslandstuhl.database.server.webserver.StaticAssetPolicy;
 import de.igslandstuhl.database.server.webserver.access.AccessLevel;
 import de.igslandstuhl.database.server.webserver.access.AccessManager;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
@@ -33,7 +34,9 @@ public class HttpHandler<Rq extends HttpRequest> {
         if (contentLength <= 0 && !(request instanceof GetRequest)) {
             return HttpResponse.error(request, Status.BAD_REQUEST);
         }
-        if (!AccessManager.getInstance().hasAccess(
+        boolean sessionlessPublicAsset = request instanceof GetRequest
+                && StaticAssetPolicy.isSessionlessPublicLoginAsset(path);
+        if (!sessionlessPublicAsset && !AccessManager.getInstance().hasAccess(
                 sessionManager.getSessionUser(request), path, request)) {
             var user = sessionManager.getSessionUser(request);
             return HttpResponse.error(request, user == null || user == de.igslandstuhl.database.api.User.ANONYMOUS

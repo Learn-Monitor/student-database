@@ -9,6 +9,7 @@ import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.WebPath;
+import de.igslandstuhl.database.server.webserver.StaticAssetPolicy;
 import de.igslandstuhl.database.server.webserver.handlers.get.PluginRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
 import de.igslandstuhl.database.server.webserver.requests.RequestType;
@@ -26,15 +27,16 @@ public class GetRequestHandler {
     private GetRequestHandler() {}
 
     public final HttpResponse handleRequest(GetRequest request) {
-        SessionManager sessionManager = Server.getInstance().getWebServer().getSessionManager();
-
-        SessionValidationResult v = sessionManager.validateSession(request);
-        if(v != SessionValidationResult.OK){
-            return switch (v){
-                case RATE_LIMITED -> GetResponse.tooManyRequests(request);
-                case INVALID_SESSION -> GetResponse.unauthorized("Invalid Session", request);
-                default -> GetResponse.unauthorized("Invalid Session", request);
-            };
+        if (!StaticAssetPolicy.isSessionlessPublicLoginAsset(request.getPath())) {
+            SessionManager sessionManager = Server.getInstance().getWebServer().getSessionManager();
+            SessionValidationResult v = sessionManager.validateSession(request);
+            if(v != SessionValidationResult.OK){
+                return switch (v){
+                    case RATE_LIMITED -> GetResponse.tooManyRequests(request);
+                    case INVALID_SESSION -> GetResponse.unauthorized("Invalid Session", request);
+                    default -> GetResponse.unauthorized("Invalid Session", request);
+                };
+            }
         }
 
         String path = request.getPath();
@@ -48,6 +50,9 @@ public class GetRequestHandler {
     }
 
     public static GetResponse handleFileRequest(GetRequest request) {
+        if (StaticAssetPolicy.isSessionlessPublicLoginAsset(request.getPath())) {
+            return GetResponse.getResource(request, request.toResourceLocation(null), null, false);
+        }
         String user = getUser(request).getUsername();
         return GetResponse.getResource(request, request.toResourceLocation(user), user, false);
     }
