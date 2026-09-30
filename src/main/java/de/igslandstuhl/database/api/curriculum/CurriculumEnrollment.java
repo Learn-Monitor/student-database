@@ -175,6 +175,25 @@ public final class CurriculumEnrollment {
     public void subjectType(Actor actor,int subject,boolean isWpf) throws SQLException {
         subjectType(actor,subject,isWpf?"INDIVIDUAL":"REGULAR",isWpf?"WPF":null);
     }
+    /** Creates a complete subject and its curriculum type in one administrator transaction. */
+    public int addSubjectWithType(Actor actor,String name,String mode,String assignmentGroup) throws SQLException {
+        admin(actor);
+        String finalName=Curriculum.validName(name);
+        String normalizedMode=mode==null?"REGULAR":mode.strip().toUpperCase(Locale.ROOT);
+        String normalizedGroup=assignmentGroup==null?null:assignmentGroup.strip().toUpperCase(Locale.ROOT);
+        if(!normalizedMode.equals("REGULAR") && !normalizedMode.equals("INDIVIDUAL"))
+            throw error(400,"invalid_input","Subject mode must be REGULAR or INDIVIDUAL.");
+        if(normalizedMode.equals("INDIVIDUAL") && (normalizedGroup==null || normalizedGroup.isBlank()))
+            throw error(400,"invalid_input","Individual subjects require an assignment group.");
+        if(normalizedMode.equals("REGULAR")) normalizedGroup=null;
+        final String finalMode=normalizedMode, finalGroup=normalizedGroup;
+        return curriculum.transaction(c->{
+            write(c,"INSERT INTO subjects(name) VALUES(?)",finalName);
+            int subject=(int)number(c,"SELECT last_insert_rowid()");
+            write(c,"INSERT INTO curriculum_subject_types(subject,wpf,mode,assignment_group) VALUES(?,?,?,?)",subject,finalGroup!=null&&finalGroup.equals("WPF")?1:0,finalMode,finalGroup);
+            return subject;
+        });
+    }
     public void subjectType(Actor actor,int subject,String mode,String assignmentGroup) throws SQLException {
         admin(actor);
         String normalizedMode=mode==null?"REGULAR":mode.strip().toUpperCase(Locale.ROOT);

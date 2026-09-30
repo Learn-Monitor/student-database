@@ -1,14 +1,39 @@
 %[site;title=Dashboard;content=!FOLLOWS]
-<section id="dashboard">
-    <header>
-        <h1>Admin Dashboard</h1>
+<section id="dashboard" class="admin-shell admin-dashboard-page">
+    <header class="admin-page-header">
+        <p class="admin-eyebrow">Verwaltung</p>
+        <h1>Admin-Dashboard</h1>
+        <p class="admin-page-intro">Schuldaten, Curriculum und Systembereiche an einem Ort verwalten.</p>
     </header>
     <p>Willkommen im Admin-Dashboard!</p>
     %[admin_nav]
-    <section class="admin-function-page" id="uebersicht"><h2>Übersicht</h2><p>Hier erscheinen künftig Status und Einrichtungsstand.</p></section>
-    <section class="admin-function-page" id="schuldaten"><h2>Schuldaten</h2><div class="admin-menu-links">
-        <a href="/manage_classes">Klassen verwalten</a><a href="/manage_subjects">Fächer verwalten</a><a href="/manage_students">Schüler verwalten</a><a href="/manage_teachers">Lehrkräfte verwalten</a>
-    </div></section>
+    <section class="admin-function-page" id="uebersicht" aria-labelledby="overview-heading"><h2 id="overview-heading">Übersicht</h2><p>Verwaltungsdaten werden geladen.</p></section>
+    <section class="admin-function-page" id="schuldaten" aria-labelledby="school-data-heading">
+        <h2 id="school-data-heading">Schuldaten</h2>
+        <p class="admin-section-intro">Die wichtigsten Stammdaten der Schule übersichtlich verwalten.</p>
+        <div class="admin-card-grid admin-school-data-grid">
+            <article class="admin-action-card">
+                <h3>Schüler</h3>
+                <p>Schülerkonten, Klassen und aktuelle Graduierungen verwalten.</p>
+                <a class="admin-action-link" href="/manage_students">Schülerverwaltung öffnen</a>
+            </article>
+            <article class="admin-action-card">
+                <h3>Lehrkräfte</h3>
+                <p>Lehrkräfte und ihre Grunddaten verwalten.</p>
+                <a class="admin-action-link" href="/manage_teachers">Lehrkräfte verwalten</a>
+            </article>
+            <article class="admin-action-card">
+                <h3>Klassen</h3>
+                <p>Klassen anlegen, bearbeiten und den Schuljahren zuordnen.</p>
+                <a class="admin-action-link" href="/manage_classes">Klassenverwaltung öffnen</a>
+            </article>
+            <article class="admin-action-card">
+                <h3>Fächer</h3>
+                <p>Eine gemeinsame Liste mit Fachart und Bearbeitung pflegen.</p>
+                <a class="admin-action-link" href="/manage_subjects">Fächerverwaltung öffnen</a>
+            </article>
+        </div>
+    </section>
     <section class="admin-function-page" id="schuljahr"><h2>Schuljahr &amp; Zuordnungen</h2><p>Halbjahre, Jahrgangszuordnungen, zuständige Lehrkräfte und individuelle Fächer werden hier eingerichtet.</p><section id="admin-tutors"><h3>Tutor:innen je Klasse</h3><p data-tutor-status>Hier werden die beiden Tutor:innen einer Klasse für das ausgewählte Halbjahr festgelegt. Tutorzuordnungen werden geladen …</p><div data-tutor-content></div></section><div id="admin-enrollment"></div></section>
     <section class="admin-function-page" id="curriculum-admin"><h2>Zentrales Curriculum</h2><p>Zentrale Themen, Etappen, Münzwerte und CSV-Import werden hier verwaltet.</p><div id="admin-central-curriculum"></div></section>
     <section class="admin-function-page" id="anwesenheit"><h2>Anwesenheit</h2><div class="admin-menu-links"><a href="/attendance">Attendance</a><a href="/attendance-admin">Attendance verwalten</a></div></section>

@@ -1,54 +1,53 @@
 %[site;title=Fächer verwalten;content=!FOLLOWS]
-<section id="subjects">
-    <header>
-        <h1>Fächer verwalten</h1>
+<section id="subjects" class="admin-shell admin-subject-management">
+    <header class="admin-page-header">
+        <p class="admin-eyebrow">Admin · Schuldaten</p>
+        <h1>Fächer</h1>
+        <p class="admin-page-intro">Fachname, Fachart und Bearbeitung bleiben in einer gemeinsamen, kanonischen Liste.</p>
     </header>
+    <nav class="admin-detail-nav" aria-label="Fächerverwaltung">
+        <a href="/dashboard#schuldaten">← Schuldaten</a>
+        <a href="/dashboard">Admin-Übersicht</a>
+    </nav>
     <main>
-        <section id="manage-subjects">
-            <form id="manage-subjects-form" method="post" action="/add-subject">
-                <label for="subject-name">Fachname:</label>
-                <input type="text" id="subject-name" name="name" required>
+        <section id="manage-subjects" class="admin-panel" aria-labelledby="add-subject-heading">
+            <h2 id="add-subject-heading">Fach hinzufügen</h2>
+            <p class="admin-panel-intro">Das Fach wird gemeinsam mit der gewählten Fachart angelegt. Die bestehende Verwaltung legt ohne aktiviertes JavaScript weiterhin ein gültiges REGULAR-Fach an.</p>
+            <form id="manage-subjects-form" class="admin-form admin-subject-create-form" method="post" action="/add-subject">
+                <div class="admin-form-field">
+                    <label for="subject-name">Fachname</label>
+                    <input type="text" id="subject-name" name="name" maxlength="200" required>
+                </div>
+                <div class="admin-form-field">
+                    <label for="create-subject-type">Fachart</label>
+                    <select id="create-subject-type" name="subjectType">
+                        <option value="REGULAR:">REGULAR · verbindlich für alle</option>
+                        <option value="INDIVIDUAL:WPF">WPF · individuell</option>
+                        <option value="INDIVIDUAL:RELIGION_ETHIK">Religion/Ethik · individuell</option>
+                    </select>
+                </div>
                 <button type="submit">Fach hinzufügen</button>
             </form>
+            <p id="subject-management-status" class="admin-inline-status" role="status" aria-live="polite"></p>
         </section>
-        <section id="subject-list">
-            <h2>Vorhandene Fächer</h2>
-            <p>Fachart vorab festlegen: verbindliche Fächer gelten für alle; WPF und Religion/Ethik werden pro Schüler und Gruppe individuell zugeordnet.</p>
-            <div id="subjectTypes"></div>
-            <ul id="subjectList">
-                <!-- Dynamically populated list of subjects -->
-            </ul>
+        <section id="subject-list" class="admin-panel" aria-labelledby="subject-list-heading">
+            <div class="admin-panel-heading">
+                <div>
+                    <h2 id="subject-list-heading">Fächerverwaltung</h2>
+                    <p class="admin-panel-intro">Jedes Fach erscheint genau einmal. Facharten nutzen die bestehende Curriculum-Semantik.</p>
+                </div>
+                <span id="subject-list-status" class="admin-inline-status" role="status" aria-live="polite">Fächer werden geladen …</span>
+            </div>
+            <div class="admin-table-scroll">
+                <table id="subjectList" class="admin-data-table">
+                    <caption class="admin-visually-hidden">Kanonische Fächerliste</caption>
+                    <thead>
+                        <tr><th scope="col">Fach</th><th scope="col">Typ</th><th scope="col">Zuordnung</th><th scope="col"><span class="admin-visually-hidden">Aktion</span></th></tr>
+                    </thead>
+                    <tbody id="subject-list-body"></tbody>
+                </table>
+            </div>
         </section>
     </main>
-    <nav>
-        %[admin_nav]
-    </nav>
 </section>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        fetchJson('/subjects').then(data => {
-                const subjectList = document.getElementById('subjectList');
-                data.forEach(subject => {
-                    const li = document.createElement('li');
-                    li.textContent = subject.name;
-                    li.style.cursor = 'pointer';
-                    li.title = 'Bearbeiten';
-                    li.addEventListener('click', (e) => viewSubject(subject));
-                    subjectList.appendChild(li);
-                });
-            })
-            .catch(error => console.error('Error fetching subjects:', error));
-        fetch('/curriculum-enrollment-catalog',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json()).then(data=>{
-            const box=document.getElementById('subjectTypes');box.innerHTML='<h3>Fachart</h3>';
-            data.subjects.forEach(s=>{const row=document.createElement('p');row.textContent=s.name+' ';const select=document.createElement('select');[
-                ['REGULAR:','Verbindlich für alle'],
-                ['INDIVIDUAL:WPF','Individuell: WPF'],
-                ['INDIVIDUAL:RELIGION_ETHIK','Individuell: Religion / Ethik']
-            ].forEach(([v,l])=>{const o=document.createElement('option');o.value=v;o.textContent=l;select.append(o)});
-            select.value=(s.mode==='INDIVIDUAL'?'INDIVIDUAL:'+(s.assignmentGroup||'WPF'):'REGULAR:');
-            const b=document.createElement('button');b.type='button';b.textContent='Speichern';
-            b.onclick=async()=>{const [mode,assignmentGroup]=select.value.split(':');const response=await fetch('/set-curriculum-subject-type',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subjectId:s.id,mode,assignmentGroup:assignmentGroup||null})});b.textContent=response.ok?'Gespeichert':'Fehler';};
-            row.append(select,b);box.append(row)});
-        }).catch(()=>{});
-    });
-</script>
+<script src="/admin-subject-management.js" defer></script>

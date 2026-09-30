@@ -21,7 +21,7 @@ public final class CurriculumRequestHandler {
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task",
                 "/central-curriculum-overview","/preview-central-curriculum-import","/import-central-curriculum",
-                "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/curriculum-course-groups","/curriculum-tutor-assignments","/set-curriculum-subject-type","/assign-grade-curriculum","/assign-class-tutors","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
+                "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/add-subject-with-type","/curriculum-course-groups","/curriculum-tutor-assignments","/set-curriculum-subject-type","/assign-grade-curriculum","/assign-class-tutors","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/set-curriculum-stage-assessment",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/curriculum-student-progress-detail",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
@@ -154,6 +154,13 @@ public final class CurriculumRequestHandler {
             boolean includeNulls=false;
             switch(rq.getPath()) {
                 case "/curriculum-enrollment-catalog" -> result=enrollment.catalog(actor);
+                case "/add-subject-with-type" -> {
+                    Set<String> allowed=Set.of("name","mode","assignmentGroup");
+                    if(!allowed.equals(rq.getJson().keySet())) throw new CurriculumException(400,"invalid_input","name, mode and assignmentGroup are required.");
+                    Object group=rq.getJson().get("assignmentGroup");
+                    int subjectId=enrollment.addSubjectWithType(actor,name(rq),string(rq,"mode"),group==null?null:String.valueOf(group));
+                    result=Map.of("ok",true,"subjectId",subjectId);
+                }
                 case "/curriculum-course-groups" -> {
                     Integer semester=rq.getJson().get("semesterId")==null?null:integer(rq,"semesterId");
                     Integer grade=rq.getJson().get("grade")==null?null:integer(rq,"grade");

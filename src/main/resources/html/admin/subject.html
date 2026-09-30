@@ -1,25 +1,48 @@
 %[site;title=Fach verwalten;content=!FOLLOWS]
-<script src="build_subject.js" ></script>
-<section id="dashboard">
-    <header>
+<script src="/build_subject.js" defer></script>
+<section id="dashboard" class="admin-shell admin-detail-page">
+    <header class="admin-page-header">
+        <p class="admin-eyebrow">Admin · Schuldaten · Fächer</p>
         <h1>Fach bearbeiten</h1>
+        <p class="admin-page-intro">Stammdaten und Fachart des ausgewählten Fachs verwalten.</p>
     </header>
-    <section id="editData">
+    <nav class="admin-detail-nav" aria-label="Fachverwaltung">
+        <a href="/dashboard#schuldaten">← Schuldaten</a>
+        <a href="/manage_subjects">Alle Fächer</a>
+        <a href="/dashboard#curriculum">Zentrales Curriculum verwalten</a>
+    </nav>
+    <section id="editData" class="admin-panel">
         <h2>Daten bearbeiten</h2>
-        <form id="editSubjectForm" method="post" action="/edit-subject">
+        <form id="editSubjectForm" class="admin-form" method="post" action="/edit-subject">
             <input type="hidden" class="subjectId" name="id">
-            <label for="subjectNameField">Name des Fachs:</label>
-            <input type="text" id="subjectNameField" name="name">
+            <div class="admin-form-field">
+                <label for="subjectNameField">Name des Fachs</label>
+                <input type="text" id="subjectNameField" name="name" maxlength="200" required>
+            </div>
             <button type="submit">Speichern</button>
         </form>
-        <p>Zentrale Themen, Etappen und Münzwerte werden semesterbezogen im zentralen Curriculum verwaltet.</p>
-        <p><a href="/dashboard#curriculum">Zentrales Curriculum verwalten</a></p>
+        <p class="admin-panel-intro">Zentrale Themen, Etappen und Münzwerte werden semesterbezogen im zentralen Curriculum verwaltet.</p>
     </section>
-    <section id="deleteSubject">
+    <section id="subject-type-editor" class="admin-panel" aria-labelledby="subject-type-heading">
+        <h2 id="subject-type-heading">Fachart</h2>
+        <p class="admin-panel-intro">REGULAR-Fächer gelten verbindlich für alle. WPF und Religion/Ethik werden individuell zugeordnet.</p>
+        <form id="subjectTypeForm" class="admin-form">
+            <input type="hidden" class="subjectId" name="subjectId">
+            <div class="admin-form-field">
+                <label for="subjectTypeField">Typ</label>
+                <select id="subjectTypeField" name="subjectType">
+                    <option value="REGULAR:">REGULAR · verbindlich für alle</option>
+                    <option value="INDIVIDUAL:WPF">WPF · individuell</option>
+                    <option value="INDIVIDUAL:RELIGION_ETHIK">Religion/Ethik · individuell</option>
+                </select>
+            </div>
+            <button type="submit">Fachart speichern</button>
+        </form>
+        <p id="subjectTypeStatus" class="admin-inline-status" role="status" aria-live="polite"></p>
+    </section>
+    <section id="deleteSubject" class="admin-panel admin-panel-muted">
         <h2>Fach löschen</h2>
-        <button id="deleteSubjectButton">Fach löschen</button>
+        <p class="admin-panel-intro">Löschen ist nur möglich, wenn keine abhängigen Daten vorhanden sind. Eine sichere Löschprüfung folgt in einem separaten Arbeitsschritt.</p>
+        <button id="deleteSubjectButton" type="button" class="admin-button-danger">Fach löschen</button>
     </section>
-    <nav>
-        %[admin_subject_nav]
-    </nav>
 </section>

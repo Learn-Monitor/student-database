@@ -274,6 +274,13 @@
         "context": "js",
         "access_level": "admin"
     },
+    "/admin-subject-management.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
     "/manage_students.js": {
         "type": "GET",
         "handler_type": "FileRequestHandler",

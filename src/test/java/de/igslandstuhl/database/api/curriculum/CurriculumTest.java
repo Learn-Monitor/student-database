@@ -82,6 +82,16 @@ class CurriculumTest {
         assertEquals(2,Curriculum.noteForTokens(75));
         assertEquals(1,Curriculum.noteForTokens(90));
     }
+    @Test void adminCanCreateCompleteSubjectWithTypeAtomically() throws Exception {
+        var enrollment=new CurriculumEnrollment(service);
+        int before=(int)scalar("SELECT COUNT(*) FROM subjects");
+        int created=enrollment.addSubjectWithType(admin,"A1 Subject "+id,"INDIVIDUAL","WPF");
+        assertEquals(before+1,scalar("SELECT COUNT(*) FROM subjects"));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_subject_types WHERE subject=? AND mode='INDIVIDUAL' AND assignment_group='WPF'",created));
+        assertEquals(403,assertThrows(CurriculumException.class,()->enrollment.addSubjectWithType(teacher,"Not allowed","REGULAR",null)).status);
+        assertEquals(400,assertThrows(CurriculumException.class,()->enrollment.addSubjectWithType(admin,"Invalid","OTHER",null)).status);
+        assertEquals(before+1,scalar("SELECT COUNT(*) FROM subjects"));
+    }
     void releaseAllCentral() throws Exception {
         new CurriculumEnrollment(service).release(teacher,scope,topic,null,true);
     }
