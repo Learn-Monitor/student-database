@@ -1,5 +1,20 @@
 # Arcanum current state
 
+## Final CourseGroup PROD cutover (2026-09-30)
+
+- CourseGroups für `INDIVIDUAL`-Fächer sind produktiv aktiv. `REGULAR` bleibt klassenbasiert; `course_group` bleibt dort `NULL`.
+- Aktiver PROD-Release: `/srv/arcanum/prod/releases/course-groups-c72f8c5-pm0439b25-20260930`.
+- Student-Datenbank: Commit `c72f8c5a5b52df48952804284e806746211d68d3`, SHA256 `c25305b9dbd0083222025adaa3cf9c4b60ba3de5a52489e31e147359b87c6f70`.
+- Permission Manager: Commit `0439b25e4fc1fbea6dffc8eafb0a72dc86c65ca7`, SHA256 `639353fd1b69420e9e2277d4bbeac04a0e0e49228e6b1553b2d7d37daf13c22c`. Der Feature-Branch bleibt als Source-of-Truth bestehen, da `main` und der getestete Commit nicht fast-forward-kompatibel sind.
+- Pre-Cutover-Backup: `/srv/arcanum/prod/backups/pre-course-groups-20260930-140127/`. Backup-SHA256: `902f3d13c4305d65874f2ecdd0b6fa60f7de218f8b16b5b61cbd4c0eda140121`.
+- Automatische CourseGroup-Migration, Foundation-/A2-Backfill und Deferred-Unique-Indizes liefen beim Startup erfolgreich. Es wurden keine manuellen Backfills ausgeführt.
+- Postcheck: 15 CourseGroups, 306 Memberships, 2.082 Curriculum-Contexts; alle Individual-Contexts sind zugeordnet, Regular-Contexts haben keine CourseGroup. Individual-Releases wurden fachlich äquivalent in CourseGroup-Releases überführt.
+- WPF Sport und Gesundheit, Ökologie, Darstellendes Spiel, Soziales und Familie, Technologie und Wirtschaft sowie Französisch wurden migriert. Reli01–03 und Ethik01–02 sind korrekt gruppiert; Legacy Religion ID 8 und Ethik ID 9 blieben unverändert. Alias-Subjects 22–27 sind nicht vorhanden.
+- Geschützte Leistungs-/Verlaufsdaten, Assignments, Stammklassen und Teacher-Zuordnungen blieben unverändert. Integrity `ok`; vollständige FK-Menge vorher/nachher identisch mit 102 bestehenden Meldungen.
+- Aktiver Dienst: `active/running`, MainPID `3279869`, `NRestarts=0`; Root/Login `200/200`. Overlay, Attendance und Results blieben byte-identisch.
+- Kein Rollback erforderlich. CourseGroup Read API und Individual-Catalog-Regressionsnachweise aus dem Offline-Snapshot bleiben PASS; ein zusätzlicher Live-Admin-API-Aufruf wurde mangels sicherer Admin-Credential nicht durchgeführt.
+- `arcanum-2026` wurde nach PROD-PASS per Fast-Forward auf `c72f8c5` gebracht und gepusht. Der Student-Feature-Branch wurde lokal und remote gelöscht. Der Permission-Manager-Feature-Branch bleibt wegen fehlender Fast-Forward-Basis zu `main` bestehen.
+
 ## Active curriculum stages / student dashboard (2026-09-29)
 
 - The student dashboard now uses the canonical managed-curriculum catalog (`/my-curriculum-catalog`) for managed subjects. It no longer requires a legacy `/current-topic` row and does not crash when that legacy endpoint has no topic.
@@ -28,8 +43,8 @@
 
 ## Canonical development line
 
-- `student-database`: `arcanum-2026` at `894276c` (active curriculum-stage dashboard fix, deterministic current-school-year resolution, and final release documentation).
-- Permission Manager and shared plugins were not changed by this release; the active PROD Permission Manager artifact remains `b9a0fdb86a3c8ecee720a842564d3d1eb18cffec6a0ee8248038474e9fdefe27`.
+- `student-database`: `arcanum-2026` at `c72f8c5` (CourseGroups für Individual-Fächer, inklusive automatischer Migration und class-/CourseGroup-spezifischer Releases).
+- Permission Manager: getesteter PROD-Stand `0439b25` auf `feature/course-groups-flexible-student-routes`; `main` wurde nicht künstlich zusammengeführt, da kein Fast-Forward möglich war.
 - The active runtime and release details are recorded in the authoritative section above; the following sections are retained historical release notes.
 
 ## DEMO
