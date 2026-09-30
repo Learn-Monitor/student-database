@@ -1079,6 +1079,7 @@ public final class Curriculum {
             require(c,"SELECT id FROM students WHERE id=?",studentId);
             var assignment=assigned(c,studentId,subject,semester);
             var scope=assignmentScope(assignment,subject,semester);
+            var releaseSnapshot=CurriculumEnrollment.ReleaseSnapshot.load(c,scope);
             int grade=integer(assignment,"grade");
             var earned=progress(c,studentId,scope);
             Set<Integer> centralDone=new HashSet<>(),flexibleDone=new HashSet<>();
@@ -1097,7 +1098,7 @@ public final class Curriculum {
             var centralTasks=rows(c,"SELECT t.id,t.name,t.tokens,t.niveau,t.stage_number AS stageNumber,p.id AS topicId,p.name AS topicName FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=? ORDER BY p.number,t.stage_number,t.id",subject,grade,semester);
             var visibleCentral=new ArrayList<Map<String,Object>>();
             for(var task:centralTasks) {
-                boolean active=CurriculumEnrollment.released(c,scope,integer(task,"id"),integer(task,"topicId"));
+                boolean active=releaseSnapshot.centralReleased(integer(task,"id"),integer(task,"topicId"));
                 task.put("active",active);
                 boolean inProgress=activeStage!=null && activeStage.type()==ActiveStageType.CENTRAL
                         && activeStage.taskId()==integer(task,"id");
@@ -1107,13 +1108,13 @@ public final class Curriculum {
             var visibleTopics=new ArrayList<Map<String,Object>>();
             for(var topic:rows(c,"SELECT id,name,number FROM topics WHERE subject=? AND grade=? AND semester=? ORDER BY number,id",subject,grade,semester)) {
                 int topicId=integer(topic,"id");
-                if(CurriculumEnrollment.topicReleased(c,scope,topicId) || centralTasks.stream().anyMatch(t->integer(t,"topicId")==topicId))visibleTopics.add(topic);
+                if(releaseSnapshot.centralTopicReleased(topicId) || centralTasks.stream().anyMatch(t->integer(t,"topicId")==topicId))visibleTopics.add(topic);
             }
             var flexibleTasks=plannedFlexibleTasks(c,scope);
             var visibleFlexibleTasks=new ArrayList<Map<String,Object>>();
             for(var task:flexibleTasks) {
                 int taskId=integer(task,"id");
-                boolean active=CurriculumEnrollment.flexibleReleased(c,scope,taskId,task.get("topicId")==null?null:integer(task,"topicId"));
+                boolean active=releaseSnapshot.flexibleReleased(taskId,task.get("topicId")==null?null:integer(task,"topicId"));
                 task.put("active",active);
                 boolean inProgress=activeStage!=null && activeStage.type()==ActiveStageType.FLEXIBLE
                         && activeStage.taskId()==taskId;
@@ -1124,7 +1125,7 @@ public final class Curriculum {
             var visibleFlexibleTopics=new ArrayList<Map<String,Object>>();
             for(var topic:flexibleTopics) {
                 int topicId=integer(topic,"id");
-                if(CurriculumEnrollment.flexibleTopicReleased(c,scope,topicId) || flexibleTasks.stream().anyMatch(t->t.get("topicId")!=null && integer(t,"topicId")==topicId))
+                if(releaseSnapshot.flexibleTopicReleased(topicId) || flexibleTasks.stream().anyMatch(t->t.get("topicId")!=null && integer(t,"topicId")==topicId))
                     visibleFlexibleTopics.add(topic);
             }
             ActiveStage finalActiveStage=activeStage;

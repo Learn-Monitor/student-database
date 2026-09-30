@@ -14,6 +14,73 @@ public final class CurriculumEnrollment {
     public record Teaching(int classId,int subjectId,int teacherId) {}
     private record CentralCacheUpdate(int studentId,int taskId) {}
 
+    /** One request-scoped view of all release overrides for a curriculum scope. */
+    static final class ReleaseSnapshot {
+        private final Map<Integer,Boolean> centralTaskOverrides;
+        private final Set<Integer> centralTopics;
+        private final Map<Integer,Boolean> flexibleTaskOverrides;
+        private final Set<Integer> flexibleTopics;
+
+        private ReleaseSnapshot(Map<Integer,Boolean> centralTaskOverrides, Set<Integer> centralTopics,
+                                Map<Integer,Boolean> flexibleTaskOverrides, Set<Integer> flexibleTopics) {
+            this.centralTaskOverrides=centralTaskOverrides;
+            this.centralTopics=centralTopics;
+            this.flexibleTaskOverrides=flexibleTaskOverrides;
+            this.flexibleTopics=flexibleTopics;
+        }
+
+        static ReleaseSnapshot load(Connection c, Scope scope) throws SQLException {
+            boolean individual=Curriculum.individualSubject(c,scope.subjectId());
+            String centralTaskSql,centralTopicSql,flexibleTaskSql,flexibleTopicSql;
+            Object[] args;
+            if(individual) {
+                int group=Curriculum.resolveScope(c,scope).courseGroupId();
+                centralTaskSql="SELECT task,active FROM course_group_task_releases WHERE course_group=?";
+                centralTopicSql="SELECT topic FROM course_group_topic_releases WHERE course_group=? AND active=1";
+                flexibleTaskSql="SELECT flexible_task,active FROM course_group_flexible_task_releases WHERE course_group=?";
+                flexibleTopicSql="SELECT flexible_topic FROM course_group_flexible_topic_releases WHERE course_group=? AND active=1";
+                args=new Object[]{group};
+            } else {
+                centralTaskSql="SELECT task,active FROM curriculum_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=?";
+                centralTopicSql="SELECT topic FROM curriculum_topic_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND active=1";
+                flexibleTaskSql="SELECT flexible_task,active FROM flexible_task_releases WHERE teacher=? AND class=? AND subject=? AND semester=?";
+                flexibleTopicSql="SELECT flexible_topic FROM flexible_topic_releases WHERE teacher=? AND class=? AND subject=? AND semester=? AND active=1";
+                args=new Object[]{scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId()};
+            }
+            return new ReleaseSnapshot(flags(rows(c,centralTaskSql,args)),ids(rows(c,centralTopicSql,args)),
+                    flags(rows(c,flexibleTaskSql,args)),ids(rows(c,flexibleTopicSql,args)));
+        }
+
+        private static Map<Integer,Boolean> flags(List<Map<String,Object>> rows) {
+            Map<Integer,Boolean> result=new HashMap<>();
+            for(var row:rows) {
+                Object key=row.get("task");
+                if(key==null) key=row.get("flexible_task");
+                result.put(((Number)key).intValue(),((Number)row.get("active")).intValue()==1);
+            }
+            return result;
+        }
+
+        private static Set<Integer> ids(List<Map<String,Object>> rows) {
+            Set<Integer> result=new HashSet<>();
+            for(var row:rows) {
+                Object key=row.get("topic");
+                if(key==null) key=row.get("flexible_topic");
+                result.add(((Number)key).intValue());
+            }
+            return result;
+        }
+
+        boolean centralReleased(int task,int topic) {
+            return centralTaskOverrides.containsKey(task) ? centralTaskOverrides.get(task) : centralTopics.contains(topic);
+        }
+        boolean centralTopicReleased(int topic) { return centralTopics.contains(topic); }
+        boolean flexibleReleased(int task,Integer topic) {
+            return flexibleTaskOverrides.containsKey(task) ? flexibleTaskOverrides.get(task) : topic!=null && flexibleTopics.contains(topic);
+        }
+        boolean flexibleTopicReleased(int topic) { return flexibleTopics.contains(topic); }
+    }
+
     /** Creates the next semester in chronological school-year order. */
     public Map<String,Object> createNextSemester(Actor actor) throws SQLException {
         admin(actor);
