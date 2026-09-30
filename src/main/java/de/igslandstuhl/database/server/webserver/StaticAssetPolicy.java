@@ -35,7 +35,7 @@ public final class StaticAssetPolicy {
         return !isSessionlessPublicLoginAsset(webPath);
     }
 
-    static boolean shouldSetSessionCookie(String path) {
+    public static boolean shouldSetSessionCookie(String path) {
         return !isSessionlessPublicLoginAsset(path);
     }
 
@@ -48,7 +48,7 @@ public final class StaticAssetPolicy {
         return null;
     }
 
-    static String cacheControlHeader(String path, Status status) {
+    public static String cacheControlHeader(String path, Status status) {
         if (status == Status.OK && isImmutablePublicLoginAsset(path)) {
             return "public, max-age=31536000, immutable";
         }
