@@ -31,6 +31,30 @@ public final class StaticAssetPolicy {
                 && isImmutableContentHashedPath(path);
     }
 
+    static boolean shouldSetSessionCookie(WebPath webPath) {
+        return !isSessionlessPublicLoginAsset(webPath);
+    }
+
+    static boolean shouldSetSessionCookie(String path) {
+        return !isSessionlessPublicLoginAsset(path);
+    }
+
+    static String cacheControlHeader(WebPath webPath, String path, Status status) {
+        if (status == Status.OK
+                && isSessionlessPublicLoginAsset(webPath)
+                && isImmutableContentHashedPath(path)) {
+            return "public, max-age=31536000, immutable";
+        }
+        return null;
+    }
+
+    static String cacheControlHeader(String path, Status status) {
+        if (status == Status.OK && isImmutablePublicLoginAsset(path)) {
+            return "public, max-age=31536000, immutable";
+        }
+        return null;
+    }
+
     static boolean isImmutableContentHashedPath(String path) {
         return path != null && CONTENT_HASHED_FILENAME.matcher(path).matches();
     }

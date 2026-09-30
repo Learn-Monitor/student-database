@@ -218,12 +218,12 @@ public class GetResponse implements HttpResponse {
                     out.print("; charset=");out.print(charset);
                 }
                 out.print("\r\n");
-                boolean publicLoginAsset = StaticAssetPolicy.isSessionlessPublicLoginAsset(request.getPath());
-                if (!publicLoginAsset) {
+                if (StaticAssetPolicy.shouldSetSessionCookie(request.getPath())) {
                     out.print("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie() + "\r\n");
                 }
-                if (status == Status.OK && StaticAssetPolicy.isImmutablePublicLoginAsset(request.getPath())) {
-                    out.print("Cache-Control: public, max-age=31536000, immutable\r\n");
+                String cacheControl = StaticAssetPolicy.cacheControlHeader(request.getPath(), status);
+                if (cacheControl != null) {
+                    out.print("Cache-Control: " + cacheControl + "\r\n");
                 }
             }
             out.print("Content-Length: " + body.length + "\r\n");

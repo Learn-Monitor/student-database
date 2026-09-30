@@ -1,0 +1,97 @@
+name: Login static asset cache CI
+
+on:
+  push:
+    branches:
+      - "perf/login-static-cache-*"
+  pull_request:
+    branches:
+      - arcanum-2026
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact source commit
+        uses: actions/checkout@v7
+
+      - name: Set up project JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Node.js for the project JS suite
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/test/js/package-lock.json
+
+      - name: Install JS test dependencies
+        working-directory: src/test/js
+        run: npm ci
+
+      - name: Run complete Java and production Shadow JAR build
+        run: ./gradlew --no-daemon --no-parallel --max-workers=1 --console=plain clean test shadowJar
+
+      - name: Run complete JavaScript suite
+        working-directory: src/test/js
+        run: npm test
+
+      - name: Count Java tests and create artifact provenance
+        env:
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_REF: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ github.sha }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          mapfile -t jars < <(find build/libs -maxdepth 1 -type f -name '*-fat.jar' -print)
+          test "${#jars[@]}" -eq 1
+          mkdir -p dist
+          cp "${jars[0]}" dist/
+          python3 - <<'PY'
+          import glob, json, os, pathlib, xml.etree.ElementTree as ET
+          reports = glob.glob("build/test-results/**/*.xml", recursive=True)
+          totals = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+          for report in reports:
+              root = ET.parse(report).getroot()
+              for key in totals:
+                  totals[key] += int(root.attrib.get(key, 0))
+          pathlib.Path("dist/test-counts.json").write_text(json.dumps(totals, indent=2) + "\n")
+          PY
+          artifact=$(basename "${jars[0]}")
+          sha256sum "dist/$artifact" | tee dist/SHA256SUMS
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib
+          artifact = next(p for p in pathlib.Path("dist").glob("*-fat.jar"))
+          data = {
+              "repository": os.environ["SOURCE_REPOSITORY"],
+              "ref": os.environ["SOURCE_REF"],
+              "commit": os.environ["SOURCE_SHA"],
+              "artifact": artifact.name,
+              "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+              "workflow_run_id": os.environ["WORKFLOW_RUN_ID"],
+              "tests": json.loads(pathlib.Path("dist/test-counts.json").read_text()),
+              "status": "passed"
+          }
+          pathlib.Path("dist/provenance.json").write_text(json.dumps(data, indent=2) + "\n")
+          print(json.dumps(data, indent=2))
+          PY
+
+      - name: Upload tested Core JAR and provenance
+        uses: actions/upload-artifact@v7
+        with:
+          name: student-database-core-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
