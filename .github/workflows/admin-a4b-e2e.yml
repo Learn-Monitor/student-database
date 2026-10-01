@@ -124,7 +124,7 @@ jobs:
           credentials="$work/fixture/credentials.json"
           dbbase="$work/database/arcanum-admin-a4b"
           javac -cp "$core" -d "$work/classes" tools/admin-e2e/FixtureRunner.java
-          (cd "$work/runtime" && ARCANUM_ADMIN_E2E=1 ARCANUM_ADMIN_E2E_ROOT="$work" RUNNER_TEMP="$RUNNER_TEMP" java -cp "$work/classes:$core" tools.admin_e2e.FixtureRunner --database-base "$dbbase" --credentials "$credentials" --confirm-admin-e2e)
+          (cd "$work/runtime" && ARCANUM_ADMIN_E2E=1 ARCANUM_ADMIN_E2E_ROOT="$work" RUNNER_TEMP="$RUNNER_TEMP" timeout 180s java -cp "$work/classes:$core" tools.admin_e2e.FixtureRunner --database-base "$dbbase" --credentials "$credentials" --confirm-admin-e2e)
           test -s "$dbbase.db"
           test "$(stat -c '%a' "$credentials")" = 600
           echo "work=$work" >> "$GITHUB_OUTPUT"

@@ -57,6 +57,7 @@ public final class FixtureRunner {
         Files.createDirectories(databaseBase.getParent());
         Files.createDirectories(credentials.getParent());
 
+        System.out.println("A4b fixture: initialize isolated schema");
         Application app = new Application(new String[] {"--test-environment", "true", "--database", databaseBase.toString()});
         Field instance = Application.class.getDeclaredField("instance");
         instance.setAccessible(true);
@@ -64,6 +65,7 @@ public final class FixtureRunner {
         Server server = Server.getInstance();
         server.getConnection().createTables();
         server.getConnection().migrateTables();
+        System.out.println("A4b fixture: isolated schema ready");
 
         String suffix = Long.toUnsignedString(new SecureRandom().nextLong(), 36);
         String adminPassword = password();
@@ -80,9 +82,11 @@ public final class FixtureRunner {
         String studentBEmail = "a4b-student-b-" + suffix + "@example.invalid";
 
         Admin admin = Admin.create(adminName, adminPassword);
+        System.out.println("A4b fixture: admin account ready");
         Teacher teacherA = Teacher.registerTeacher("A4b", "Lehrkraft A", teacherAEmail, teacherAPassword);
         Teacher teacherB = Teacher.registerTeacher("A4b", "Lehrkraft B", teacherBEmail, teacherBPassword);
         Teacher unusedTeacher = Teacher.registerTeacher("A4b", "Unbenutzt", unusedTeacherEmail, unusedTeacherPassword);
+        System.out.println("A4b fixture: teacher accounts ready");
         SchoolClass classA = SchoolClass.addClass("6a", 6);
         SchoolClass classD = SchoolClass.addClass("6d", 6);
         teacherA.addClass(classA);
@@ -95,6 +99,7 @@ public final class FixtureRunner {
                 studentAPassword, classA, GraduationLevel.initialValue());
         Student studentB = Student.registerStudentWithPassword(studentBId, "A4b", "Schüler B", studentBEmail,
                 studentBPassword, classD, GraduationLevel.initialValue());
+        System.out.println("A4b fixture: student accounts ready");
 
         String yearLabel = "2098/99";
         SchoolYear year = SchoolYear.addSchoolYear(yearLabel, 39, 1);
@@ -119,11 +124,13 @@ public final class FixtureRunner {
         enrollment.assignIndividual(actor, studentB.getId(), wpfSubject, classD.getId(), semester.getId(), "WPF", null);
         enrollment.assignIndividual(actor, studentA.getId(), religionSubject, classA.getId(), semester.getId(), "RELIGION_ETHIK", null);
         enrollment.assignIndividual(actor, studentB.getId(), religionSubject, classD.getId(), semester.getId(), "RELIGION_ETHIK", null);
+        System.out.println("A4b fixture: curriculum and CourseGroups ready");
         enrollment.assignClassTutors(actor, semester.getId(), classA.getId(), teacherA.getId(), teacherB.getId());
         enrollment.assignClassTutors(actor, semester.getId(), classD.getId(), teacherA.getId(), teacherB.getId());
         Topic historyTopic = Topic.addTopic("A4b history " + suffix, Subject.get(wpfSubject), 6, 1, semester);
         Task historyTask = Task.addTask(historyTopic, "A4b completed history " + suffix, TaskLevel.LEVEL1, 1);
         studentA.changeTaskStatus(historyTask, Task.STATUS_COMPLETED);
+        System.out.println("A4b fixture: synthetic learning history ready");
 
         JsonObject root = new JsonObject();
         root.addProperty("adminUsername", adminName);
