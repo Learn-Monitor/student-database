@@ -667,7 +667,8 @@ public class PostRequestHandler {
 
     /** Validates the optional post-login target and prevents open redirects. */
     private static String safeLoginNext(String next) {
-        if (next == null || next.length() > 4096) throw new IllegalArgumentException("Ungültiges Weiterleitungsziel");
+        if (next == null || next.isBlank()) return "/dashboard";
+        if (next.length() > 4096) throw new IllegalArgumentException("Ungültiges Weiterleitungsziel");
         try { next = URLDecoder.decode(next, StandardCharsets.UTF_8); }
         catch (IllegalArgumentException e) { throw new IllegalArgumentException("Ungültiges Weiterleitungsziel"); }
         if (next.length() > 2048 || next.indexOf('\r') >= 0 || next.indexOf('\n') >= 0
