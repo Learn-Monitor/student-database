@@ -167,6 +167,9 @@ jobs:
             rm -f "$CREDENTIALS_FILE" "$key" "$fifo"
           }
           trap cleanup_runtime EXIT INT TERM
+          # Keep the normal startup/fallback path, but make remote Holiday API
+          # access fail immediately and only for this disposable process.
+          export JAVA_TOOL_OPTIONS="-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=1"
           cmd="java -jar '$CORE_JAR' --database '$DATABASE_BASE' --port '$port' --keystore '$key' --keystore-password '$keypass' --keystore-type PKCS12"
           (cd "$WORK_DIR/runtime" && setsid script -q -e -c "$cmd" /dev/null < "$fifo" > "$log" 2>&1) &
           runtime_pid=$!
@@ -183,7 +186,11 @@ jobs:
             fi
             sleep 1
           done
-          test "$ready" = 1
+          if [[ "$ready" != 1 ]]; then
+            echo "Runtime did not become ready; relevant startup diagnostics follow"
+            grep -Ei 'starting|exception|error|failed|plugin|ready|migration|sqlite|holiday|server' "$log" | tail -100 || true
+            exit 1
+          fi
           for route in / /login; do test "$(curl -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port$route")" = 200; done
           anonymous="$(curl -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port/dashboard")"
           test "$anonymous" = 401
@@ -209,12 +216,12 @@ jobs:
           integrity=con.execute("PRAGMA integrity_check").fetchone()[0]
           fk=con.execute("PRAGMA foreign_key_check").fetchall()
           regular=con.execute("SELECT COUNT(*) FROM student_curriculum_contexts WHERE subject=? AND semester=? AND course_group IS NOT NULL", (fixture["regularSubjectId"],fixture["semester1Id"])).fetchone()[0]
-          year_groups=con.execute("SELECT COUNT(*) FROM course_groups WHERE semester=(SELECT id FROM semesters WHERE label='2099_00_HJ1')").fetchone()[0]
+          year_groups=con.execute("SELECT COUNT(*) FROM course_groups WHERE semester=(SELECT id FROM semesters WHERE label=?)", (fixture["newSchoolYearHj1Label"],)).fetchone()[0]
           completion=con.execute("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=? AND status=2", (fixture["studentAId"],fixture["historyTaskId"])).fetchone()[0]
           original_group=con.execute("SELECT id,teacher FROM course_groups WHERE subject=? AND grade=6 AND semester=?", (fixture["wpfSubjectId"],fixture["semester1Id"])).fetchall()
-          copied_group=con.execute("SELECT id FROM course_groups WHERE subject=? AND grade=6 AND semester=(SELECT id FROM semesters WHERE label='2098_99_HJ2')", (fixture["wpfSubjectId"],)).fetchall()
+          copied_group=con.execute("SELECT id FROM course_groups WHERE subject=? AND grade=6 AND semester=(SELECT id FROM semesters WHERE label=?)", (fixture["wpfSubjectId"],fixture["semester2Label"])).fetchall()
           copied_members=con.execute("SELECT COUNT(*) FROM course_group_members WHERE course_group=?", (copied_group[0][0],)).fetchone()[0] if copied_group else 0
-          copied_history=con.execute("SELECT COUNT(*) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE p.semester=(SELECT id FROM semesters WHERE label='2098_99_HJ2')").fetchone()[0]
+          copied_history=con.execute("SELECT COUNT(*) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE p.semester=(SELECT id FROM semesters WHERE label=?)", (fixture["semester2Label"],)).fetchone()[0]
           final_context_teachers=con.execute("SELECT COUNT(*) FROM student_curriculum_contexts WHERE subject=? AND semester=? AND teacher=?", (fixture["wpfSubjectId"],fixture["semester1Id"],fixture["teacherBId"])).fetchone()[0]
           individual_members=con.execute("SELECT COUNT(*) FROM course_group_members gm JOIN course_groups g ON g.id=gm.course_group WHERE g.subject=? AND g.semester=?", (fixture["religionSubjectId"],fixture["semester1Id"])).fetchone()[0]
           blocked_subject_exists=con.execute("SELECT COUNT(*) FROM subjects WHERE id IN (SELECT subject FROM curriculum_grade_subjects WHERE grade=6 AND semester=? AND subject<>?)", (fixture["semester1Id"],fixture["regularSubjectId"])).fetchone()[0]

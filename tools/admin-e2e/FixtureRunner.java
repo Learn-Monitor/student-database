@@ -24,6 +24,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.lang.reflect.Field;
 import java.security.SecureRandom;
 import java.sql.Connection;
+import java.time.LocalDate;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -101,9 +102,14 @@ public final class FixtureRunner {
                 studentBPassword, classD, GraduationLevel.initialValue());
         System.out.println("A4b fixture: student accounts ready");
 
-        String yearLabel = "2098/99";
-        SchoolYear year = SchoolYear.addSchoolYear(yearLabel, 39, 1);
-        Semester semester = Semester.addSemester("2098_99_HJ1", 1, year);
+        LocalDate today = LocalDate.now();
+        int schoolYearStart = today.getMonthValue() >= 8 ? today.getYear() : today.getYear() - 1;
+        String yearLabel = String.format("%04d/%02d", schoolYearStart, (schoolYearStart + 1) % 100);
+        String semester1Label = String.format("%04d_%02d_HJ1", schoolYearStart, (schoolYearStart + 1) % 100);
+        String semester2Label = String.format("%04d_%02d_HJ2", schoolYearStart, (schoolYearStart + 1) % 100);
+        String newSchoolYearHj1Label = String.format("%04d_%02d_HJ1", schoolYearStart + 1, (schoolYearStart + 2) % 100);
+        SchoolYear year = SchoolYear.addSchoolYear(yearLabel, 39, 1, LocalDate.of(schoolYearStart, 8, 1), LocalDate.of(schoolYearStart + 1, 7, 31));
+        Semester semester = Semester.addSemester(semester1Label, 1, year);
         year.setCurrentSemester(semester);
 
         Curriculum.Actor actor = Curriculum.Actor.from(admin);
@@ -153,6 +159,8 @@ public final class FixtureRunner {
         root.addProperty("classAId", classA.getId());
         root.addProperty("classDId", classD.getId());
         root.addProperty("semester1Id", semester.getId());
+        root.addProperty("semester2Label", semester2Label);
+        root.addProperty("newSchoolYearHj1Label", newSchoolYearHj1Label);
         root.addProperty("regularSubjectId", regularSubject);
         root.addProperty("wpfSubjectId", wpfSubject);
         root.addProperty("religionSubjectId", religionSubject);
