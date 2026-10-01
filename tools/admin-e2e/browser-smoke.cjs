@@ -105,12 +105,17 @@ async function main() {
   await page.locator('#admin-enrollment .admin-course-group-summary').waitFor({ state: 'attached', timeout: 15000 });
   await page.locator('#admin-enrollment .admin-regular-assignments').waitFor({ state: 'attached', timeout: 15000 });
   write('global semester selector visible', await page.locator('[data-global-semester]').count() === 1);
+  await page.getByRole('button', { name: 'Jetzt verwalten' }).click();
+  const gradeSelector = page.locator('#admin-enrollment fieldset:has(legend) select').first();
+  await gradeSelector.waitFor({ state: 'visible' });
+  await gradeSelector.selectOption({ label: '6' });
+  await page.getByRole('button', { name: 'Auswahl bestätigen' }).click();
+  await page.locator('#admin-enrollment .admin-regular-assignments').waitFor({ state: 'visible' });
+  await page.locator('#admin-enrollment .admin-course-group-summary').waitFor({ state: 'visible' });
   await page.screenshot({ path: path.join(screenshots, 'school-year.png'), fullPage: true });
   write('REGULAR assignment area rendered', await page.locator('#admin-enrollment .admin-regular-assignments').count() === 1);
-  await page.locator('#admin-enrollment .admin-regular-assignments').scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(screenshots, 'regular.png'), fullPage: true });
   write('INDIVIDUAL CourseGroup summary rendered', await page.locator('#admin-enrollment .admin-course-group-summary').count() === 1);
-  await page.locator('#admin-enrollment .admin-course-group-summary').scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(screenshots, 'individual.png'), fullPage: true });
   await page.goto(`${base}/dashboard#curriculum`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(150);
@@ -140,6 +145,12 @@ async function main() {
   await page.screenshot({ path: path.join(screenshots, 'school-year-mobile.png'), fullPage: true });
   await page.goto(`${base}/dashboard#schuljahr`, { waitUntil: 'domcontentloaded' });
   await page.locator('#admin-enrollment .admin-course-group-summary').waitFor({ state: 'attached', timeout: 15000 });
+  await page.getByRole('button', { name: 'Jetzt verwalten' }).click();
+  const mobileGradeSelectorAgain = page.locator('#admin-enrollment fieldset:has(legend) select').first();
+  await mobileGradeSelectorAgain.waitFor({ state: 'visible' });
+  await mobileGradeSelectorAgain.selectOption({ label: '6' });
+  await page.getByRole('button', { name: 'Auswahl bestätigen' }).click();
+  await page.locator('#admin-enrollment .admin-course-group-summary').waitFor({ state: 'visible' });
   await page.screenshot({ path: path.join(screenshots, 'individual-mobile.png'), fullPage: true });
 
   await page.exposeFunction('snapshotProtectedDBState', protectedDatabaseState);
