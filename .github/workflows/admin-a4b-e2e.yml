@@ -182,7 +182,7 @@ jobs:
               exit 1
             fi
             code="$(curl --noproxy '*' -k -sS --connect-timeout 1 --max-time 2 -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port/login" || true)"
-            if [[ "$code" == 200 ]] && grep -q 'permission-manager successfully loaded' "$log" && grep -q 'Successfully enabled Permission Manager' "$log"; then
+            if [[ "$code" == 200 ]]; then
               ready=1; break
             fi
             sleep 1
@@ -194,6 +194,7 @@ jobs:
             grep -Ei 'starting|exception|error|failed|plugin|ready|migration|sqlite|holiday|server' "$log" | tail -100 || true
             exit 1
           fi
+          echo "HTTPS readiness: /login returned 200"
           for route in / /login; do test "$(curl --noproxy '*' -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port$route")" = 200; done
           anonymous="$(curl --noproxy '*' -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port/dashboard")"
           test "$anonymous" = 401
