@@ -29,7 +29,15 @@ public abstract class EventListener<T extends Event> {
         // Plugin listeners can be loaded after the core's built-in event types
         // are registered. Ensure a plugin-defined event type is initialized
         // instead of failing with a null registry bucket during startup.
-        listeners.computeIfAbsent(getEventType(), ignored -> new HashSet<>()).add(this);
+        synchronized (listeners) {
+            EventType<T> type = getEventType();
+            Set<EventListener<?>> registered = listeners.get(type);
+            if (registered == null) {
+                registered = new HashSet<>();
+                listeners.register(type, registered);
+            }
+            registered.add(this);
+        }
     }
 
     public static void register(EventType<?> type) {
