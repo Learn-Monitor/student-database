@@ -59,6 +59,7 @@ async function main() {
   page.on('response', response => {
     const url = new URL(response.url());
     if (url.origin === base && response.status() >= 500) failures.push(`HTTP ${response.status()} ${url.pathname}`);
+    if (url.origin === base && response.status() === 403) failures.push(`unexpected admin-session HTTP 403 ${url.pathname}`);
     if (url.origin === base && response.status() === 404 && /\.(js|css)$/.test(url.pathname)) failures.push(`missing core asset ${url.pathname}`);
   });
 
@@ -89,7 +90,7 @@ async function main() {
     ['/manage_classes', 'Klassen', 'classes.png'],
     ['/manage_subjects', 'Fächer', 'subjects.png'],
     ['/subject', null, null], ['/teacher', null, null], ['/class', null, null], ['/student', null, null],
-    ['/plugins', 'Module', null], ['/editor', 'Editor', null], ['/manage_permissions', 'Berechtigungen', null]
+    ['/plugins', 'Module', null], ['/editor', 'Editor', null], ['/manage_permissions', null, null]
   ];
   for (const [route, heading, screenshot] of pages) {
     const response = await page.goto(`${base}${route}`, { waitUntil: 'domcontentloaded' });
@@ -100,7 +101,7 @@ async function main() {
   write('Permission Manager route runtime proof', await page.locator('body').innerText().then(text => /Berechtigungen|Rollen|Permission/i.test(text)));
 
   await page.goto(`${base}/dashboard#schuldaten`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(150);
+  await page.waitForFunction(() => document.querySelector('.admin-main-menu a[aria-current="page"]'), null, { timeout: 10000 });
   write('active admin nav updates', await page.locator('.admin-main-menu a[aria-current="page"]').count() === 1);
   await page.screenshot({ path: path.join(screenshots, 'school-data.png'), fullPage: true });
   await page.goto(`${base}/dashboard#schuljahr`, { waitUntil: 'domcontentloaded' });
@@ -128,13 +129,17 @@ async function main() {
   const browserDimensions = async (width, height, suffix) => {
     await page.setViewportSize({ width, height });
     await page.goto(`${base}/dashboard#schuldaten`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(150);
+    await page.waitForFunction(() => document.querySelector('.admin-main-menu a[aria-current="page"]'), null, { timeout: 10000 });
     const metrics = await page.evaluate(() => ({
       client: document.documentElement.clientWidth,
       scroll: document.documentElement.scrollWidth,
       bodyClient: document.body.clientWidth,
       bodyScroll: document.body.scrollWidth,
-      activeNav: document.querySelectorAll('.admin-main-menu a[aria-current="page"]').length
+      activeNav: document.querySelectorAll('.admin-main-menu a[aria-current="page"]').length,
+      overflowing: [...document.querySelectorAll('body *')].map(element => ({
+        tag: element.tagName.toLowerCase(), id: element.id, className: typeof element.className === 'string' ? element.className : '',
+        right: Math.round(element.getBoundingClientRect().right)
+      })).filter(element => element.right > document.documentElement.clientWidth + 1).sort((a, b) => b.right - a.right).slice(0, 5)
     }));
     write(`no whole-page overflow ${width}x${height}`, metrics.scroll <= metrics.client + 1 && metrics.bodyScroll <= metrics.bodyClient + 1, JSON.stringify(metrics));
     await page.screenshot({ path: path.join(screenshots, `dashboard${suffix}.png`), fullPage: true });

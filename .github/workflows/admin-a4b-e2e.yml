@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: Learn-Monitor/permission-manager
-          ref: 7832924053669f1a163cab9d8b17916742ff5683
+          ref: 6398e304adab956550441bb5e6ecc87ec69b0748
           path: permission-manager
           persist-credentials: false
 
@@ -100,8 +100,11 @@ jobs:
           entries=data.get("generics", []) + data.get("flat", [])
           paths=[path for entry in entries for path in entry.get("paths", [])]
           assert "/assign-individual-grade-teacher" in paths
+          assert "/curriculum-course-groups" in paths
+          for route in ("/admin-section-navigation.js", "/admin-plugins.js", "/admin-subject-management.js"):
+              assert route in paths, f"missing explicit Admin asset route: {route}"
           assert all("*" not in route for route in paths), "PM manifest contains a broad wildcard route"
-          print("Pinned PM manifest explicitly registers the A3 admin route; no wildcard routes")
+          print("Pinned PM manifest explicitly registers A3/A4b admin routes and assets; no wildcard routes")
           PY
 
       - name: Stage isolated temporary runtime and synthetic database

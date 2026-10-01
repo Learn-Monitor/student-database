@@ -138,7 +138,7 @@ table tr:last-child td {
 .admin-main-menu { position:sticky; top:0; z-index:1000; display:flex; align-items:center; gap:.75rem; margin:1rem 0; padding:.55rem .75rem; background:#17324d; border-radius:.55rem; box-shadow:0 3px 10px #172b4d33; }
 .admin-main-menu-sections { flex:1 1 auto; display:flex; flex-wrap:wrap; gap:.3rem; }
 .admin-main-menu a { flex:0 1 auto; padding:.62rem .72rem; color:#fff; font-weight:700; text-align:center; text-decoration:none; border-radius:.35rem; }
-.admin-main-menu a:hover, .admin-main-menu a:focus, .admin-main-menu a[aria-current="true"] { background:#2c668e; }
+.admin-main-menu a:hover, .admin-main-menu a:focus, .admin-main-menu a[aria-current="page"] { background:#2c668e; }
 .admin-main-menu a:focus-visible { outline:3px solid #ffbf47; outline-offset:2px; }
 .admin-main-menu-logout { margin-left:auto; background:#0f2338; white-space:nowrap; }
 .admin-function-page { margin:1rem 0; padding:1rem 1.2rem; background:#fff; border:1px solid #d9e1ea; border-radius:.7rem; box-shadow:0 2px 8px #172b4d12; scroll-margin-top:5rem; }
@@ -204,7 +204,7 @@ table tr:last-child td {
 .admin-shell .admin-main-menu a { color:#fffaf7; }
 .admin-shell .admin-main-menu a:hover,
 .admin-shell .admin-main-menu a:focus,
-.admin-shell .admin-main-menu a[aria-current="true"] { background:var(--admin-sandstone-700); }
+.admin-shell .admin-main-menu a[aria-current="page"] { background:var(--admin-sandstone-700); }
 .admin-shell .admin-main-menu a:focus-visible,
 .admin-shell button:focus-visible,
 .admin-shell a:focus-visible,
