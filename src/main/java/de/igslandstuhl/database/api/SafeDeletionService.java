@@ -30,6 +30,14 @@ public final class SafeDeletionService {
             DeletionPreflight preflight = subjectPreflight(c, id);
             if (!preflight.exists()) throw new MissingObjectException();
             if (!preflight.deletable()) throw new ObjectInUseException(preflight);
+            // Type is intrinsic subject metadata, not curriculum usage; remove it atomically
+            // only after every external assignment, group, release and history reference passed.
+            if (tableExists(c, "curriculum_subject_types")) {
+                try (PreparedStatement statement = c.prepareStatement("DELETE FROM curriculum_subject_types WHERE subject=?")) {
+                    statement.setInt(1, id);
+                    statement.executeUpdate();
+                }
+            }
             try (PreparedStatement statement = c.prepareStatement("DELETE FROM subjects WHERE id=?")) {
                 statement.setInt(1, id);
                 if (statement.executeUpdate() != 1) throw new MissingObjectException();
@@ -123,6 +131,7 @@ public final class SafeDeletionService {
                 }
             }
             for (List<String[]> key : foreignKeys.values()) {
+                if (!teacher && "curriculum_subject_types".equalsIgnoreCase(table)) continue;
                 StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM ").append(quote(table)).append(" WHERE ");
                 for (int i = 0; i < key.size(); i++) {
                     if (i > 0) sql.append(" AND ");

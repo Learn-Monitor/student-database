@@ -62,6 +62,15 @@ class SafeDeletionServiceTest {
         assertDatabaseIntegrity();
     }
 
+    @Test void unusedTypedSubjectDeletesItsIntrinsicTypeMetadataAtomically() throws Exception {
+        db.writeTransaction(c -> { exec(c, "INSERT INTO curriculum_subject_types(subject,wpf,mode,assignment_group) VALUES(?,0,'REGULAR',NULL)", id); return null; });
+        assertTrue(SafeDeletionService.subjectPreflight(db, id).deletable());
+        SafeDeletionService.deleteSubject(db, id);
+        assertEquals(0, count("subjects", "id", id));
+        assertEquals(0, count("curriculum_subject_types", "subject", id));
+        assertDatabaseIntegrity();
+    }
+
     @Test void subjectDeletePreflightBlocksCourseGroupEvenWithoutLegacyAssignmentsOrCentralTopics() throws Exception {
         db.writeTransaction(c -> {
             exec(c, "INSERT INTO course_groups(id,subject,grade,semester,teacher,assignment_group,name) VALUES(?,?,6,?,?,?,?)", id, id, id, id, "WPF", "A2 group " + id);
