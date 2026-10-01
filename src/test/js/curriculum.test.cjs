@@ -61,7 +61,7 @@ async function setup(admin, options={}){
  if(options.enrollment && url==='/curriculum-enrollment-catalog')body={...catalog,gradeSubjects:[{grade:5,semesterId:20,subjectId:1}],nextSemesterPreview:{label:'2026_27_HJ2',schoolYear:'2026/27',semester:2,newSchoolYear:false,frameCopied:true,tutorsCopied:true},subjects:[{id:1,name:'Math',wpf:0,mode:'REGULAR',assignmentGroup:null,typeExplicit:1},{id:4,name:'WPF Kunst',wpf:1,mode:'INDIVIDUAL',assignmentGroup:'WPF',typeExplicit:1},{id:5,name:'WPF Technik',wpf:1,mode:'INDIVIDUAL',assignmentGroup:'WPF',typeExplicit:1},{id:6,name:'Evangelische Religion',wpf:0,mode:'INDIVIDUAL',assignmentGroup:'RELIGION_ETHIK',typeExplicit:1},{id:7,name:'Ethik',wpf:0,mode:'INDIVIDUAL',assignmentGroup:'RELIGION_ETHIK',typeExplicit:1}],teaching:options.teaching ?? [{classId:10,subjectId:1,teacherId:7,semesterId:20},{classId:11,subjectId:1,teacherId:7,semesterId:20},{grade:5,subjectId:4,teacherId:7,semesterId:20},{grade:5,subjectId:5,teacherId:7,semesterId:20},{grade:5,subjectId:6,teacherId:7,semesterId:20},{grade:5,subjectId:7,teacherId:7,semesterId:20}]};
   else if(options.enrollment && url==='/assign-grade-curriculum')body={students:2,assignments:2};
   else if(options.enrollment && url==='/assign-individual-grade-teacher')body={ok:true};
-  else if(options.enrollment && url==='/curriculum-course-groups')body=[];
+  else if(options.enrollment && url==='/curriculum-course-groups')body=options.courseGroups||[];
   else if(options.enrollment && url==='/curriculum-wpf-roster')body=[{id:50,first_name:'Test',last_name:'Kind',subjectId:null,teacherId:null}];
   else if(options.enrollment && url==='/assign-curriculum-wpf')body={ok:true};
   else if(url==='/curriculum-releases')body={topics:releaseTopics,tasks:releaseTasks,flexibleTopics:releaseFlexibleTopics,flexibleTasks:releaseFlexibleTasks};
@@ -756,12 +756,15 @@ test('admin grade batch uses the single global semester selector',async()=>{
 });
 test('individual subject groups save independently through the guarded assignment endpoint',async()=>{
  const teaching=[{grade:5,subjectId:4,teacherId:7,semesterId:20},{grade:5,subjectId:5,teacherId:7,semesterId:20},{grade:5,subjectId:6,teacherId:7,semesterId:20},{grade:5,subjectId:7,teacherId:7,semesterId:20}];
- const {dom,root,requests}=await setup(true,{enrollment:true,teaching});try{
+ const {dom,root,requests}=await setup(true,{enrollment:true,teaching,courseGroups:[{subjectName:'Drama',grade:5,teacherName:'Test Teacher',memberCount:1,active:true}]});try{
  const panel=root.querySelector('.curriculum-enrollment');await clickNamed(dom,panel,'Jetzt verwalten');await clickNamed(dom,panel,'Auswahl bestätigen');
   assert.ok(panel.querySelector('.admin-individual-teachers'));
+  assert.ok(panel.querySelector('.admin-individual-teachers table')?.closest('.admin-table-scroll'));
+  assert.ok(panel.querySelector('.admin-course-group-summary table')?.closest('.admin-table-scroll'));
   const gradeTeacher=panel.querySelector('.admin-individual-teachers select');assert.ok(gradeTeacher);assert.equal(gradeTeacher.value,'7');
   const group=[...panel.querySelectorAll('select')].find(select=>[...select.options].some(option=>option.value==='RELIGION_ETHIK'));assert.ok(group);assert.equal(group.value,'RELIGION_ETHIK');
   await clickNamed(dom,panel,'Zuordnungen laden');
+  assert.ok(panel.querySelector('.curriculum-wpf-board table')?.closest('.admin-table-scroll'));
   let row=panel.querySelector('.curriculum-wpf-board table tr:nth-child(2)');let selects=row.querySelectorAll('select');assert.equal(row.cells.length,3);assert.equal(selects.length,1);assert.doesNotMatch(row.textContent,/Lehrkraft/);selects[0].value='6';await clickNamed(dom,panel,'Zuordnungen speichern');
   let request=requests.filter(r=>r.url==='/assign-curriculum-wpf').at(-1);assert.deepEqual(request.data,{studentId:50,subjectId:6,classId:10,semesterId:20,assignmentGroup:'RELIGION_ETHIK',expectedSubjectId:null});
   group.value='WPF';group.dispatchEvent(new dom.window.Event('change'));await clickNamed(dom,panel,'Zuordnungen laden');
