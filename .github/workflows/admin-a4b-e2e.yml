@@ -209,7 +209,10 @@ jobs:
           done
           mkdir -p "$WORK_DIR/browser"
           npm install --prefix "$WORK_DIR/browser" --no-save --no-audit --no-fund playwright@1.55.0
-          timeout --signal=TERM --kill-after=20s 240s "$WORK_DIR/browser/node_modules/.bin/playwright" install --with-deps chromium
+          # GitHub's ubuntu-latest image already has Chromium's system libraries.
+          # Avoid apt-get in the acceptance step: dependency installation can
+          # consume most of the bounded browser budget on a cold runner.
+          timeout --signal=TERM --kill-after=20s 300s "$WORK_DIR/browser/node_modules/.bin/playwright" install chromium
           PLAYWRIGHT_MODULE_PATH="$WORK_DIR/browser/node_modules/playwright" \
           A4B_BASE_URL="https://127.0.0.1:$port" \
           A4B_CREDENTIALS="$CREDENTIALS_FILE" \
