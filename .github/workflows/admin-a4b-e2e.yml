@@ -154,6 +154,7 @@ jobs:
             -keystore "$key" -storepass "$keypass" -keypass "$keypass" -dname "CN=localhost" -validity 2 >/dev/null 2>&1
           chmod 600 "$key"
           port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
+          echo "Isolated HTTPS runtime port: $port"
           printf '%s\n' "$port" > "$WORK_DIR/fixture/port.txt"
           mkfifo "$fifo"
           exec 3<>"$fifo"
@@ -180,7 +181,7 @@ jobs:
               grep -Ei 'exception|error|failed|plugin|ready|migration|sqlite' "$log" | tail -100 || true
               exit 1
             fi
-            code="$(curl -k -sS --connect-timeout 1 --max-time 2 -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port/login" || true)"
+            code="$(curl --noproxy '*' -k -sS --connect-timeout 1 --max-time 2 -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port/login" || true)"
             if [[ "$code" == 200 ]] && grep -q 'permission-manager successfully loaded' "$log" && grep -q 'Successfully enabled Permission Manager' "$log"; then
               ready=1; break
             fi
@@ -188,14 +189,16 @@ jobs:
           done
           if [[ "$ready" != 1 ]]; then
             echo "Runtime did not become ready; relevant startup diagnostics follow"
+            echo "Expected listener port: $port"
+            ss -ltnp || true
             grep -Ei 'starting|exception|error|failed|plugin|ready|migration|sqlite|holiday|server' "$log" | tail -100 || true
             exit 1
           fi
-          for route in / /login; do test "$(curl -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port$route")" = 200; done
-          anonymous="$(curl -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port/dashboard")"
+          for route in / /login; do test "$(curl --noproxy '*' -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port$route")" = 200; done
+          anonymous="$(curl --noproxy '*' -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port/dashboard")"
           test "$anonymous" = 401
           for route in /manage_students /manage_teachers /manage_classes /manage_subjects; do
-            code="$(curl -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port$route")"
+            code="$(curl --noproxy '*' -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port$route")"
             test "$code" = 401
           done
           mkdir -p "$WORK_DIR/browser"
