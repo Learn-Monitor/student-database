@@ -102,7 +102,10 @@ async function main() {
   ];
   for (const [route, heading, screenshot] of pages) {
     let target = route;
-    if (route === '/subject') target = `/subject?subjectId=${fixture.regularSubjectId}`;
+    if (route === '/subject') {
+      await page.evaluate(({ id }) => sessionStorage.setItem('currentSubject', JSON.stringify({ id, name: 'A4b REGULAR' })), { id: fixture.regularSubjectId });
+      target = `/subject?subjectId=${fixture.regularSubjectId}`;
+    }
     if (route === '/class') {
       await page.evaluate(({ id }) => sessionStorage.setItem('currentClass', JSON.stringify({ id, label: '6a', grade: 6 })), { id: fixture.classAId });
     }
