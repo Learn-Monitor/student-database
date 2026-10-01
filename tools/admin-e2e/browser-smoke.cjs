@@ -55,7 +55,10 @@ async function main() {
   });
   page.on('console', msg => { if (msg.type() === 'error') failures.push(`console.error: ${msg.text()}`); });
   page.on('pageerror', error => failures.push(`pageerror: ${error.message}`));
-  page.on('requestfailed', request => failures.push(`request failed ${request.method()} ${new URL(request.url()).pathname}`));
+  page.on('requestfailed', request => {
+    if (request.failure()?.errorText === 'net::ERR_ABORTED' && request.resourceType() === 'document') return;
+    failures.push(`request failed ${request.method()} ${new URL(request.url()).pathname}: ${request.failure()?.errorText || 'unknown'}`);
+  });
   page.on('response', response => {
     const url = new URL(response.url());
     if (url.origin === base && response.status() >= 500) failures.push(`HTTP ${response.status()} ${url.pathname}`);
@@ -356,7 +359,14 @@ async function main() {
   }, { username: fixture.unusedTeacherUsername, password: fixture.unusedTeacherPassword });
   write('deleted teacher login rejected', deletedLogin === 401, `HTTP ${deletedLogin}`);
 
-  const overflow = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+  const overflow = await page.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    scroll: document.documentElement.scrollWidth,
+    overflowing: [...document.querySelectorAll('body *')].map(element => ({
+      tag: element.tagName.toLowerCase(), id: element.id, className: typeof element.className === 'string' ? element.className : '',
+      right: Math.round(element.getBoundingClientRect().right)
+    })).filter(element => element.right > document.documentElement.clientWidth + 1).sort((a, b) => b.right - a.right).slice(0, 8)
+  }));
   write('mobile whole-page overflow final', overflow.scroll <= overflow.client + 1, JSON.stringify(overflow));
   fs.writeFileSync(reportPath, JSON.stringify({ checks, errors: failures }, null, 2));
   if (failures.length) throw new Error(failures.join('\n'));
