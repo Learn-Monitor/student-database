@@ -171,6 +171,9 @@ public final class FixtureRunner {
         }
         server.getConnection().close();
         System.out.println("A4b synthetic fixture prepared; credentials are in a mode-600 temp file.");
+        // Constructing the Server also creates the non-daemon session-cleanup
+        // thread. This disposable seeder process must exit before runtime startup.
+        System.exit(0);
     }
 
     private static String password() {
