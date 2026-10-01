@@ -38,9 +38,18 @@ print(json.dumps(state, sort_keys=True))
 }
 
 async function main() {
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } });
+  let browser;
+  let context;
+  try {
+  browser = await chromium.launch({ headless: true });
+  context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
+  const loginResponses = [];
+  const dialogs = [];
+  page.on('dialog', async dialog => {
+    dialogs.push(dialog.message());
+    await dialog.dismiss();
+  });
   page.on('console', msg => { if (msg.type() === 'error') failures.push(`console.error: ${msg.text()}`); });
   page.on('pageerror', error => failures.push(`pageerror: ${error.message}`));
   page.on('requestfailed', request => failures.push(`request failed ${request.method()} ${new URL(request.url()).pathname}`));
@@ -56,8 +65,17 @@ async function main() {
   write('login form rendered', await page.locator('#loginForm').count() === 1);
   await page.locator('#username').fill(fixture.adminUsername);
   await page.locator('#password').fill(fixture.adminPassword);
+  page.on('response', response => {
+    if (new URL(response.url()).pathname === '/login' && response.request().method() === 'POST') {
+      loginResponses.push({ status: response.status(), url: new URL(response.url()).pathname });
+    }
+  });
   await page.locator('#loginForm button[type=submit]').click();
-  await page.waitForURL('**/dashboard', { timeout: 15000 });
+  try {
+    await page.waitForURL('**/dashboard', { timeout: 15000 });
+  } catch {
+    throw new Error(`admin login did not redirect; POST /login=${JSON.stringify(loginResponses)}; currentPath=${new URL(page.url()).pathname}; loginDialog=${JSON.stringify(dialogs)}`);
+  }
   await page.getByRole('heading', { name: 'Admin-Dashboard' }).waitFor();
   write('real admin login and session redirect', true);
 
@@ -305,10 +323,12 @@ async function main() {
 
   const overflow = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
   write('mobile whole-page overflow final', overflow.scroll <= overflow.client + 1, JSON.stringify(overflow));
-  await context.close();
-  await browser.close();
   fs.writeFileSync(reportPath, JSON.stringify({ checks, errors: failures }, null, 2));
   if (failures.length) throw new Error(failures.join('\n'));
+  } finally {
+    await context?.close().catch(() => {});
+    await browser?.close().catch(() => {});
+  }
 }
 
 main().catch(error => {
