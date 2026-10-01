@@ -32,6 +32,15 @@ jobs:
         run: npm ci && npm test
       - name: Core tests and fat JAR
         run: ./gradlew clean test shadowJar --rerun-tasks --no-daemon
+      - name: Upload JUnit diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: student-database-junit-${{ github.sha }}
+          path: |
+            build/test-results/test/TEST-*.xml
+            build/test-results/curriculumTest/TEST-*.xml
+          if-no-files-found: warn
       - name: Report complete JUnit XML inventory
         run: |
           python3 - <<'PY'
