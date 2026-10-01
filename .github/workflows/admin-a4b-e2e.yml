@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: Learn-Monitor/permission-manager
-          ref: 6398e304adab956550441bb5e6ecc87ec69b0748
+          ref: c10a4d19311e394f680c0d8402fe6e1647d62c76
           path: permission-manager
           persist-credentials: false
 
@@ -101,6 +101,7 @@ jobs:
           paths=[path for entry in entries for path in entry.get("paths", [])]
           assert "/assign-individual-grade-teacher" in paths
           assert "/curriculum-course-groups" in paths
+          assert "/add-subject-with-type" in paths
           for route in ("/admin-section-navigation.js", "/admin-plugins.js", "/admin-subject-management.js"):
               assert route in paths, f"missing explicit Admin asset route: {route}"
           assert all("*" not in route for route in paths), "PM manifest contains a broad wildcard route"
