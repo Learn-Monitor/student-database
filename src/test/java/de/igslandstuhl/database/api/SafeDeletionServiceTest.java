@@ -241,8 +241,8 @@ class SafeDeletionServiceTest {
         assertEquals(email, SafeDeletionService.deleteTeacher(db, id));
         assertEquals(0, count("teachers", "id", id));
         assertEquals(0, scalarText("SELECT COUNT(*) FROM permnodes WHERE username=?", email));
-        assertEquals(1, scalarText("SELECT COUNT(*) FROM permnodes WHERE username='other@example.invalid'"));
-        assertEquals(1, scalarText("SELECT COUNT(*) FROM user_roles WHERE username='other@example.invalid'"));
+        assertEquals(1, scalarText("SELECT COUNT(*) FROM permnodes WHERE username='other@example.invalid'", null));
+        assertEquals(1, scalarText("SELECT COUNT(*) FROM user_roles WHERE username='other@example.invalid'", null));
         assertFalse(byId.containsKey(id));
         assertFalse(byEmail.containsKey(email));
         assertDatabaseIntegrity();
