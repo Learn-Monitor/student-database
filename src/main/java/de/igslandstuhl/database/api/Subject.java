@@ -1,9 +1,6 @@
 package de.igslandstuhl.database.api;
 
 import java.sql.SQLException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -237,43 +234,8 @@ public class Subject implements APIObject {
     }
 
     public void delete() throws SQLException {
-        Server.getInstance().getConnection().writeTransaction(c -> {
-            long references =
-                scalar(c,"SELECT COUNT(*) FROM topics WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE p.subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM individual_tasks WHERE subject_id=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM unscheduled_tasks WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM flexible_tasks WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM flexible_topics WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM student_curriculum_contexts WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM curriculum_grade_subjects WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM curriculum_individual_assignments WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM curriculum_class_teachers WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM curriculum_grade_teachers WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM curriculum_topic_releases WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM curriculum_task_releases WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM gradesubjects WHERE subject=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM student_subjects WHERE subject_id=?",id)
-                + scalar(c,"SELECT COUNT(*) FROM teacher_subjects WHERE subject_id=?",id);
-            if (references > 0) {
-                throw new SQLException("Subject has existing assignments, curriculum or performance history and cannot be deleted.");
-            }
-            try (PreparedStatement statement = c.prepareStatement("DELETE FROM subjects WHERE id=?")) {
-                statement.setInt(1, id);
-                statement.executeUpdate();
-            }
-            return null;
-        });
+        SafeDeletionService.deleteSubject(Server.getInstance().getConnection(), id);
         subjects.remove(id);
-    }
-
-    private static long scalar(Connection c, String sql, int subjectId) throws SQLException {
-        try (PreparedStatement statement = c.prepareStatement(sql)) {
-            statement.setInt(1, subjectId);
-            try (ResultSet result = statement.executeQuery()) {
-                return result.next() ? result.getLong(1) : 0L;
-            }
-        }
     }
 
     @Override

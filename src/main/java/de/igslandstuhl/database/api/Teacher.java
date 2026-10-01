@@ -364,6 +364,19 @@ public class Teacher extends User {
         teachersByEmail.remove(email);
     }
 
+    static void evictById(int id, String email) {
+        teachers.remove(id);
+        if (email != null) teachersByEmail.remove(email);
+    }
+
+    public DeletionPreflight deletionPreflight() throws SQLException {
+        return SafeDeletionService.teacherPreflight(Server.getInstance().getConnection(), id);
+    }
+
+    public void delete() throws SQLException {
+        SafeDeletionService.deleteTeacher(Server.getInstance().getConnection(), id);
+    }
+
     @Override
     public int hashCode() {
         return Integer.hashCode(id);

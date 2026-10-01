@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gson.reflect.TypeToken;
+import com.google.gson.JsonSyntaxException;
 
 import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.Registry;
@@ -29,6 +30,7 @@ import de.igslandstuhl.database.api.SchoolClass;
 import de.igslandstuhl.database.api.Student;
 import de.igslandstuhl.database.api.GraduationLevel;
 import de.igslandstuhl.database.api.Subject;
+import de.igslandstuhl.database.api.DeletionPreflight;
 import de.igslandstuhl.database.api.SubjectRequest;
 import de.igslandstuhl.database.api.Task;
 import de.igslandstuhl.database.api.Teacher;
@@ -81,6 +83,56 @@ public class PostRequestHandler {
     }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PostRequestHandler.class);
+
+    private static PostResponse handleSafeDelete(APIPostRequest rq, boolean teacherObject) {
+        try {
+            Map<String, Object> body;
+            try {
+                body = rq.getJson();
+            } catch (JsonSyntaxException malformedJson) {
+                Map<String, String> form = rq.getFormData();
+                body = new java.util.HashMap<>(form);
+                if (form.containsKey("id")) body.put("id", Long.parseLong(form.get("id")));
+            }
+            if (body == null) return PostResponse.json(Status.BAD_REQUEST, Map.of("error", "invalid_input", "message", "JSON body required."), rq);
+            if (!Set.of("id", "action").containsAll(body.keySet()))
+                return PostResponse.json(Status.BAD_REQUEST, Map.of("error", "invalid_input", "message", "Only id and action are accepted."), rq);
+            Object rawId = body.get("id");
+            if (!(rawId instanceof Number number) || number.doubleValue() != Math.rint(number.doubleValue())
+                    || number.longValue() < 1 || number.longValue() > Integer.MAX_VALUE)
+                return PostResponse.json(Status.BAD_REQUEST, Map.of("error", "invalid_input", "message", "A positive integer id is required."), rq);
+            int id = number.intValue();
+            String action = body.get("action") == null ? "delete" : String.valueOf(body.get("action"));
+            if (!action.equals("preflight") && !action.equals("delete"))
+                return PostResponse.json(Status.BAD_REQUEST, Map.of("error", "invalid_input", "message", "action must be preflight or delete."), rq);
+            DeletionPreflight preflight = teacherObject
+                ? de.igslandstuhl.database.api.SafeDeletionService.teacherPreflight(Server.getInstance().getConnection(), id)
+                : de.igslandstuhl.database.api.SafeDeletionService.subjectPreflight(Server.getInstance().getConnection(), id);
+            if (!preflight.exists()) return PostResponse.json(Status.NOT_FOUND, Map.of("error", "not_found", "message", "Der Eintrag wurde nicht gefunden."), rq);
+            if (action.equals("preflight")) return PostResponse.json(preflight, rq);
+            if (!preflight.deletable()) return PostResponse.json(Status.CONFLICT,
+                Map.of("error", "object_in_use", "message", "Der Eintrag wird noch verwendet und kann nicht gelöscht werden.", "preflight", preflight), rq);
+            if (teacherObject) {
+                Teacher teacher = Teacher.get(id);
+                if (teacher == null) return PostResponse.json(Status.NOT_FOUND, Map.of("error", "not_found", "message", "Die Lehrkraft wurde nicht gefunden."), rq);
+                teacher.delete();
+            } else {
+                Subject subject = Subject.get(id);
+                if (subject == null) return PostResponse.json(Status.NOT_FOUND, Map.of("error", "not_found", "message", "Das Fach wurde nicht gefunden."), rq);
+                subject.delete();
+            }
+            return PostResponse.json(Map.of("deleted", true), rq);
+        } catch (de.igslandstuhl.database.api.ObjectInUseException e) {
+            return PostResponse.json(Status.CONFLICT, Map.of("error", "object_in_use", "message", "Der Eintrag wird noch verwendet und kann nicht gelöscht werden.", "preflight", e.preflight()), rq);
+        } catch (de.igslandstuhl.database.api.SafeDeletionService.MissingObjectException e) {
+            return PostResponse.json(Status.NOT_FOUND, Map.of("error", "not_found", "message", "Der Eintrag wurde nicht gefunden."), rq);
+        } catch (IllegalArgumentException e) {
+            return PostResponse.json(Status.BAD_REQUEST, Map.of("error", "invalid_input", "message", "Die Löschanfrage ist ungültig."), rq);
+        } catch (SQLException e) {
+            LOGGER.error("Safe admin deletion failed", e);
+            return PostResponse.json(Status.INTERNAL_SERVER_ERROR, Map.of("error", "database_error", "message", "Der Eintrag konnte nicht sicher gelöscht werden."), rq);
+        }
+    }
 
     /**
      * Handles the POST request based on the path specified in the request.
@@ -486,9 +538,8 @@ public class PostRequestHandler {
                 return curriculumError(e, rq);
             }
         });
-        HttpHandler.registerPostRequestHandler("/delete-subject", AccessLevel.ADMIN, (rq) -> 
-            handleObjectAction(rq, new TypeToken<Subject>() {}, PostResponse.redirect("/manage_subjects", rq), (subject) -> subject.delete())            
-        );
+        HttpHandler.registerPostRequestHandler("/delete-subject", AccessLevel.ADMIN, (rq) -> handleSafeDelete(rq, false));
+        HttpHandler.registerPostRequestHandler("/delete-teacher", AccessLevel.ADMIN, (rq) -> handleSafeDelete(rq, true));
         HttpHandler.registerPostRequestHandler("/edit-subject", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<Subject>() {}, PostResponse.redirect("/manage_subjects", rq), (subject) -> subject.edit(prepare(rq.getString("name"))))
         );

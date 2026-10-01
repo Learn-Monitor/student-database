@@ -62,6 +62,48 @@
         status.dataset.state = state;
     }
 
+    function setDeleteStatus(message, state = '') {
+        const status = document.getElementById('subjectDeleteStatus');
+        if (status) { status.textContent = message; status.dataset.state = state; }
+    }
+
+    async function requestDelete(action) {
+        const response = await fetch('/delete-subject', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: Number(selectedSubject.id), action})
+        });
+        let data = null;
+        try { data = await response.json(); } catch { /* handled as an API error below */ }
+        if (!response.ok) throw Object.assign(new Error(data?.message || 'Löschprüfung fehlgeschlagen.'), {data, status: response.status});
+        return data;
+    }
+
+    function renderDeletePreflight(result) {
+        const button = document.getElementById('deleteSubjectButton');
+        const list = document.getElementById('subjectDeleteReasons');
+        list.replaceChildren();
+        (result.groups || []).filter(group => group.count > 0).forEach(group => {
+            const item = document.createElement('li');
+            item.textContent = `${group.count} · ${group.label}`;
+            list.append(item);
+        });
+        if (result.protectedReason) {
+            const item = document.createElement('li'); item.textContent = result.protectedReason; list.append(item);
+        }
+        button.disabled = !result.deletable;
+        setDeleteStatus(result.deletable
+            ? 'Dieses Fach ist unbenutzt und kann gelöscht werden.'
+            : 'Dieses Fach kann derzeit nicht gelöscht werden.', result.deletable ? 'success' : 'error');
+    }
+
+    async function loadDeletePreflight() {
+        const button = document.getElementById('deleteSubjectButton');
+        button.disabled = true;
+        setDeleteStatus('Löschbarkeit wird geprüft …');
+        try { renderDeletePreflight(await requestDelete('preflight')); }
+        catch { setDeleteStatus('Die sichere Löschprüfung ist fehlgeschlagen. Löschen ist deshalb gesperrt.', 'error'); }
+    }
+
     async function loadSubjectType(subject) {
         const typeField = document.getElementById('subjectTypeField');
         if (!typeField) return;
@@ -103,20 +145,27 @@
     function bindDelete() {
         const button = document.getElementById('deleteSubjectButton');
         if (!button) return;
+        const confirmation = document.getElementById('subjectDeleteConfirmation');
         button.addEventListener('click', () => {
-            if (!selectedSubject) return;
-            if (confirm('Fach wirklich löschen? Dies ist nur möglich, wenn keine Zuordnungen, Curriculuminhalte oder Leistungsdaten vorhanden sind.')) {
-                deleteSubject(selectedSubject.id).then(response => {
-                    if (response.ok) {
-                        alert('Fach wurde gelöscht.');
-                        window.location.href = '/manage_subjects';
-                    } else {
-                        alert('Das Fach konnte nicht gelöscht werden. Möglicherweise wird es noch verwendet.');
-                    }
-                }).catch(error => {
-                    console.error('Error deleting subject:', error);
-                    alert('Das Fach konnte nicht gelöscht werden. Möglicherweise wird es noch verwendet.');
-                });
+            if (!selectedSubject || button.disabled) return;
+            document.getElementById('subjectDeleteName').textContent = selectedSubject.name || '';
+            confirmation.hidden = false;
+            document.getElementById('confirmDeleteSubject').focus();
+        });
+        document.getElementById('cancelDeleteSubject').addEventListener('click', () => { confirmation.hidden = true; button.focus(); });
+        document.getElementById('confirmDeleteSubject').addEventListener('click', async event => {
+            const confirmButton = event.currentTarget; confirmButton.disabled = true; button.disabled = true;
+            setDeleteStatus('Fach wird sicher gelöscht …');
+            try {
+                await requestDelete('delete');
+                setDeleteStatus('Fach wurde gelöscht.');
+                sessionStorage.removeItem('currentSubject');
+                window.location.assign('/manage_subjects');
+            } catch (error) {
+                if (error.data?.preflight) renderDeletePreflight(error.data.preflight);
+                setDeleteStatus(error.message || 'Fach konnte nicht gelöscht werden.', 'error');
+                confirmation.hidden = true;
+                confirmButton.disabled = false;
             }
         });
     }
@@ -128,9 +177,11 @@
             loadSubjectType(selectedSubject).catch(() => {});
         } else {
             setStatus('Kein Fach ausgewählt.', 'error');
+            document.getElementById('deleteSubject').hidden = true;
             console.error('No subject data found.');
         }
         document.getElementById('subjectTypeForm')?.addEventListener('submit', saveSubjectType);
         bindDelete();
+        if (selectedSubject) loadDeletePreflight();
     });
 })();

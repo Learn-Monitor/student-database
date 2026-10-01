@@ -1,26 +1,40 @@
-%[site;title=Lehrkraft bearbeiten;content=!FOLLOWS]
-<section id="dashboard">
-    <header>
-        <h1>Lehrkraft bearbeiten - <span id="teacher-name"></span></h1>
+%[site;title=Lehrkraft verwalten;content=!FOLLOWS]
+<script src="/build_teacher.js" defer></script>
+<section id="dashboard" class="admin-shell admin-detail-page">
+    <header class="admin-page-header">
+        <p class="admin-eyebrow">Admin · Schuldaten · Lehrkräfte</p>
+        <h1>Lehrkraft verwalten · <span id="teacher-name"></span></h1>
+        <p class="admin-page-intro">Stammdaten und Zugang der ausgewählten Lehrkraft verwalten.</p>
     </header>
-    <main>
-        <section id="edit-teacher">
-            <h2>Lehrkraft bearbeiten</h2>
-            <p id="teacher-load-message" hidden></p>
-            <p id="teacher-back-link" hidden><a href="/manage_teachers">Zur Lehrkräfteverwaltung</a></p>
-            <form id="teacher-profile-form" method="post" action="/edit-teacher-profile">
-                <input type="hidden" name="id" id="teacherId" class="teacherId">
-                <label>Vorname <input name="firstName" id="teacherFirstName" required></label>
-                <label>Nachname <input name="lastName" id="teacherLastName" required></label>
-                <label>Loginname <input type="text" name="email" id="teacherEmail" required readonly></label>
-                <label>Neues Passwort (optional) <input type="password" name="password" id="teacherPassword" autocomplete="new-password"></label>
-                <button type="submit">Stammdaten speichern</button>
-            </form>
-            <p>Klassen-, Fach- und Semesterzuordnungen werden im Bereich <a href="/dashboard#schuljahr">Schuljahr &amp; Zuordnungen</a> verwaltet.</p>
-        </section>
-    </main>
-    <nav>
-        %[admin_teacher_nav]
+    <nav class="admin-detail-nav" aria-label="Lehrkräfteverwaltung">
+        <a href="/dashboard#schuldaten">← Schuldaten</a>
+        <a href="/manage_teachers">Alle Lehrkräfte</a>
+        <a href="/dashboard#schuljahr">Schuljahr &amp; Zuordnungen</a>
     </nav>
+    <p id="teacher-load-message" class="admin-inline-status" role="status" aria-live="polite" hidden></p>
+    <section id="edit-teacher" class="admin-panel">
+        <h2>Stammdaten und Zugang</h2>
+        <form id="teacher-profile-form" class="admin-form" method="post" action="/edit-teacher-profile">
+            <input type="hidden" name="id" id="teacherId" class="teacherId">
+            <div class="admin-form-field"><label for="teacherFirstName">Vorname</label><input name="firstName" id="teacherFirstName" required></div>
+            <div class="admin-form-field"><label for="teacherLastName">Nachname</label><input name="lastName" id="teacherLastName" required></div>
+            <div class="admin-form-field"><label for="teacherEmail">Loginname</label><input type="text" name="email" id="teacherEmail" required readonly></div>
+            <div class="admin-form-field"><label for="teacherPassword">Neues Passwort (optional)</label><input type="password" name="password" id="teacherPassword" autocomplete="new-password"></div>
+            <button type="submit">Stammdaten speichern</button>
+        </form>
+        <p class="admin-panel-intro">Klassen-, Fach- und Semesterzuordnungen werden im Bereich <a href="/dashboard#schuljahr">Schuljahr &amp; Zuordnungen</a> verwaltet.</p>
+    </section>
+    <section id="deleteTeacher" class="admin-panel admin-panel-muted" aria-labelledby="deleteTeacherHeading">
+        <h2 id="deleteTeacherHeading">Lehrkraft löschen</h2>
+        <p class="admin-panel-intro">Nur vollständig unbenutzte Lehrkräfte können gelöscht werden. Zuordnungen, Anwesenheitsdaten und Bewertungshistorie werden nicht mitgelöscht.</p>
+        <p id="teacherDeleteStatus" class="admin-inline-status" role="status" aria-live="polite">Löschbarkeit wird geprüft …</p>
+        <ul id="teacherDeleteReasons" aria-label="Verwendungen dieses Lehrkraftkontos"></ul>
+        <button id="deleteTeacherButton" class="admin-button-danger" type="button" disabled>Lehrkraft löschen</button>
+        <div id="teacherDeleteConfirmation" role="group" aria-labelledby="teacherDeleteConfirmTitle" hidden>
+            <h3 id="teacherDeleteConfirmTitle">Lehrkraft wirklich löschen?</h3>
+            <p>Du löschst das Lehrkraftkonto <strong id="teacherDeleteName"></strong>. Dieser Vorgang kann nicht rückgängig gemacht werden.</p>
+            <button id="confirmDeleteTeacher" class="admin-button-danger" type="button">Ja, Lehrkraft löschen</button>
+            <button id="cancelDeleteTeacher" type="button">Abbrechen</button>
+        </div>
+    </section>
 </section>
-<script src="build_teacher.js"></script>

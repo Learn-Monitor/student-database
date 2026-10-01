@@ -173,6 +173,12 @@
         "namespaces": [],
         "access_level": "admin"
     },
+    "/delete-teacher": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
     "/edit-subject": {
         "type": "POST",
         "handler_type": "PostRequestHandler",

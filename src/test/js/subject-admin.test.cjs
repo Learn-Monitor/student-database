@@ -27,7 +27,20 @@ async function runSubjectScript(options={}) {
   dom.window.sessionStorage.setItem('currentSubject',JSON.stringify(options.subject||{id:42,name:'Mathematik'}));
   dom.window.alert=message=>alerts.push(message);
   dom.window.confirm=message=>{confirms.push(message);return options.confirm!==false;};
-  dom.window.deleteSubject=async id=>{deletes.push(id);return {ok:options.deleteOk!==false};};
+  dom.window.fetch=async (url,request={})=>{
+    const body=request.body?JSON.parse(request.body):{};
+    if (url==='/curriculum-enrollment-catalog') return {ok:true,json:async()=>({subjects:[]})};
+    if (url==='/delete-subject') {
+      deletes.push({id:body.id,action:body.action});
+      if (body.action==='preflight') return {ok:true,json:async()=>options.blocked
+        ? {deletable:false,groups:[{key:'course_groups',label:'Lerngruppen',count:1}],protectedReason:null}
+        : {deletable:true,groups:[],protectedReason:null}};
+      return options.deleteOk===false
+        ? {ok:false,status:409,json:async()=>({message:'Wird verwendet',preflight:{deletable:false,groups:[{label:'Lerngruppen',count:1}],protectedReason:null}})}
+        : {ok:true,status:200,json:async()=>({deleted:true})};
+    }
+    throw new Error(`Unexpected request ${url}`);
+  };
   dom.window.eval(subjectScript);
   dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
   await tick();
@@ -81,27 +94,43 @@ test('build_subject loads subject name and id safely from session storage',async
   }
 });
 
-test('build_subject deletes subject with German confirmation and messages',async()=>{
+test('subjectDeleteAvailableWhenUnusedAndUsesAccessibleInlineConfirmation',async()=>{
   const {dom,alerts,confirms,deletes}=await runSubjectScript();
   try {
-    dom.window.document.querySelector('#deleteSubjectButton').click();
+    const button=dom.window.document.querySelector('#deleteSubjectButton');
+    assert.equal(button.disabled,false);
+    button.click();
+    assert.equal(dom.window.document.querySelector('#subjectDeleteConfirmation').hidden,false);
+    assert.match(dom.window.document.querySelector('#subjectDeleteName').textContent,/Mathematik/);
+    dom.window.document.querySelector('#confirmDeleteSubject').click();
     await tick();
-    assert.deepEqual(deletes,[42]);
-    assert.equal(confirms[0],'Fach wirklich löschen? Dies ist nur möglich, wenn keine Zuordnungen, Curriculuminhalte oder Leistungsdaten vorhanden sind.');
-    assert.equal(alerts[0],'Fach wurde gelöscht.');
+    assert.deepEqual(deletes,[{id:42,action:'preflight'},{id:42,action:'delete'}]);
+    assert.deepEqual(alerts,[]);
+    assert.deepEqual(confirms,[]);
   } finally {
     dom.window.close();
   }
 });
 
-test('build_subject shows German failure message when deletion is blocked',async()=>{
-  const {dom,alerts,deletes}=await runSubjectScript({deleteOk:false});
+test('subjectDeleteShowsBlockingReasonsAndDisablesButtonWhenInUse',async()=>{
+  const {dom,deletes}=await runSubjectScript({blocked:true});
   try {
-    dom.window.document.querySelector('#deleteSubjectButton').click();
-    await tick();
-    assert.deepEqual(deletes,[42]);
-    assert.equal(alerts[0],'Das Fach konnte nicht gelöscht werden. Möglicherweise wird es noch verwendet.');
+    assert.equal(dom.window.document.querySelector('#deleteSubjectButton').disabled,true);
+    assert.match(dom.window.document.querySelector('#subjectDeleteStatus').textContent,/kann derzeit nicht gelöscht werden/);
+    assert.match(dom.window.document.querySelector('#subjectDeleteReasons').textContent,/1 · Lerngruppen/);
+    assert.deepEqual(deletes,[{id:42,action:'preflight'}]);
   } finally {
     dom.window.close();
   }
+});
+
+test('subjectDeleteConflictRefreshesPreflightAndNeverUsesAlerts',async()=>{
+  const {dom,alerts}=await runSubjectScript({deleteOk:false});
+  try {
+    dom.window.document.querySelector('#deleteSubjectButton').click();
+    dom.window.document.querySelector('#confirmDeleteSubject').click();
+    await tick();
+    assert.match(dom.window.document.querySelector('#subjectDeleteReasons').textContent,/Lerngruppen/);
+    assert.deepEqual(alerts,[]);
+  } finally { dom.window.close(); }
 });

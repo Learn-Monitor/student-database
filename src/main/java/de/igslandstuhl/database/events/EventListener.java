@@ -34,6 +34,7 @@ public abstract class EventListener<T extends Event> {
     }
     public static void registerTypes() {
         register(AccessManagerEvent.TYPE);
+        register(UserAccountDeletedEvent.TYPE);
     }
 
     @SuppressWarnings("unchecked")

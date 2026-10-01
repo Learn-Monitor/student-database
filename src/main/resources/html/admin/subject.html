@@ -42,7 +42,15 @@
     </section>
     <section id="deleteSubject" class="admin-panel admin-panel-muted">
         <h2>Fach löschen</h2>
-        <p class="admin-panel-intro">Löschen ist nur möglich, wenn keine abhängigen Daten vorhanden sind. Eine sichere Löschprüfung folgt in einem separaten Arbeitsschritt.</p>
-        <button id="deleteSubjectButton" type="button" class="admin-button-danger">Fach löschen</button>
+        <p class="admin-panel-intro">Ein Fach wird nur gelöscht, wenn es vollständig unbenutzt ist. Fachliche Zuordnungen und Leistungshistorie werden niemals mitgelöscht.</p>
+        <p id="subjectDeleteStatus" class="admin-inline-status" role="status" aria-live="polite">Löschbarkeit wird geprüft …</p>
+        <ul id="subjectDeleteReasons" aria-label="Verwendungen dieses Fachs"></ul>
+        <button id="deleteSubjectButton" type="button" class="admin-button-danger" disabled>Fach löschen</button>
+        <div id="subjectDeleteConfirmation" role="group" aria-labelledby="subjectDeleteConfirmTitle" hidden>
+            <h3 id="subjectDeleteConfirmTitle">Fach wirklich löschen?</h3>
+            <p>Du löschst das Fach <strong id="subjectDeleteName"></strong>. Dieser Vorgang kann nicht rückgängig gemacht werden.</p>
+            <button id="confirmDeleteSubject" type="button" class="admin-button-danger">Ja, Fach löschen</button>
+            <button id="cancelDeleteSubject" type="button">Abbrechen</button>
+        </div>
     </section>
 </section>
