@@ -1,0 +1,281 @@
+name: Admin redesign A4b runtime E2E
+
+on:
+  push:
+    branches: ["feature/admin-redesign-coursegroups"]
+  pull_request:
+    branches: ["arcanum-2026"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-runtime-browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout Core source under test
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Checkout pinned Permission Manager source
+        uses: actions/checkout@v7
+        with:
+          repository: Learn-Monitor/permission-manager
+          ref: 7832924053669f1a163cab9d8b17916742ff5683
+          path: permission-manager
+          persist-credentials: false
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: src/test/js/package-lock.json
+
+      - name: Core JavaScript suite
+        working-directory: src/test/js
+        run: |
+          set -o pipefail
+          npm ci
+          npm test 2>&1 | tee "$RUNNER_TEMP/a4b-js-tests.log"
+          python3 - "$RUNNER_TEMP/a4b-js-tests.log" <<'PY'
+          import re, sys
+          text=open(sys.argv[1], encoding="utf-8").read()
+          counts=re.findall(r"(?m)^ℹ tests (\d+)\s*$", text)
+          assert counts and int(counts[-1]) >= 262, f"JavaScript inventory below baseline: {counts}"
+          assert re.search(r"(?m)^ℹ fail 0\s*$", text), "JavaScript suite reports failures"
+          print(f"JavaScript total: {counts[-1]}; failures=0")
+          PY
+
+      - name: Core tests and production Fat-JAR
+        run: ./gradlew clean test shadowJar --rerun-tasks --no-daemon
+
+      - name: Report complete Core JUnit inventory
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+          totals = {k: 0 for k in ("tests", "failures", "errors", "skipped")}
+          for task in ("test", "curriculumTest"):
+              result = dict.fromkeys(totals, 0)
+              for file in glob.glob(f"build/test-results/{task}/TEST-*.xml"):
+                  root = ET.parse(file).getroot()
+                  for key in result: result[key] += int(root.get(key, "0"))
+              print(f"JUnit {task}: " + ", ".join(f"{k}={v}" for k,v in result.items()))
+              for key in totals: totals[key] += result[key]
+          print("JUnit TOTAL: " + ", ".join(f"{k}={v}" for k,v in totals.items()))
+          assert totals["tests"] >= 394 and not totals["failures"] and not totals["errors"] and not totals["skipped"]
+          PY
+
+      - name: Build and test pinned Permission Manager against this Core
+        working-directory: permission-manager
+        env:
+          CORE_JAR: ${{ github.workspace }}/build/libs/student-database-v2.0.0-fat.jar
+        run: |
+          ./gradlew clean test jar --rerun-tasks --no-daemon -PstudentDatabaseJar="$CORE_JAR"
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+          totals = {k: 0 for k in ("tests", "failures", "errors", "skipped")}
+          for file in glob.glob("build/test-results/test/TEST-*.xml"):
+              root=ET.parse(file).getroot()
+              for key in totals: totals[key]+=int(root.get(key,"0"))
+          print("PM JUnit: " + ", ".join(f"{k}={v}" for k,v in totals.items()))
+          assert totals["tests"] >= 42 and not totals["failures"] and not totals["errors"] and not totals["skipped"]
+          PY
+          python3 - <<'PY'
+          import json
+          path="src/main/resources/meta/permission-manager/permissions.json"
+          data=json.load(open(path, encoding="utf-8"))
+          entries=data.get("generics", []) + data.get("flat", [])
+          paths=[path for entry in entries for path in entry.get("paths", [])]
+          assert "/assign-individual-grade-teacher" in paths
+          assert all("*" not in route for route in paths), "PM manifest contains a broad wildcard route"
+          print("Pinned PM manifest explicitly registers the A3 admin route; no wildcard routes")
+          PY
+
+      - name: Stage isolated temporary runtime and synthetic database
+        id: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          work="$RUNNER_TEMP/arcanum-admin-a4b-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$work"/{runtime,database,keys,plugins/config,logs,screenshots,fixture,artifacts,classes}
+          core="$GITHUB_WORKSPACE/build/libs/student-database-v2.0.0-fat.jar"
+          pm="$GITHUB_WORKSPACE/permission-manager/build/libs/permission-manager-v1.0.1.jar"
+          test -s "$core"
+          test -s "$pm"
+          cp "$pm" "$work/plugins/permission-manager-v1.0.1.jar"
+          printf '{"enabled":true,"values":{"plugin-dir":"%s"}}\n' "$work/plugins" > "$work/runtime/plugins/config/plugin-loader.json"
+          printf '{"enabled":true,"values":{}}\n' > "$work/runtime/plugins/config/permission-manager.json"
+          chmod 600 "$work/runtime/plugins/config/"*.json
+          credentials="$work/fixture/credentials.json"
+          dbbase="$work/database/arcanum-admin-a4b"
+          javac -cp "$core" -d "$work/classes" tools/admin-e2e/FixtureRunner.java
+          (cd "$work/runtime" && ARCANUM_ADMIN_E2E=1 ARCANUM_ADMIN_E2E_ROOT="$work" RUNNER_TEMP="$RUNNER_TEMP" java -cp "$work/classes:$core" tools.admin_e2e.FixtureRunner --database-base "$dbbase" --credentials "$credentials" --confirm-admin-e2e)
+          test -s "$dbbase.db"
+          test "$(stat -c '%a' "$credentials")" = 600
+          echo "work=$work" >> "$GITHUB_OUTPUT"
+          echo "dbbase=$dbbase" >> "$GITHUB_OUTPUT"
+          echo "credentials=$credentials" >> "$GITHUB_OUTPUT"
+          echo "core=$core" >> "$GITHUB_OUTPUT"
+          echo "pm=$pm" >> "$GITHUB_OUTPUT"
+
+      - name: Start isolated real HTTPS runtime and run browser/API acceptance
+        shell: bash
+        env:
+          WORK_DIR: ${{ steps.stage.outputs.work }}
+          DATABASE_BASE: ${{ steps.stage.outputs.dbbase }}
+          CREDENTIALS_FILE: ${{ steps.stage.outputs.credentials }}
+          CORE_JAR: ${{ steps.stage.outputs.core }}
+          PM_JAR: ${{ steps.stage.outputs.pm }}
+        run: |
+          set -euo pipefail
+          umask 077
+          keypass="$(openssl rand -hex 24)"
+          echo "::add-mask::$keypass"
+          key="$WORK_DIR/keys/a4b-test.p12"
+          log="$WORK_DIR/logs/runtime.log"
+          report="$WORK_DIR/artifacts/e2e-report.json"
+          fifo="$WORK_DIR/fixture/runtime-input.fifo"
+          keytool -genkeypair -noprompt -alias localhost -keyalg RSA -keysize 2048 -storetype PKCS12 \
+            -keystore "$key" -storepass "$keypass" -keypass "$keypass" -dname "CN=localhost" -validity 2 >/dev/null 2>&1
+          chmod 600 "$key"
+          port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
+          printf '%s\n' "$port" > "$WORK_DIR/fixture/port.txt"
+          mkfifo "$fifo"
+          exec 3<>"$fifo"
+          cleanup_runtime() {
+            if [[ -n "${runtime_pid:-}" ]] && kill -0 "$runtime_pid" 2>/dev/null; then
+              kill -TERM -- "-$runtime_pid" 2>/dev/null || kill -TERM "$runtime_pid" 2>/dev/null || true
+              for _ in $(seq 1 20); do kill -0 "$runtime_pid" 2>/dev/null || break; sleep 1; done
+              kill -KILL -- "-$runtime_pid" 2>/dev/null || true
+              wait "$runtime_pid" 2>/dev/null || true
+            fi
+            rm -f "$CREDENTIALS_FILE" "$key" "$fifo"
+          }
+          trap cleanup_runtime EXIT INT TERM
+          cmd="java -jar '$CORE_JAR' --database '$DATABASE_BASE' --port '$port' --keystore '$key' --keystore-password '$keypass' --keystore-type PKCS12"
+          (cd "$WORK_DIR/runtime" && setsid script -q -e -c "$cmd" /dev/null < "$fifo" > "$log" 2>&1) &
+          runtime_pid=$!
+          ready=0
+          for _ in $(seq 1 90); do
+            if ! kill -0 "$runtime_pid" 2>/dev/null; then
+              echo "Runtime exited before readiness; sanitized diagnostic follows"
+              grep -Ei 'exception|error|failed|plugin|ready|migration|sqlite' "$log" | tail -100 || true
+              exit 1
+            fi
+            code="$(curl -k -sS --connect-timeout 1 --max-time 2 -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port/login" || true)"
+            if [[ "$code" == 200 ]] && grep -q 'permission-manager successfully loaded' "$log" && grep -q 'Successfully enabled Permission Manager' "$log"; then
+              ready=1; break
+            fi
+            sleep 1
+          done
+          test "$ready" = 1
+          for route in / /login; do test "$(curl -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port$route")" = 200; done
+          anonymous="$(curl -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port/dashboard")"
+          test "$anonymous" = 401
+          for route in /manage_students /manage_teachers /manage_classes /manage_subjects; do
+            code="$(curl -k -sS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$port$route")"
+            test "$code" = 401
+          done
+          mkdir -p "$WORK_DIR/browser"
+          npm install --prefix "$WORK_DIR/browser" --no-save --no-audit --no-fund playwright@1.55.0
+          "$WORK_DIR/browser/node_modules/.bin/playwright" install --with-deps chromium
+          PLAYWRIGHT_MODULE_PATH="$WORK_DIR/browser/node_modules/playwright" \
+          A4B_BASE_URL="https://127.0.0.1:$port" \
+          A4B_CREDENTIALS="$CREDENTIALS_FILE" \
+          A4B_DB_PATH="$DATABASE_BASE.db" \
+          A4B_SCREENSHOTS="$WORK_DIR/screenshots" \
+          A4B_REPORT="$report" \
+          node tools/admin-e2e/browser-smoke.cjs
+          python3 - "$DATABASE_BASE.db" "$CREDENTIALS_FILE" "$WORK_DIR/artifacts/db-integrity.json" <<'PY'
+          import json, sqlite3, sys
+          db, credential_path, report_path = sys.argv[1:]
+          fixture=json.load(open(credential_path))
+          con=sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+          integrity=con.execute("PRAGMA integrity_check").fetchone()[0]
+          fk=con.execute("PRAGMA foreign_key_check").fetchall()
+          regular=con.execute("SELECT COUNT(*) FROM student_curriculum_contexts WHERE subject=? AND semester=? AND course_group IS NOT NULL", (fixture["regularSubjectId"],fixture["semester1Id"])).fetchone()[0]
+          year_groups=con.execute("SELECT COUNT(*) FROM course_groups WHERE semester=(SELECT id FROM semesters WHERE label='2099_00_HJ1')").fetchone()[0]
+          completion=con.execute("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=? AND status=2", (fixture["studentAId"],fixture["historyTaskId"])).fetchone()[0]
+          original_group=con.execute("SELECT id,teacher FROM course_groups WHERE subject=? AND grade=6 AND semester=?", (fixture["wpfSubjectId"],fixture["semester1Id"])).fetchall()
+          copied_group=con.execute("SELECT id FROM course_groups WHERE subject=? AND grade=6 AND semester=(SELECT id FROM semesters WHERE label='2098_99_HJ2')", (fixture["wpfSubjectId"],)).fetchall()
+          copied_members=con.execute("SELECT COUNT(*) FROM course_group_members WHERE course_group=?", (copied_group[0][0],)).fetchone()[0] if copied_group else 0
+          copied_history=con.execute("SELECT COUNT(*) FROM taskstats x JOIN tasks t ON t.id=x.task JOIN topics p ON p.id=t.topic WHERE p.semester=(SELECT id FROM semesters WHERE label='2098_99_HJ2')").fetchone()[0]
+          final_context_teachers=con.execute("SELECT COUNT(*) FROM student_curriculum_contexts WHERE subject=? AND semester=? AND teacher=?", (fixture["wpfSubjectId"],fixture["semester1Id"],fixture["teacherBId"])).fetchone()[0]
+          individual_members=con.execute("SELECT COUNT(*) FROM course_group_members gm JOIN course_groups g ON g.id=gm.course_group WHERE g.subject=? AND g.semester=?", (fixture["religionSubjectId"],fixture["semester1Id"])).fetchone()[0]
+          blocked_subject_exists=con.execute("SELECT COUNT(*) FROM subjects WHERE id IN (SELECT subject FROM curriculum_grade_subjects WHERE grade=6 AND semester=? AND subject<>?)", (fixture["semester1Id"],fixture["regularSubjectId"])).fetchone()[0]
+          blocked_teacher_exists=con.execute("SELECT COUNT(*) FROM teachers WHERE id=?", (fixture["teacherAId"],)).fetchone()[0]
+          deleted_unused_teacher=con.execute("SELECT COUNT(*) FROM teachers WHERE id=?", (fixture["unusedTeacherId"],)).fetchone()[0]
+          assert integrity == "ok", integrity
+          assert not fk, fk[:10]
+          assert regular == 0, f"REGULAR contexts with CourseGroup: {regular}"
+          assert year_groups == 0, f"new school-year CourseGroups copied: {year_groups}"
+          assert completion == 1, f"synthetic history missing: {completion}"
+          assert len(original_group) == 1 and original_group[0][1] == fixture["teacherBId"], f"canonical WPF group/teacher incorrect: {original_group}"
+          assert len(copied_group) == 1 and copied_group[0][0] != original_group[0][0] and copied_members == 2, "HJ2 group identity/members not preserved correctly"
+          assert copied_history == 0, f"learning history copied into HJ2: {copied_history}"
+          assert final_context_teachers == 1, f"WPF context teacher did not update: {final_context_teachers}"
+          assert individual_members == 2, f"RELIGION_ETHIK cross-class membership missing: {individual_members}"
+          assert blocked_subject_exists == 1, f"blocked Subject/dependency was not preserved: {blocked_subject_exists}"
+          assert blocked_teacher_exists == 1, f"blocked Teacher was not preserved: {blocked_teacher_exists}"
+          assert deleted_unused_teacher == 0, f"unused Teacher was not deleted: {deleted_unused_teacher}"
+          data={"integrity_check":integrity,"foreign_key_violations":len(fk),"regular_course_group_nonnull":regular,"new_school_year_course_groups":year_groups,"history_rows_preserved":completion,"copied_hj2_history":copied_history,"copied_hj2_group_members":copied_members,"wpf_contexts_teacher_b":final_context_teachers,"religion_ethik_cross_class_members":individual_members,"blocked_subject_preserved":blocked_subject_exists,"blocked_teacher_preserved":blocked_teacher_exists,"unused_teacher_remaining":deleted_unused_teacher}
+          json.dump(data,open(report_path,"w"),indent=2)
+          print("A4b SQLite integrity/FK/regular/history checks PASS")
+          con.close()
+          PY
+          # Do not upload runtime.log or credentials; the run report contains only pass/fail data.
+          sha256sum "$CORE_JAR" "$PM_JAR" > "$WORK_DIR/artifacts/jars.sha256"
+          printf 'core_repository=%s\ncore_branch=%s\ncore_commit=%s\ncore_file=%s\ncore_sha256=%s\ncore_tests=PASS\npm_repository=%s\npm_branch=%s\npm_commit=%s\npm_file=%s\npm_sha256=%s\npm_tests=PASS\nworkflow_run_id=%s\nworkflow_run_attempt=%s\n' \
+            "$GITHUB_REPOSITORY" "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" "$GITHUB_SHA" "$(basename "$CORE_JAR")" \
+            "$(sha256sum "$CORE_JAR" | awk '{print $1}')" \
+            "Learn-Monitor/permission-manager" "feature/admin-redesign-safe-delete-routes" "7832924053669f1a163cab9d8b17916742ff5683" "$(basename "$PM_JAR")" \
+            "$(sha256sum "$PM_JAR" | awk '{print $1}')" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+            > "$WORK_DIR/artifacts/provenance.txt"
+
+      - name: Upload tested Core and Permission Manager artifacts
+        if: always() && steps.stage.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: admin-a4b-artifacts-${{ github.sha }}
+          path: |
+            ${{ steps.stage.outputs.core }}
+            ${{ steps.stage.outputs.pm }}
+            ${{ steps.stage.outputs.work }}/artifacts/*.json
+            ${{ steps.stage.outputs.work }}/artifacts/*.txt
+            build/test-results/test/TEST-*.xml
+            build/test-results/curriculumTest/TEST-*.xml
+            permission-manager/build/test-results/test/TEST-*.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload synthetic-data browser screenshots
+        if: always() && steps.stage.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: admin-a4b-screenshots-${{ github.sha }}
+          path: ${{ steps.stage.outputs.work }}/screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Remove isolated runtime files
+        if: always() && steps.stage.outcome == 'success'
+        env:
+          WORK_DIR: ${{ steps.stage.outputs.work }}
+        run: |
+          if [[ -n "$WORK_DIR" && "$WORK_DIR" == "$RUNNER_TEMP"/arcanum-admin-a4b-* ]]; then
+            rm -rf -- "$WORK_DIR"
+          fi
