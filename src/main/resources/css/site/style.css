@@ -228,6 +228,38 @@ table tr:last-child td {
 .admin-shell .admin-setup-status li { background:var(--admin-sandstone-050); border-color:var(--admin-border); }
 .admin-shell .admin-status-ok { color:#286442; }
 .admin-shell .admin-status-warning { color:#875314; }
+.admin-shell .admin-semester-context,
+.admin-shell #admin-tutors,
+.admin-shell .semester-create-panel,
+.admin-shell .admin-regular-assignments,
+.admin-shell .admin-course-group-summary,
+.admin-shell .admin-individual-teachers,
+.admin-shell #admin-enrollment details { margin:1rem 0; padding:1rem; background:var(--admin-sandstone-050); border:1px solid var(--admin-border); border-radius:.65rem; }
+.admin-shell .admin-semester-context { max-width:36rem; }
+.admin-shell .admin-semester-context label,
+.admin-shell .admin-regular-subject-picker legend { display:block; margin-bottom:.35rem; color:var(--admin-sandstone-950); font-weight:700; }
+.admin-shell .admin-semester-preview { padding:.7rem; border-left:4px solid var(--admin-accent); background:#fff; }
+.admin-shell .admin-regular-subject-picker { display:flex; flex-wrap:wrap; gap:.5rem 1rem; margin:1rem 0; padding:.8rem; border:1px solid var(--admin-border); border-radius:.5rem; }
+.admin-shell .admin-regular-subject-picker label { display:flex; align-items:center; gap:.35rem; }
+.admin-shell .admin-regular-subject-picker input { width:auto; min-height:auto; }
+.admin-shell .admin-tutor-table,
+.admin-shell .admin-regular-assignments table,
+.admin-shell .admin-course-group-summary table,
+.admin-shell .admin-individual-teachers table,
+.admin-shell .curriculum-wpf-board table { display:block; max-width:100%; overflow-x:auto; border-collapse:collapse; }
+.admin-shell .admin-tutor-table th,
+.admin-shell .admin-tutor-table td,
+.admin-shell .admin-course-group-summary th,
+.admin-shell .admin-course-group-summary td,
+.admin-shell .admin-individual-teachers th,
+.admin-shell .admin-individual-teachers td { padding:.6rem; border-bottom:1px solid var(--admin-border); text-align:left; }
+.admin-shell .admin-tutor-table select,
+.admin-shell .admin-individual-teachers select,
+.admin-shell .curriculum-wpf-board select { min-width:min(14rem, 70vw); }
+.admin-shell .admin-course-group-summary table { width:100%; }
+.admin-shell .admin-regular-assignments h3,
+.admin-shell .admin-individual-teachers h4,
+.admin-shell .admin-course-group-summary h4 { color:var(--admin-sandstone-950); }
 .admin-detail-nav { display:flex; flex-wrap:wrap; gap:.5rem; margin:0 0 1.25rem; }
 .admin-detail-nav a { padding:.48rem .65rem; border:1px solid var(--admin-border); border-radius:.4rem; color:var(--admin-sandstone-950); background:var(--admin-sandstone-100); font-weight:700; text-decoration:none; }
 .admin-detail-nav a:hover, .admin-detail-nav a:focus { background:var(--admin-accent-soft); text-decoration:underline; }

@@ -1607,6 +1607,58 @@ class CurriculumTest {
         assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_class_tutors WHERE semester=? AND class=?",id,id));
     }
 
+    @Test void semesterCreateCopiesFrameOnlyWithinYearAndKeepsTutorsAcrossYearBoundary() throws Exception {
+        var enrollment=enrollmentFixture();
+        db.writeTransaction(c->{
+            exec(c,"DELETE FROM semesters WHERE id=?",id+1);
+            exec(c,"UPDATE school_years SET label='2025/26',current_semester=NULL WHERE id=?",id);
+            exec(c,"UPDATE semesters SET label='2025_26_HJ1',position=1,school_year=? WHERE id=?",id,id);
+            return null;
+        });
+        enrollment.assignClassTutors(admin,id,id,id,id+1);
+        enrollment.assignGrade(admin,13,id,List.of(id),List.of(new CurriculumEnrollment.Teaching(id,id,id)));
+        enrollment.subjectType(admin,id+1,"INDIVIDUAL","WPF");
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO curriculum_grade_teachers(semester,grade,subject,teacher) VALUES(?,?,?,?)",id,13,id+1,id);
+            exec(c,"INSERT INTO course_groups(id,subject,grade,semester,teacher,assignment_group,name) VALUES(?,?,?,?,?,'WPF',?)",id+50,id+1,13,id,id,"Synthetic WPF");
+            exec(c,"INSERT INTO curriculum_individual_assignments(student,semester,assignment_group,subject) VALUES(?,?,'WPF',?)",id,id,id+1);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade,course_group) VALUES(?,?,?,?,?,?,?)",id,id+1,id,id,id,13,id+50);
+            exec(c,"INSERT INTO course_group_members(course_group,student) VALUES(?,?)",id+50,id);
+            return null;
+        });
+        Map<String,Object> hj2=enrollment.createNextSemester(admin);int hj2Id=((Number)hj2.get("id")).intValue();
+        assertEquals("2025_26_HJ2",hj2.get("label"));assertEquals(true,hj2.get("frameCopied"));assertEquals(true,hj2.get("tutorsCopied"));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_grade_subjects WHERE semester=? AND grade=13 AND subject=?",hj2Id,id));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=? AND class=? AND subject=?",hj2Id,id,id));
+        assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_class_tutors WHERE semester=? AND class=?",hj2Id,id));
+        int copiedGroup=(int)scalar("SELECT id FROM course_groups WHERE subject=? AND grade=13 AND semester=?",id+1,hj2Id);
+        assertNotEquals(id+50,copiedGroup);
+        assertEquals(copiedGroup,scalar("SELECT course_group FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",id,id+1,hj2Id));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM course_group_members WHERE course_group=? AND student=?",copiedGroup,id));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_individual_assignments WHERE student=? AND semester=? AND subject=?",id,hj2Id,id+1));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM topics WHERE semester=?",hj2Id));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM school_years WHERE current_semester=?",hj2Id));
+        Map<String,Object> nextYear=enrollment.createNextSemester(admin);int nextId=((Number)nextYear.get("id")).intValue();
+        assertEquals("2026_27_HJ1",nextYear.get("label"));assertEquals(true,nextYear.get("newSchoolYear"));assertEquals(false,nextYear.get("frameCopied"));assertEquals(true,nextYear.get("tutorsCopied"));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_grade_subjects WHERE semester=?",nextId));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=?",nextId));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM course_groups WHERE semester=?",nextId));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_individual_assignments WHERE semester=?",nextId));
+        assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_class_tutors WHERE semester=? AND class=?",nextId,id));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_grade_subjects WHERE semester=? AND grade=13 AND subject=?",id,id));
+    }
+    @Test void semesterCatalogPreviewDescribesTheSameServerCopyRulesAsCreation() throws Exception {
+        var enrollment=enrollmentFixture();
+        db.writeTransaction(c->{exec(c,"UPDATE school_years SET label='2025/26' WHERE id=?",id);exec(c,"UPDATE semesters SET label='2025_26_HJ1',position=1 WHERE id=?",id);exec(c,"UPDATE semesters SET label='2025_26_HJ2',position=2 WHERE id=?",id+1);return null;});
+        @SuppressWarnings("unchecked") Map<String,Object> preview=(Map<String,Object>)enrollment.catalog(admin).get("nextSemesterPreview");
+        assertEquals("2026_27_HJ1",preview.get("label"));assertEquals("2026/27",preview.get("schoolYear"));
+        assertEquals(true,preview.get("newSchoolYear"));assertEquals(false,preview.get("frameCopied"));assertEquals(true,preview.get("tutorsCopied"));
+        db.writeTransaction(c->{exec(c,"UPDATE semesters SET label='2025_26_HJ1',position=1 WHERE id=?",id+1);return null;});
+        @SuppressWarnings("unchecked") Map<String,Object> sameYearPreview=(Map<String,Object>)enrollment.catalog(admin).get("nextSemesterPreview");
+        assertEquals("2025_26_HJ2",sameYearPreview.get("label"));assertEquals(false,sameYearPreview.get("newSchoolYear"));
+        assertEquals(true,sameYearPreview.get("frameCopied"));assertEquals(true,sameYearPreview.get("tutorsCopied"));
+    }
+
     @Test void tutorAssignmentsRemainSeparateBetweenSemesters() throws Exception {
         var enrollment=new CurriculumEnrollment(service);
         enrollment.assignClassTutors(admin,id,id,id,id+1);
@@ -1645,6 +1697,47 @@ class CurriculumTest {
         assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=?",id));
         assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_contexts WHERE semester=?",id));
         assertThrows(CurriculumException.class,()->enrollment.assignGrade(admin,13,id,List.of(id+1),List.of(teachingMappings().get(0))));
+    }
+    @Test void regularTeacherChangeKeepsExistingHistoryAndNeverCreatesCourseGroup() throws Exception {
+        var enrollment=enrollmentFixture();
+        enrollment.assignGrade(admin,13,id,List.of(id),List.of(new CurriculumEnrollment.Teaching(id,id,id)));
+        int task=central(7);Student.get(id).changeTaskStatus(Task.get(task),Task.STATUS_COMPLETED);
+        enrollment.assignGrade(admin,13,id,List.of(id),List.of(new CurriculumEnrollment.Teaching(id,id,id+1)));
+        assertEquals(task,scalar("SELECT id FROM tasks WHERE id=?",task));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=? AND status<>0",id,task));
+        assertEquals(id+1,scalar("SELECT teacher FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",id,id,id));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM course_groups WHERE subject=? AND semester=?",id,id));
+    }
+    @Test void individualGradeTeacherChangePreservesGroupMembersAndContexts() throws Exception {
+        var enrollment=enrollmentFixture();
+        enrollment.subjectType(admin,id+1,"INDIVIDUAL","WPF");
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO curriculum_grade_teachers(semester,grade,subject,teacher) VALUES(?,?,?,?)",id,13,id+1,id);
+            exec(c,"INSERT INTO course_groups(id,subject,grade,semester,teacher,assignment_group,name) VALUES(?,?,?,?,?,'WPF',?)",id+50,id+1,13,id,id,"Synthetic group");
+            exec(c,"INSERT INTO course_group_members(course_group,student) VALUES(?,?)",id+50,id);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade,course_group) VALUES(?,?,?,?,?,?,?)",id,id+1,id,id,id,13,id+50);
+            exec(c,"INSERT INTO curriculum_individual_assignments(student,semester,assignment_group,subject) VALUES(?,?,'WPF',?)",id,id,id+1);
+            return null;
+        });
+        enrollment.assignIndividualTeacher(admin,13,id,id+1,id+1);
+        assertEquals(id+50,scalar("SELECT id FROM course_groups WHERE subject=? AND grade=13 AND semester=?",id+1,id));
+        assertEquals(id+1,scalar("SELECT teacher FROM course_groups WHERE id=?",id+50));
+        assertEquals(id,scalar("SELECT student FROM course_group_members WHERE course_group=?",id+50));
+        assertEquals(id+1,scalar("SELECT teacher FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",id,id+1,id));
+        assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_individual_assignments WHERE student=? AND semester=? AND subject=?",id,id,id+1));
+        assertThrows(CurriculumException.class,()->enrollment.assignIndividualTeacher(admin,13,id,id,id));
+        assertEquals(403,assertThrows(CurriculumException.class,()->enrollment.assignIndividualTeacher(teacher,13,id,id+1,id+1)).status);
+    }
+    @Test void individualGradeTeacherAdminRouteIsExplicitAndDoesNotCreateEmptyGroup() throws Exception {
+        var enrollment=enrollmentFixture();enrollment.subjectType(admin,id+1,"INDIVIDUAL","WPF");
+        var adminUser=Admin.create("a3-grade-teacher-"+id,"synthetic-test-only");
+        String payload="{\"grade\":13,\"semesterId\":"+id+",\"subjectId\":"+(id+1)+",\"teacherId\":"+id+"}";
+        assertEquals(Status.OK,request(adminUser,"/assign-individual-grade-teacher",payload).getStatus());
+        assertEquals(id,scalar("SELECT teacher FROM curriculum_grade_teachers WHERE semester=? AND grade=13 AND subject=?",id,id+1));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM course_groups WHERE subject=? AND grade=13 AND semester=?",id+1,id));
+        assertEquals(Status.FORBIDDEN,request(Teacher.get(id),"/assign-individual-grade-teacher",payload).getStatus());
+        assertEquals(Status.FORBIDDEN,request(Student.get(id),"/assign-individual-grade-teacher",payload).getStatus());
+        assertEquals(Status.BAD_REQUEST,request(adminUser,"/assign-individual-grade-teacher",payload.replace("\"grade\":13,","\"grade\":13,\"courseGroupId\":1,")).getStatus());
     }
     @Test void archivedClassMovesStudentsToSystemClassAndStopsCurrentContext() throws Exception {
         SchoolClass.get(id).delete();

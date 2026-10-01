@@ -21,7 +21,7 @@ public final class CurriculumRequestHandler {
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task",
                 "/central-curriculum-overview","/preview-central-curriculum-import","/import-central-curriculum",
-                "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/add-subject-with-type","/curriculum-course-groups","/curriculum-tutor-assignments","/set-curriculum-subject-type","/assign-grade-curriculum","/assign-class-tutors","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
+                "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/add-subject-with-type","/curriculum-course-groups","/curriculum-tutor-assignments","/set-curriculum-subject-type","/assign-grade-curriculum","/assign-individual-grade-teacher","/assign-class-tutors","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/set-curriculum-stage-assessment",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/curriculum-student-progress-detail",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
@@ -185,6 +185,12 @@ public final class CurriculumRequestHandler {
                         teaching.add(new CurriculumEnrollment.Teaching(integer(m.get("classId"),"classId"),integer(m.get("subjectId"),"subjectId"),integer(m.get("teacherId"),"teacherId")));
                     }
                     result=enrollment.assignGrade(actor,integer(rq,"grade"),integer(rq,"semesterId"),subjects,teaching);
+                }
+                case "/assign-individual-grade-teacher" -> {
+                    Set<String> expected=Set.of("grade","semesterId","subjectId","teacherId");
+                    if(!rq.getJson().keySet().equals(expected))throw new CurriculumException(400,"invalid_input","grade, semesterId, subjectId and teacherId are required.");
+                    enrollment.assignIndividualTeacher(actor,integer(rq,"grade"),integer(rq,"semesterId"),integer(rq,"subjectId"),integer(rq,"teacherId"));
+                    result=Map.of("ok",true);
                 }
                 case "/assign-class-tutors" -> {
                     Set<String> allowed=Set.of("semesterId","classId","tutor1Id","tutor2Id");

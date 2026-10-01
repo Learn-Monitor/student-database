@@ -23,7 +23,7 @@ test('javascript keeps fallback markup and fills the content area',async()=>{
   dom.window.eval(script); await tick();
   const block=dom.window.document.querySelector('#admin-tutors');
   assert.match(block.querySelector('h3').textContent,/Tutor:innen je Klasse/);
-  assert.equal(block.querySelector('[data-tutor-status]').textContent,'');
+  assert.match(block.querySelector('[data-tutor-status]').textContent,/1 Klassen.*1 ohne Tutor:in/);
   assert.equal(block.querySelectorAll('tbody tr').length,1);
   assert.equal(block.querySelectorAll('tbody select').length,2);
   dom.window.close();

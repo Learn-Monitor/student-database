@@ -24,6 +24,8 @@ public final class CurriculumEnrollment {
             if(!m.matches()) throw error(500,"invalid_state","Nächstes Halbjahr konnte nicht bestimmt werden.");
             int start=Integer.parseInt(m.group(1)), position=Integer.parseInt(m.group(3));
             String yearLabel=m.group(1)+"/"+m.group(2);
+            if(number(c,"SELECT COUNT(*) FROM semesters WHERE label=?",value)>0)
+                throw error(409,"conflict","Das nächste Halbjahr existiert bereits.");
             var years=rows(c,"SELECT id FROM school_years WHERE label=?",yearLabel); int year;
             if(years.isEmpty()){write(c,"INSERT INTO school_years(label,week_count,current_week,start_date,end_date) VALUES(?,39,1,?,?)",yearLabel,start+"-08-01",(start+1)+"-07-31");year=(int)number(c,"SELECT last_insert_rowid()");} else year=integer(years.get(0),"id");
             write(c,"INSERT INTO semesters(label,position,school_year) VALUES(?,?,?)",value,position,year);
@@ -31,8 +33,20 @@ public final class CurriculumEnrollment {
             boolean copied=previous>0 && position==2;
             if(copied) copyFrame(c,previous,created);
             if(previous>0) copyTutorFrame(c,previous,created);
-            return Map.of("id",created,"label",value,"copiedFromSemesterId",copied?previous:0);
+            return Map.of("id",created,"label",value,"copiedFromSemesterId",previous>0?previous:0,
+                    "newSchoolYear",previous==0 || position==1,"frameCopied",copied,"tutorsCopied",previous>0);
         });
+    }
+
+    private static Map<String,Object> semesterPreview(Connection c) throws SQLException {
+        int previous=previousSemesterId(c);
+        String label=nextLabel(c);
+        Matcher matcher=Pattern.compile("(20\\d{2})_(\\d{2})_HJ([12])").matcher(label);
+        if(!matcher.matches()) throw error(500,"invalid_state","Nächstes Halbjahr konnte nicht bestimmt werden.");
+        int position=Integer.parseInt(matcher.group(3));
+        return Map.of("label",label,"schoolYear",matcher.group(1)+"/"+matcher.group(2),
+                "semester",position,"newSchoolYear",previous==0 || position==1,
+                "frameCopied",previous>0 && position==2,"tutorsCopied",previous>0);
     }
 
     /** Kept for internal/legacy callers that explicitly provide a validated label. */
@@ -54,6 +68,26 @@ public final class CurriculumEnrollment {
             int schoolYear=integer(semester,"school_year");
             require(c,"SELECT id FROM school_years WHERE id=?",schoolYear);
             write(c,"UPDATE school_years SET current_semester=? WHERE id=?",semesterId,schoolYear);
+            return null;
+        });
+    }
+
+    /** Assigns the canonical grade-wide teacher for one typed individual subject. */
+    public void assignIndividualTeacher(Actor actor,int grade,int semester,int subject,int teacher) throws SQLException {
+        admin(actor);
+        if(grade<1 || grade>13) throw error(400,"invalid_input","Jahrgang muss zwischen 1 und 13 liegen.");
+        curriculum.transaction(c->{
+            require(c,"SELECT id FROM semesters WHERE id=?",semester);
+            require(c,"SELECT id FROM teachers WHERE id=?",teacher);
+            var type=rows(c,"SELECT mode,assignment_group FROM curriculum_subject_types WHERE subject=?",subject);
+            if(type.isEmpty() || !"INDIVIDUAL".equals(String.valueOf(type.get(0).get("mode"))))
+                throw error(400,"invalid_input","Nur ausdrücklich als INDIVIDUAL definierte Fächer können jahrgangsweit zugeordnet werden.");
+            String assignmentGroup=String.valueOf(type.get(0).get("assignment_group"));
+            if(!Set.of("WPF","RELIGION_ETHIK").contains(assignmentGroup))
+                throw error(400,"invalid_input","Ungültige INDIVIDUAL-Zuordnungsgruppe.");
+            write(c,"INSERT INTO curriculum_grade_teachers(semester,grade,subject,teacher) VALUES(?,?,?,?) ON CONFLICT(semester,grade,subject) DO UPDATE SET teacher=excluded.teacher",semester,grade,subject,teacher);
+            write(c,"UPDATE course_groups SET teacher=? WHERE semester=? AND grade=? AND subject=?",teacher,semester,grade,subject);
+            write(c,"UPDATE student_curriculum_contexts SET teacher=? WHERE semester=? AND grade=? AND subject=?",teacher,semester,grade,subject);
             return null;
         });
     }
@@ -153,12 +187,13 @@ public final class CurriculumEnrollment {
     public Map<String,Object> catalog(Actor actor) throws SQLException {
         admin(actor);
         return curriculum.transaction(c->Map.of(
-            "subjects",rows(c,"SELECT s.id,s.name,CASE WHEN COALESCE(t.mode,CASE WHEN lower(s.name) LIKE '%religion%' OR lower(s.name) LIKE '%ethik%' OR lower(s.name) LIKE 'wpf %' THEN 'INDIVIDUAL' ELSE 'REGULAR' END)='INDIVIDUAL' THEN 1 ELSE 0 END AS wpf,COALESCE(t.mode,CASE WHEN lower(s.name) LIKE '%religion%' OR lower(s.name) LIKE '%ethik%' OR lower(s.name) LIKE 'wpf %' THEN 'INDIVIDUAL' ELSE 'REGULAR' END) AS mode,COALESCE(t.assignment_group,CASE WHEN lower(s.name) LIKE 'wpf %' THEN 'WPF' WHEN lower(s.name) LIKE '%religion%' OR lower(s.name) LIKE '%ethik%' THEN 'RELIGION_ETHIK' ELSE NULL END) AS assignmentGroup FROM subjects s LEFT JOIN curriculum_subject_types t ON t.subject=s.id ORDER BY s.name"),
+            "subjects",rows(c,"SELECT s.id,s.name,CASE WHEN t.mode='INDIVIDUAL' AND t.assignment_group='WPF' THEN 1 ELSE 0 END AS wpf,COALESCE(t.mode,'REGULAR') AS mode,t.assignment_group AS assignmentGroup,CASE WHEN t.subject IS NULL THEN 0 ELSE 1 END AS typeExplicit FROM subjects s LEFT JOIN curriculum_subject_types t ON t.subject=s.id ORDER BY s.name"),
             "classes",rows(c,"SELECT id,label,grade FROM classes WHERE active=1 AND id<>0 ORDER BY grade,label"),
             "semesters",rows(c,"SELECT s.id,s.label,s.school_year AS schoolYearId,CASE WHEN y.current_semester=s.id THEN 1 ELSE 0 END AS active FROM semesters s JOIN school_years y ON y.id=s.school_year ORDER BY s.school_year,s.position"),
             "teachers",rows(c,"SELECT id,first_name,last_name FROM teachers ORDER BY last_name,first_name"),
             "teaching",rows(c,"SELECT teacher AS teacherId,class AS classId,NULL AS grade,subject AS subjectId,semester AS semesterId FROM curriculum_class_teachers UNION SELECT teacher AS teacherId,NULL AS classId,grade,subject AS subjectId,semester AS semesterId FROM curriculum_grade_teachers"),
-            "gradeSubjects",rows(c,"SELECT grade,semester AS semesterId,subject AS subjectId FROM curriculum_grade_subjects")));
+            "gradeSubjects",rows(c,"SELECT grade,semester AS semesterId,subject AS subjectId FROM curriculum_grade_subjects"),
+            "nextSemesterPreview",semesterPreview(c)));
     }
     public List<Map<String,Object>> courseGroups(Actor actor,Integer semesterId,Integer grade,String assignmentGroup) throws SQLException {
         admin(actor);
@@ -254,11 +289,10 @@ public final class CurriculumEnrollment {
                     throw error(400,"invalid_input","Duplicate teaching assignment.");
             }
             int assignments=0,students=0;
-            Set<Integer> usedSubjects=new HashSet<>();
             for(var item:mappings.values()) {
                 int classId=item.classId(),subject=item.subjectId();
                 var pupils=rows(c,"SELECT id FROM students WHERE class=? ORDER BY id",classId);students+=pupils.size();
-                var scope=new Scope(item.teacherId(),subject,classId,semester);usedSubjects.add(subject);
+                var scope=new Scope(item.teacherId(),subject,classId,semester);
                     write(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?) ON CONFLICT(semester,class,subject) DO UPDATE SET teacher=excluded.teacher",semester,classId,subject,scope.teacherId());
                     authorize(c,new Actor(false,scope.teacherId()),scope,true);
                     for(var pupil:pupils) { Curriculum.assign(c,integer(pupil,"id"),scope);assignments++; }
@@ -269,7 +303,7 @@ public final class CurriculumEnrollment {
                     write(c,"INSERT INTO curriculum_enrolled_students(student,semester,grade) VALUES(?,?,?) ON CONFLICT(student,semester) DO NOTHING",student,semester,grade);
                 }
             }
-            for(int subject:usedSubjects)write(c,"INSERT INTO curriculum_grade_subjects(grade,semester,subject) VALUES(?,?,?) ON CONFLICT DO NOTHING",grade,semester,subject);
+            for(int subject:subjects)write(c,"INSERT INTO curriculum_grade_subjects(grade,semester,subject) VALUES(?,?,?) ON CONFLICT DO NOTHING",grade,semester,subject);
             return Map.of("students",students,"assignments",assignments,"classes",mappings.size());
         });
     }
