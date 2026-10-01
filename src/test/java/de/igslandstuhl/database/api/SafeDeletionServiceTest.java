@@ -82,8 +82,7 @@ class SafeDeletionServiceTest {
             exec(c, "INSERT INTO course_groups(id,subject,grade,semester,teacher,assignment_group,name) VALUES(?,?,6,?,?,?,?)", id, id, id, id, "WPF", "A2 group " + id);
             exec(c, "INSERT INTO course_group_members(course_group,student) VALUES(?,?)", id, id);
             exec(c, "INSERT INTO topics(id,name,subject,grade,number,semester) VALUES(?,?,?,6,1,?)", id, "A2 topic " + id, id, id);
-            exec(c, "INSERT INTO tasks(id,topic,name,niveau,stage_number,tokens) VALUES(?,?,?,1,1,10)", id, id, "A2 task " + id);
-            exec(c, "INSERT INTO course_group_task_releases(course_group,task,active) VALUES(?,?,1)", id, id);
+            exec(c, "INSERT INTO course_group_topic_releases(course_group,topic,active) VALUES(?,?,1)", id, id);
             return null;
         });
         DeletionPreflight preview = SafeDeletionService.subjectPreflight(db, id);
@@ -92,7 +91,7 @@ class SafeDeletionServiceTest {
         assertThrows(ObjectInUseException.class, () -> SafeDeletionService.deleteSubject(db, id));
         assertEquals(1, count("course_groups", "id", id));
         assertEquals(1, count("course_group_members", "course_group", id));
-        assertEquals(1, count("course_group_task_releases", "course_group", id));
+        assertEquals(1, count("course_group_topic_releases", "course_group", id));
     }
 
     @Test void subjectDeletePreflightBlocksIndividualAssignmentAndFlexibleContent() throws Exception {
@@ -181,7 +180,7 @@ class SafeDeletionServiceTest {
         assertTrue(preview.groups().stream().anyMatch(group -> group.key().equals("attendance")));
         assertThrows(ObjectInUseException.class, () -> SafeDeletionService.deleteTeacher(db, id));
         assertEquals(1, count("teachers", "id", id));
-        assertEquals(1, count("attendance_teacher_preferences", "principal", id));
+        assertEquals(1, scalarText("SELECT COUNT(*) FROM attendance_teacher_preferences WHERE principal=?", "TEACHER:" + id));
     }
 
     @Test void teacherDeletePreflightBlocksGraduationHistory() throws Exception {

@@ -122,7 +122,9 @@ class StudentSubjectAssignmentsTest {
         studentB.addSubject(ecology);
         assertThrows(SQLException.class, ecology::delete);
         studentB.removeSubject(ecology);
-        ecology.delete();
+        assertThrows(ObjectInUseException.class, ecology::delete,
+            "The generated CourseGroup remains a protected subject dependency after its last member is removed.");
+        assertNotNull(Subject.get(ecology.getId()));
         assertEquals(0, assignmentCount(studentB.getId(), ecology.getId()));
     }
 
