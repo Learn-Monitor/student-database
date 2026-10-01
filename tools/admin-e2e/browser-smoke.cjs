@@ -12,6 +12,7 @@ const checks = [];
 const write = (name, ok, detail = '') => {
   checks.push({ name, ok, detail });
   if (!ok) failures.push(`${name}: ${detail}`);
+  console.log(`[A4B] ${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
 };
 function protectedDatabaseState() {
   const result = spawnSync('python3', ['-c', String.raw`
@@ -44,6 +45,8 @@ async function main() {
   browser = await chromium.launch({ headless: true });
   context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
+  page.setDefaultTimeout(15000);
+  page.setDefaultNavigationTimeout(20000);
   const loginResponses = [];
   const dialogs = [];
   page.on('dialog', async dialog => {
@@ -157,7 +160,7 @@ async function main() {
   const api = await page.evaluate(async data => {
     const out = {};
     const post = async (route, body) => {
-      const response = await fetch(route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const response = await fetch(route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
       const text = await response.text();
       let json; try { json = JSON.parse(text); } catch { json = { text }; }
       return { status: response.status, json };
@@ -296,7 +299,7 @@ async function main() {
     ['teacher', fixture.teacherAUsername, fixture.teacherAPassword],
     ['student', fixture.studentAUsername, fixture.studentAPassword]
   ]) {
-    const request = await apiRequest.newContext({ ignoreHTTPSErrors: true });
+    const request = await apiRequest.newContext({ ignoreHTTPSErrors: true, timeout: 15000 });
     const login = await request.post(`${base}/login`, { form: { username, password } });
     write(`${role} real login`, login.status() === 302 || login.ok(), `HTTP ${login.status()}`);
     if (role === 'student') {
@@ -325,7 +328,7 @@ async function main() {
     }
     await request.dispose();
   }
-  const deletedAccountCheck = await apiRequest.newContext({ ignoreHTTPSErrors: true });
+  const deletedAccountCheck = await apiRequest.newContext({ ignoreHTTPSErrors: true, timeout: 15000 });
   const deletedLogin = await deletedAccountCheck.post(`${base}/login`, {
     form: { username: fixture.unusedTeacherUsername, password: fixture.unusedTeacherPassword }
   });
