@@ -65,6 +65,6 @@ test('teacherDetailUsesAdminShellAndPreservesAssignmentAndProfileFlows',()=>{
     assert.ok(dom.window.document.querySelector('a[href="/manage_teachers"]'));
     assert.equal(dom.window.document.querySelector('#teacher-profile-form').getAttribute('action'),'/edit-teacher-profile');
     assert.match(dom.window.document.body.textContent,/Schuljahr & Zuordnungen/);
-    assert.equal(dom.window.document.querySelector('#teacherDeleteConfirmation button[type="button"]')?.textContent.includes('Abbrechen'),true);
+    assert.equal(dom.window.document.querySelector('#cancelDeleteTeacher')?.textContent.includes('Abbrechen'),true);
   } finally {dom.window.close();}
 });

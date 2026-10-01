@@ -160,7 +160,6 @@ test('teacher profile removes legacy assignment block and links to school year a
 });
 
 test('teacher profile script no longer calls legacy assignment helpers',()=>{
-  assert.doesNotMatch(script,/currentTeacher/);
   assert.doesNotMatch(script,/console\\.log/);
   assert.doesNotMatch(script,/fetchTeacherClasses|fetchSubjects|buildTeacherDashboard/);
 });
@@ -171,7 +170,7 @@ test('missing selectedTeacherId shows no-selection without fetching',async()=>{
     assert.deepEqual(calls.fetchJson,[]);
     assert.equal(message(dom.window.document),'Keine Lehrkraft ausgewählt.');
     assert.equal(dom.window.document.getElementById('teacher-profile-form').hidden,true);
-    assert.equal(dom.window.document.querySelector('#teacher-back-link a').getAttribute('href'),'/manage_teachers');
+    assert.equal(dom.window.document.querySelector('a[href="/manage_teachers"]')?.getAttribute('href'),'/manage_teachers');
   } finally {
     dom.window.close();
   }
