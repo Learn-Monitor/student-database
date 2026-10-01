@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { chromium, request: apiRequest } = require(process.env.PLAYWRIGHT_MODULE_PATH);
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH);
 
 const base = process.env.A4B_BASE_URL;
 const fixture = JSON.parse(fs.readFileSync(process.env.A4B_CREDENTIALS, 'utf8'));
@@ -304,41 +304,57 @@ async function main() {
     ['teacher', fixture.teacherAUsername, fixture.teacherAPassword],
     ['student', fixture.studentAUsername, fixture.studentAPassword]
   ]) {
-    const request = await apiRequest.newContext({ ignoreHTTPSErrors: true, timeout: 15000 });
-    const login = await request.post(`${base}/login`, { form: { username, password } });
-    write(`${role} real login`, login.status() === 302 || login.ok(), `HTTP ${login.status()}`);
+    const roleContext = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 800 } });
+    const rolePage = await roleContext.newPage();
+    rolePage.setDefaultTimeout(15000);
+    rolePage.setDefaultNavigationTimeout(20000);
+    rolePage.on('dialog', dialog => dialog.dismiss());
+    await rolePage.goto(`${base}/login`, { waitUntil: 'domcontentloaded' });
+    await rolePage.locator('#username').fill(username);
+    await rolePage.locator('#password').fill(password);
+    await rolePage.locator('#loginForm button[type=submit]').click();
+    await rolePage.waitForURL('**/dashboard', { timeout: 15000 });
+    write(`${role} real login and session`, true);
     if (role === 'student') {
-      const catalog = await request.post(`${base}/my-curriculum-catalog`, {
-        data: { subjectId: fixture.wpfSubjectId, semesterId: fixture.semester1Id },
-        headers: { 'Content-Type': 'application/json' }
-      });
-      let catalogJson = {};
-      try { catalogJson = await catalog.json(); } catch {}
-      write('student session reads own curriculum catalog', catalog.status() === 200 && catalogJson.semesterId === fixture.semester1Id,
-        `HTTP ${catalog.status()}`);
-      const forged = await request.post(`${base}/my-curriculum-catalog`, {
-        data: { subjectId: fixture.wpfSubjectId, semesterId: fixture.semester1Id, studentId: fixture.studentBId },
-        headers: { 'Content-Type': 'application/json' }
-      });
-      write('student catalog rejects client-selected identity', forged.status() === 400, `HTTP ${forged.status()}`);
-      const foreign = await request.post(`${base}/my-curriculum-catalog`, {
-        data: { subjectId: fixture.alternativeWpfSubjectId, semesterId: fixture.semester1Id },
-        headers: { 'Content-Type': 'application/json' }
-      });
-      write('student catalog denies unassigned subject', foreign.status() === 403, `HTTP ${foreign.status()}`);
+      const studentChecks = await rolePage.evaluate(async data => {
+        const post = async body => {
+          const response = await fetch('/my-curriculum-catalog', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+            signal: AbortSignal.timeout(15000)
+          });
+          let json = {}; try { json = await response.json(); } catch {}
+          return { status: response.status, json };
+        };
+        return {
+          own: await post({ subjectId: data.wpfSubjectId, semesterId: data.semester1Id }),
+          forged: await post({ subjectId: data.wpfSubjectId, semesterId: data.semester1Id, studentId: data.studentBId }),
+          foreign: await post({ subjectId: data.alternativeWpfSubjectId, semesterId: data.semester1Id })
+        };
+      }, fixture);
+      write('student session reads own curriculum catalog', studentChecks.own.status === 200 && studentChecks.own.json.semesterId === fixture.semester1Id, `HTTP ${studentChecks.own.status}`);
+      write('student catalog rejects client-selected identity', studentChecks.forged.status === 400, `HTTP ${studentChecks.forged.status}`);
+      write('student catalog denies unassigned subject', studentChecks.foreign.status === 403, `HTTP ${studentChecks.foreign.status}`);
     }
-    for (const route of authPaths) {
-      const response = await request.post(`${base}${route}`, { data: {}, headers: { 'Content-Type': 'application/json' } });
-      write(`${role} blocked from ${route}`, response.status() === 403, `HTTP ${response.status()}`);
-    }
-    await request.dispose();
+    const denied = await rolePage.evaluate(async routes => {
+      const results = [];
+      for (const route of routes) {
+        const response = await fetch(route, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(15000)
+        });
+        results.push({ route, status: response.status });
+      }
+      return results;
+    }, authPaths);
+    for (const result of denied) write(`${role} blocked from ${result.route}`, result.status === 403, `HTTP ${result.status}`);
+    await roleContext.close();
   }
-  const deletedAccountCheck = await apiRequest.newContext({ ignoreHTTPSErrors: true, timeout: 15000 });
-  const deletedLogin = await deletedAccountCheck.post(`${base}/login`, {
-    form: { username: fixture.unusedTeacherUsername, password: fixture.unusedTeacherPassword }
-  });
-  write('deleted teacher login rejected', deletedLogin.status() === 401, `HTTP ${deletedLogin.status()}`);
-  await deletedAccountCheck.dispose();
+  const deletedLogin = await page.evaluate(async credentials => {
+    const response = await fetch('/login', {
+      method: 'POST', body: new URLSearchParams(credentials), redirect: 'manual', signal: AbortSignal.timeout(15000)
+    });
+    return response.status;
+  }, { username: fixture.unusedTeacherUsername, password: fixture.unusedTeacherPassword });
+  write('deleted teacher login rejected', deletedLogin === 401, `HTTP ${deletedLogin}`);
 
   const overflow = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
   write('mobile whole-page overflow final', overflow.scroll <= overflow.client + 1, JSON.stringify(overflow));
