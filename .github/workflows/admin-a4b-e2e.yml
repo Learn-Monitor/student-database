@@ -265,6 +265,7 @@ jobs:
             "Learn-Monitor/permission-manager" "feature/admin-redesign-safe-delete-routes" "f85b85b37451f1b789c17feb0a29f9ecafa9eab9" "$(basename "$PM_JAR")" \
             "$(sha256sum "$PM_JAR" | awk '{print $1}')" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
             > "$WORK_DIR/artifacts/provenance.txt"
+          cat "$WORK_DIR/artifacts/provenance.txt"
 
       - name: Upload tested Core and Permission Manager artifacts
         if: always() && steps.stage.outcome == 'success'
