@@ -1575,7 +1575,20 @@ class CurriculumTest {
     }
 
     @AfterEach void restoreEnrollmentFixtureGrade() throws Exception {
-        db.writeTransaction(c->{exec(c,"UPDATE classes SET grade=5 WHERE id IN (?,?)",id,id+1);return null;});
+        db.writeTransaction(c->{
+            exec(c,"DELETE FROM course_group_members WHERE course_group IN (SELECT id FROM course_groups WHERE semester IN (SELECT id FROM semesters WHERE label IN ('2098_99_HJ2','2099_00_HJ1'))) ");
+            exec(c,"DELETE FROM student_curriculum_contexts WHERE semester IN (SELECT id FROM semesters WHERE label IN ('2098_99_HJ2','2099_00_HJ1'))");
+            exec(c,"DELETE FROM curriculum_individual_assignments WHERE semester IN (SELECT id FROM semesters WHERE label IN ('2098_99_HJ2','2099_00_HJ1'))");
+            exec(c,"DELETE FROM curriculum_enrolled_students WHERE semester IN (SELECT id FROM semesters WHERE label IN ('2098_99_HJ2','2099_00_HJ1'))");
+            exec(c,"DELETE FROM curriculum_class_tutors WHERE semester IN (SELECT id FROM semesters WHERE label IN ('2098_99_HJ2','2099_00_HJ1'))");
+            exec(c,"DELETE FROM course_groups WHERE semester IN (SELECT id FROM semesters WHERE label IN ('2098_99_HJ2','2099_00_HJ1'))");
+            exec(c,"DELETE FROM curriculum_class_teachers WHERE semester IN (SELECT id FROM semesters WHERE label IN ('2098_99_HJ2','2099_00_HJ1'))");
+            exec(c,"DELETE FROM curriculum_grade_teachers WHERE semester IN (SELECT id FROM semesters WHERE label IN ('2098_99_HJ2','2099_00_HJ1'))");
+            exec(c,"DELETE FROM curriculum_grade_subjects WHERE semester IN (SELECT id FROM semesters WHERE label IN ('2098_99_HJ2','2099_00_HJ1'))");
+            exec(c,"DELETE FROM semesters WHERE label IN ('2098_99_HJ2','2099_00_HJ1')");
+            exec(c,"DELETE FROM school_years WHERE label IN ('2099/00')");
+            exec(c,"UPDATE classes SET grade=5 WHERE id IN (?,?)",id,id+1);exec(c,"UPDATE topics SET grade=5 WHERE id=?",topic);exec(c,"UPDATE school_years SET label=?,current_semester=NULL WHERE id=?","Year-"+id,id);exec(c,"UPDATE semesters SET label=?,position=1,school_year=? WHERE id=?","Semester-"+id,id,id);exec(c,"UPDATE semesters SET label=?,position=2,school_year=? WHERE id=?","Semester-"+(id+1),id,id+1);return null;
+        });
     }
     CurriculumEnrollment enrollmentFixture() throws Exception {
         db.writeTransaction(c->{
@@ -1610,7 +1623,6 @@ class CurriculumTest {
     @Test void semesterCreateCopiesFrameOnlyWithinYearAndKeepsTutorsAcrossYearBoundary() throws Exception {
         var enrollment=enrollmentFixture();
         db.writeTransaction(c->{
-            exec(c,"DELETE FROM semesters WHERE id=?",id+1);
             exec(c,"UPDATE school_years SET label='2098/99',current_semester=NULL WHERE id=?",id);
             exec(c,"UPDATE semesters SET label='2098_99_HJ1',position=1,school_year=? WHERE id=?",id,id);
             return null;
@@ -1653,7 +1665,7 @@ class CurriculumTest {
         @SuppressWarnings("unchecked") Map<String,Object> preview=(Map<String,Object>)enrollment.catalog(admin).get("nextSemesterPreview");
         assertEquals("2099_00_HJ1",preview.get("label"));assertEquals("2099/00",preview.get("schoolYear"));
         assertEquals(true,preview.get("newSchoolYear"));assertEquals(false,preview.get("frameCopied"));assertEquals(true,preview.get("tutorsCopied"));
-        db.writeTransaction(c->{exec(c,"UPDATE semesters SET label='2098_99_HJ1',position=1 WHERE id=?",id+1);return null;});
+        db.writeTransaction(c->{exec(c,"UPDATE semesters SET label=?,position=2 WHERE id=?","Semester-"+(id+1),id+1);return null;});
         @SuppressWarnings("unchecked") Map<String,Object> sameYearPreview=(Map<String,Object>)enrollment.catalog(admin).get("nextSemesterPreview");
         assertEquals("2098_99_HJ2",sameYearPreview.get("label"));assertEquals(false,sameYearPreview.get("newSchoolYear"));
         assertEquals(true,sameYearPreview.get("frameCopied"));assertEquals(true,sameYearPreview.get("tutorsCopied"));
