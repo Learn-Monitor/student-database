@@ -78,6 +78,13 @@ test('admin-managed tables declare semantic column headers and local scroll cont
   }
 });
 
+test('admin semester setup grids and assignment tables stay locally scrollable on mobile',()=>{
+  const css=fs.readFileSync(path.join(__dirname,'../../main/resources/css/site/style.css'),'utf8');
+  assert.match(css,/\.semester-landing\s*\{[^}]*minmax\(0,\s*1fr\)/);
+  assert.match(css,/\.admin-table-scroll\s*\{[^}]*overflow-x:\s*auto/);
+  assert.match(css,/\.admin-shell \.semester-landing > \*/);
+});
+
 test('admin status regions are announced and forms have real associated labels',()=>{
   for (const name of ['students','teachers','classes','schoolClass','student','teacher','subject']) {
     const dom=new JSDOM(`<body>${render(name)}</body>`);

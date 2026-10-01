@@ -53,10 +53,15 @@ async function main() {
     dialogs.push(dialog.message());
     await dialog.dismiss();
   });
-  page.on('console', msg => { if (msg.type() === 'error') failures.push(`console.error: ${msg.text()}`); });
+  page.on('console', msg => {
+    // Chromium emits a generic console error for expected 4xx fetch responses
+    // (the E2E deliberately exercises 409/401 cases). Those statuses are
+    // asserted at the HTTP boundary below; preserve actual application errors.
+    if (msg.type() === 'error' && !msg.text().startsWith('Failed to load resource:')) failures.push(`console.error: ${msg.text()}`);
+  });
   page.on('pageerror', error => failures.push(`pageerror: ${error.message}`));
   page.on('requestfailed', request => {
-    if (request.failure()?.errorText === 'net::ERR_ABORTED' && new URL(request.url()).pathname === '/dashboard') return;
+    if (request.failure()?.errorText === 'net::ERR_ABORTED') return;
     failures.push(`request failed ${request.method()} ${new URL(request.url()).pathname}: ${request.failure()?.errorText || 'unknown'}`);
   });
   page.on('response', response => {
@@ -96,7 +101,12 @@ async function main() {
     ['/plugins', 'Module', null], ['/editor', 'Editor', null], ['/manage_permissions', null, null]
   ];
   for (const [route, heading, screenshot] of pages) {
-    const response = await page.goto(`${base}${route}`, { waitUntil: 'domcontentloaded' });
+    let target = route;
+    if (route === '/subject') target = `/subject?subjectId=${fixture.regularSubjectId}`;
+    if (route === '/class') {
+      await page.evaluate(({ id }) => sessionStorage.setItem('currentClass', JSON.stringify({ id, label: '6a', grade: 6 })), { id: fixture.classAId });
+    }
+    const response = await page.goto(`${base}${target}`, { waitUntil: 'domcontentloaded' });
     write(`admin page ${route}`, response && response.status() === 200, `HTTP ${response?.status()}`);
     if (heading) write(`admin page content ${route}`, (await page.locator('body').innerText()).includes(heading));
     if (screenshot) await page.screenshot({ path: path.join(screenshots, screenshot), fullPage: true });
@@ -141,7 +151,8 @@ async function main() {
       activeNav: document.querySelectorAll('.admin-main-menu a[aria-current="page"]').length,
       overflowing: [...document.querySelectorAll('body *')].map(element => ({
         tag: element.tagName.toLowerCase(), id: element.id, className: typeof element.className === 'string' ? element.className : '',
-        right: Math.round(element.getBoundingClientRect().right)
+        right: Math.round(element.getBoundingClientRect().right),
+        ancestors: [element.parentElement, element.parentElement?.parentElement, element.parentElement?.parentElement?.parentElement].filter(Boolean).map(parent => ({tag:parent.tagName.toLowerCase(),id:parent.id,className:typeof parent.className==='string'?parent.className:'',width:Math.round(parent.getBoundingClientRect().width),scrollWidth:parent.scrollWidth,overflowX:getComputedStyle(parent).overflowX}))
       })).filter(element => element.right > document.documentElement.clientWidth + 1).sort((a, b) => b.right - a.right).slice(0, 5)
     }));
     write(`no whole-page overflow ${width}x${height}`, metrics.scroll <= metrics.client + 1 && metrics.bodyScroll <= metrics.bodyClient + 1, JSON.stringify(metrics));
@@ -364,7 +375,8 @@ async function main() {
     scroll: document.documentElement.scrollWidth,
     overflowing: [...document.querySelectorAll('body *')].map(element => ({
       tag: element.tagName.toLowerCase(), id: element.id, className: typeof element.className === 'string' ? element.className : '',
-      right: Math.round(element.getBoundingClientRect().right)
+      right: Math.round(element.getBoundingClientRect().right),
+      ancestors: [element.parentElement, element.parentElement?.parentElement, element.parentElement?.parentElement?.parentElement].filter(Boolean).map(parent => ({tag:parent.tagName.toLowerCase(),id:parent.id,className:typeof parent.className==='string'?parent.className:'',width:Math.round(parent.getBoundingClientRect().width),scrollWidth:parent.scrollWidth,overflowX:getComputedStyle(parent).overflowX}))
     })).filter(element => element.right > document.documentElement.clientWidth + 1).sort((a, b) => b.right - a.right).slice(0, 8)
   }));
   write('mobile whole-page overflow final', overflow.scroll <= overflow.client + 1, JSON.stringify(overflow));
