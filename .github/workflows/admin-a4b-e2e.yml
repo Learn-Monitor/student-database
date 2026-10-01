@@ -135,6 +135,7 @@ jobs:
 
       - name: Start isolated real HTTPS runtime and run browser/API acceptance
         shell: bash
+        timeout-minutes: 15
         env:
           WORK_DIR: ${{ steps.stage.outputs.work }}
           DATABASE_BASE: ${{ steps.stage.outputs.dbbase }}
@@ -204,14 +205,14 @@ jobs:
           done
           mkdir -p "$WORK_DIR/browser"
           npm install --prefix "$WORK_DIR/browser" --no-save --no-audit --no-fund playwright@1.55.0
-          "$WORK_DIR/browser/node_modules/.bin/playwright" install --with-deps chromium
+          timeout --signal=TERM --kill-after=20s 240s "$WORK_DIR/browser/node_modules/.bin/playwright" install --with-deps chromium
           PLAYWRIGHT_MODULE_PATH="$WORK_DIR/browser/node_modules/playwright" \
           A4B_BASE_URL="https://127.0.0.1:$port" \
           A4B_CREDENTIALS="$CREDENTIALS_FILE" \
           A4B_DB_PATH="$DATABASE_BASE.db" \
           A4B_SCREENSHOTS="$WORK_DIR/screenshots" \
           A4B_REPORT="$report" \
-          node tools/admin-e2e/browser-smoke.cjs
+          timeout --signal=TERM --kill-after=20s 600s node tools/admin-e2e/browser-smoke.cjs
           python3 - "$DATABASE_BASE.db" "$CREDENTIALS_FILE" "$WORK_DIR/artifacts/db-integrity.json" <<'PY'
           import json, sqlite3, sys
           db, credential_path, report_path = sys.argv[1:]
