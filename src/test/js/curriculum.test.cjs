@@ -724,6 +724,7 @@ test('admin grade batch excludes individual subjects and submits every regular c
  const {dom,root,requests}=await setup(true,{enrollment:true});try{
   const panel=root.querySelector('.curriculum-enrollment');await clickNamed(dom,panel,'Jetzt verwalten');await clickNamed(dom,panel,'Auswahl bestätigen');
   const rows=[...panel.querySelectorAll('.semester-create-panel .curriculum-wpf-table tr')].slice(1);assert.equal(rows.length,2);
+  assert.deepEqual([...panel.querySelectorAll('.semester-create-panel .curriculum-wpf-table tr:first-child th')].map(cell=>cell.scope),['col','col','col']);assert.equal(rows[0].querySelector('th[scope="row"]').textContent,'5a');
   assert.deepEqual(rows.map(r=>r.cells[1].textContent),['Math','Math']);
   await clickNamed(dom,panel,'Ausgewählte Lehrkräfte-Zuordnungen speichern');
   const request=requests.find(r=>r.url==='/assign-grade-curriculum');assert.deepEqual(request.data.subjectIds,[1]);assert.equal(request.data.teaching.length,2);assert.equal(request.data.semesterId,20);
