@@ -1,23 +1,27 @@
 %[site;title=Schülerverwaltung;content=!FOLLOWS]
-<section id="students">
-    <header>
+<section id="students" class="admin-shell admin-list-page">
+    <header class="admin-page-header">
+        <p class="admin-eyebrow">Admin · Schuldaten</p>
         <h1>Schülerverwaltung</h1>
+        <p class="admin-page-intro">Schülerkonten, Klassen, Abschlussstufen und Im-/Exporte verwalten.</p>
     </header>
+    %[admin_nav]
     <main>
-        <section id="add-students">
+        <section id="add-students" class="admin-panel">
             <h2>Schüler hinzufügen aus edu.sys</h2>
-            <form id="add-students-form" method="post" action="/add-students">
+            <form id="add-students-form" class="admin-form admin-form-stacked" method="post" action="/add-students">
                 <label for="csv-input">CSV-Datei:</label>
                 <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="ID,Vorname,Nachname,Klasse,Abschlussstufe,Loginname"></textarea>
                 <button type="submit">Schüler hinzufügen</button>
             </form>
         </section>
-        <section id="student-list">
+        <section id="student-list" class="admin-panel">
             <h2>Schülerliste</h2>
-            <section id="student-downloads">
-                <a href="/students" download="schueler.json"><button id="download-students">Schülerliste herunterladen</button></a>
-                <a href="/all-student-results" download="schueler_ergebnisse.csv"><button id="download-student-results">Schülerergebnisse herunterladen</button></a>
-                <form id="download-grade-results-form" method="post" action="/grade-results">
+            <p id="student-admin-status" class="admin-inline-status" role="status" aria-live="polite"></p>
+            <section id="student-downloads" class="admin-admin-actions" aria-label="Schülerdaten herunterladen">
+                <a class="admin-button-link" id="download-students" href="/students" download="schueler.json">Schülerliste herunterladen</a>
+                <a class="admin-button-link" id="download-student-results" href="/all-student-results" download="schueler_ergebnisse.csv">Schülerergebnisse herunterladen</a>
+                <form id="download-grade-results-form" class="admin-form admin-grade-export" method="post" action="/grade-results">
                     <label for="grade-input">Abschlussstufe:</label>
                     <input type="number" id="grade-input" name="grade" min="1" max="13" required>
                     <label for="subjectSelect">Fach:</label>
@@ -25,32 +29,33 @@
                     <button type="submit">Ergebnisse für Abschlussstufe herunterladen</button>
                 </form>
             </section>
-            <section id="class-selection">
-                <label for="studentStatus">Status:</label>
+            <fieldset id="class-selection" class="admin-filter-bar">
+                <legend>Schülerliste filtern</legend>
+                <div class="admin-form-field"><label for="studentStatus">Status</label>
                 <select id="studentStatus">
                     <option value="active">Aktive Schüler</option>
                     <option value="archived">Archivierte Schüler</option>
-                </select>
-                <label for="classSelect">Wählen Sie eine Klasse:</label>
+                </select></div>
+                <div class="admin-form-field"><label for="classSelect">Klasse</label>
                 <select id="classSelect"></select>
-                <input id="studentFilter" placeholder="Nach Name oder Login suchen">
-            </section>
-            <table id="studentTable">
+                </div>
+                <div class="admin-form-field"><label for="studentFilter">Suche</label><input id="studentFilter" type="search" placeholder="Name oder Login"></div>
+            </fieldset>
+            <div class="admin-table-scroll"><table id="studentTable" class="admin-data-table">
+                <caption class="admin-visually-hidden">Schülerliste</caption>
                 <thead>
                     <tr>
-                        <th>Nachname</th>
-                        <th>Vorname</th>
-                        <th>Klasse</th>
-                        <th>Abschlussstufe</th>
-                        <th>Aktionen</th>
+                        <th scope="col">Nachname</th>
+                        <th scope="col">Vorname</th>
+                        <th scope="col">Klasse</th>
+                        <th scope="col">Abschlussstufe</th>
+                        <th scope="col">Aktionen</th>
                     </tr>
                 </thead>
                 <tbody id="studentTableBody"></tbody>
-            </table>
+            </table></div>
         </section>
     </main>
-    <nav>
-        %[admin_nav]
-    </nav>
 </section>
 <script src="/manage_students.js" defer></script>
+<script src="/admin-section-navigation.js" defer></script>

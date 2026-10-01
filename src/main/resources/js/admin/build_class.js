@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (cls) {
         document.getElementById('className').value = cls.label;
         document.getElementById('classGrade').value = cls.grade;
+        const heading = document.getElementById('class-heading-name');
+        if (heading) heading.textContent = cls.label || '';
 
         Array.from(document.getElementsByClassName('classId')).forEach(function(element) {
             element.value = cls.id;
@@ -29,15 +31,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (confirm('Klasse wirklich archivieren? Die Klasse wird deaktiviert. Die Schülerinnen und Schüler bleiben erhalten und werden der Klasse „Nicht zugeordnet“ zugewiesen.')) {
             deleteClass(cls.id).then(response => {
                 if (response.ok) {
-                    alert('Klasse wurde archiviert.');
+                    const status = document.getElementById('class-admin-status');
+                    if (status) status.textContent = 'Klasse wurde archiviert.';
                     window.location.href = '/manage_classes';
                 } else {
-                    alert('Die Klasse konnte nicht archiviert werden.');
+                    const status = document.getElementById('class-admin-status');
+                    if (status) { status.textContent = 'Die Klasse konnte nicht archiviert werden.'; status.dataset.state = 'error'; }
                 }
             })
-            .catch(error => {
-                console.error('Error archiving class:', error);
-                alert('Die Klasse konnte nicht archiviert werden.');
+            .catch(() => {
+                const status = document.getElementById('class-admin-status');
+                if (status) { status.textContent = 'Die Klasse konnte nicht archiviert werden.'; status.dataset.state = 'error'; }
             });
         }
     });

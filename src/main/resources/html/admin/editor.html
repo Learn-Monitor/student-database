@@ -1,21 +1,17 @@
 %[site;title=HTML Editor;content=!FOLLOWS]
-
-<h2>HTML Editor</h2>
-
-<form method="post" action="/editor">
-
-  <label for="filename">File name to save as:</label><br>
-  <input type="text" id="filename" name="filename" placeholder="e.g. login.html" required>
-  
-  <br><br>
-
-  <label for="content">HTML Content:</label><br>
-  <textarea name="content" rows="20" cols="80"></textarea>
-
-  <br><br>
-
-  <button type="submit">Save</button>
-</form>
-<nav>
-%[admin_nav]
-</nav>
+<section id="admin-editor" class="admin-shell admin-detail-page">
+    <header class="admin-page-header">
+        <p class="admin-eyebrow">Admin · System</p>
+        <h1>HTML Editor</h1>
+        <p class="admin-page-intro">Vorhandene HTML-Dateien bearbeiten. Änderungen wirken sich unmittelbar auf die ausgelieferte Oberfläche aus.</p>
+    </header>
+    <nav class="admin-detail-nav" aria-label="Systemnavigation"><a href="/dashboard#system">← System</a></nav>
+    <section class="admin-panel" aria-labelledby="editor-heading">
+        <h2 id="editor-heading">Datei bearbeiten</h2>
+        <form class="admin-form admin-form-stacked" method="post" action="/editor">
+            <div class="admin-form-field"><label for="filename">Dateiname</label><input type="text" id="filename" name="filename" placeholder="z. B. login.html" required></div>
+            <div class="admin-form-field"><label for="content">HTML-Inhalt</label><textarea id="content" name="content" rows="20" required></textarea></div>
+            <button type="submit">Speichern</button>
+        </form>
+    </section>
+</section>

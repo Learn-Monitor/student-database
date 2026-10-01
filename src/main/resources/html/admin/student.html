@@ -1,23 +1,23 @@
-%[student_dashboard;script=build_student.js;nav=!FOLLOWS]
-%[admin_student_nav]
-<section id="admin-student-profile">
-    <h2>Schüler bearbeiten</h2>
-    <p id="adminStudentMessage" hidden></p>
-    <p id="adminStudentBackLink" hidden><a href="/manage_students">Zurück zur Schülerverwaltung</a></p>
-    <form id="adminStudentForm" method="post" action="/edit-student-profile">
+<section id="admin-student-profile" class="admin-shell admin-detail-page">
+    <header class="admin-page-header">
+        <p class="admin-eyebrow">Admin · Schuldaten · Schüler</p>
+        <h1>Schüler bearbeiten</h1>
+        <p class="admin-page-intro">Stammdaten, Klasse und Abschlussstufe verwalten.</p>
+    </header>
+    <nav class="admin-detail-nav" aria-label="Schülerverwaltung">
+        <a href="/manage_students">← Schülerverwaltung</a>
+        <a href="/dashboard#schuldaten">Schuldaten</a>
+    </nav>
+    <p id="adminStudentMessage" class="admin-inline-status" role="status" aria-live="polite" hidden></p>
+    <p id="adminStudentBackLink" class="admin-inline-status" hidden><a href="/manage_students">Zurück zur Schülerverwaltung</a></p>
+    <form id="adminStudentForm" class="admin-panel admin-form" method="post" action="/edit-student-profile">
         <input type="hidden" name="id" id="adminStudentId">
-        <label for="adminStudentFirst">Vorname</label>
-        <input name="firstName" id="adminStudentFirst" required>
-        <label for="adminStudentLast">Nachname</label>
-        <input name="lastName" id="adminStudentLast" required>
-        <label for="adminStudentEmail">Loginname</label>
-        <input name="email" id="adminStudentEmail" type="text" required>
-        <label for="adminStudentPassword">Neues Passwort (optional)</label>
-        <input name="password" id="adminStudentPassword" type="password">
-        <label for="adminStudentClass">Klasse</label>
-        <select name="classId" id="adminStudentClass" required></select>
-        <label for="adminStudentLevel">Abschlussstufe</label>
-        <select name="graduationLevel" id="adminStudentLevel"></select>
+        <div class="admin-form-field"><label for="adminStudentFirst">Vorname</label><input name="firstName" id="adminStudentFirst" required></div>
+        <div class="admin-form-field"><label for="adminStudentLast">Nachname</label><input name="lastName" id="adminStudentLast" required></div>
+        <div class="admin-form-field"><label for="adminStudentEmail">Loginname</label><input name="email" id="adminStudentEmail" type="text" required></div>
+        <div class="admin-form-field"><label for="adminStudentPassword">Neues Passwort (optional)</label><input name="password" id="adminStudentPassword" type="password"></div>
+        <div class="admin-form-field"><label for="adminStudentClass">Klasse</label><select name="classId" id="adminStudentClass" required></select></div>
+        <div class="admin-form-field"><label for="adminStudentLevel">Abschlussstufe</label><select name="graduationLevel" id="adminStudentLevel"></select></div>
         <button type="submit">Stammdaten speichern</button>
     </form>
 </section>

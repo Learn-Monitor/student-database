@@ -1,14 +1,11 @@
 %[site;title=Module verwalten;content=!FOLLOWS]
-<section id="dashboard">
-    <header>
+<section id="admin-plugins" class="admin-shell admin-detail-page">
+    <header class="admin-page-header">
+        <p class="admin-eyebrow">Admin · System</p>
         <h1>Module</h1>
+        <p class="admin-page-intro">Installierte Erweiterungen und deren Status verwalten.</p>
     </header>
-    <p>Willkommen in der Modulübersicht!</p>
-    <section id="plugins"></section>
-    <script>
-        loadPluginsView(document.getElementById("plugins"));
-    </script>
-    <nav>
-        %[admin_nav]
-    </nav>
+    <nav class="admin-detail-nav" aria-label="Systemnavigation"><a href="/dashboard#system">← System</a></nav>
+    <section id="plugins" class="admin-panel" aria-label="Installierte Module" aria-live="polite"></section>
 </section>
+<script src="/admin-plugins.js" defer></script>

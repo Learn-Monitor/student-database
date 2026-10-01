@@ -9,6 +9,7 @@ const dashboard=fs.readFileSync(path.join(resources,'html/admin/dashboard.html')
 const nav=fs.readFileSync(path.join(resources,'templates/html/admin_main_menu.html'),'utf8');
 const subjects=fs.readFileSync(path.join(resources,'html/admin/manage_subjects.html'),'utf8');
 const subjectManagement=fs.readFileSync(path.join(resources,'js/admin/admin-subject-management.js'),'utf8');
+const sectionNavigation=fs.readFileSync(path.join(resources,'js/admin/admin-section-navigation.js'),'utf8');
 const css=fs.readFileSync(path.join(resources,'css/site/style.css'),'utf8');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,25));
 
@@ -19,7 +20,7 @@ function dashboardHtml() {
 }
 
 function subjectsHtml() {
-  return subjects.replace('%[site;title=Fächer verwalten;content=!FOLLOWS]','');
+  return subjects.replace('%[site;title=Fächer verwalten;content=!FOLLOWS]','').replace('%[admin_nav]',nav);
 }
 
 test('adminDashboardShowsConfiguredSections',()=>{
@@ -34,23 +35,26 @@ test('adminDashboardShowsConfiguredSections',()=>{
 });
 
 test('adminNavigationActivatesRequestedSection',()=>{
-  const dom=new JSDOM(`<!doctype html><body>${dashboardHtml()}</body>`,{
-    url:'https://school.invalid/dashboard#schuldaten',runScripts:'dangerously'
-  });
+  const dom=new JSDOM(`<!doctype html><body>${dashboardHtml()}</body>`,{url:'https://school.invalid/dashboard#schuldaten',runScripts:'outside-only'});
   try {
+    dom.window.eval(sectionNavigation);
     assert.equal(dom.window.document.querySelector('#schuldaten').hidden,false);
     assert.equal(dom.window.document.querySelector('#uebersicht').hidden,true);
   } finally { dom.window.close(); }
 });
 
 test('adminNavigationMarksCurrentSection',()=>{
-  const dom=new JSDOM(`<!doctype html><body>${dashboardHtml()}</body>`,{
-    url:'https://school.invalid/dashboard#curriculum',runScripts:'dangerously'
-  });
+  const dom=new JSDOM(`<!doctype html><body>${dashboardHtml()}</body>`,{url:'https://school.invalid/dashboard#curriculum',runScripts:'outside-only'});
   try {
-    const current=dom.window.document.querySelector('.admin-main-menu a[aria-current="true"]');
+    dom.window.eval(sectionNavigation);
+    const current=dom.window.document.querySelector('.admin-main-menu a[aria-current="page"]');
     assert.equal(current?.textContent.trim(),'Zentrales Curriculum');
   } finally { dom.window.close(); }
+});
+
+test('adminDashboardNavigationHasNoInlineImplementation',()=>{
+  assert.match(dashboard,/admin-section-navigation\.js/);
+  assert.doesNotMatch(dashboard,/<script>\s*\(\(\)\s*=>/);
 });
 
 test('adminDashboardDoesNotExposeDuplicatePrimaryNavigation',()=>{

@@ -1,6 +1,13 @@
 (function() {
     let allStudents = [];
 
+    function setAdminStatus(message, state = '') {
+        const status = document.getElementById('student-admin-status');
+        if (!status) return;
+        status.textContent = message;
+        status.dataset.state = state;
+    }
+
     function currentStatus() {
         return document.getElementById("studentStatus").value;
     }
@@ -99,7 +106,7 @@
                 student.graduationLevel = next;
             } else {
                 select.value = String(previous);
-                alert("Die Abschlussstufe konnte nicht geändert werden.");
+                setAdminStatus("Die Abschlussstufe konnte nicht geändert werden.", 'error');
             }
         });
         return select;
@@ -112,8 +119,9 @@
         const response = await post("/archive-student", {id: student.id});
         if (response.ok) {
             await loadStudents();
+            setAdminStatus('Schüler wurde archiviert.', 'success');
         } else {
-            alert("Der Schüler konnte nicht archiviert werden.");
+            setAdminStatus("Der Schüler konnte nicht archiviert werden.", 'error');
         }
     }
 
@@ -124,8 +132,9 @@
         const response = await post("/reactivate-student", {id: student.id});
         if (response.ok) {
             await loadStudents();
+            setAdminStatus('Schüler wurde wieder aktiviert.', 'success');
         } else {
-            alert("Der Schüler konnte nicht wiederhergestellt werden.");
+            setAdminStatus("Der Schüler konnte nicht wiederhergestellt werden.", 'error');
         }
     }
 
@@ -174,9 +183,17 @@
     }
 
     async function loadStudents() {
-        const students = await fetchJson(activeStatus() ? "/students" : "/archived-students");
-        allStudents = Array.isArray(students) ? students : [];
-        renderStudents();
+        setAdminStatus('Schüler werden geladen …');
+        try {
+            const students = await fetchJson(activeStatus() ? "/students" : "/archived-students");
+            allStudents = Array.isArray(students) ? students : [];
+            renderStudents();
+            setAdminStatus(`${allStudents.length} Schüler geladen.`);
+        } catch {
+            allStudents = [];
+            renderStudents();
+            setAdminStatus('Die Schülerliste konnte nicht geladen werden.', 'error');
+        }
     }
 
     function updateClassFilterState() {

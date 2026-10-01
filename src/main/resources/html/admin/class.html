@@ -1,9 +1,16 @@
 %[site;title=Klasse bearbeiten;content=!FOLLOWS]
-<script src="build_class.js"></script>
-<section id="dashboard">
-    <header>
-        <h1>Klasse bearbeiten</h1>
+<script src="/build_class.js" defer></script>
+<section id="dashboard" class="admin-shell admin-detail-page">
+    <header class="admin-page-header">
+        <p class="admin-eyebrow">Admin · Schuldaten · Klassen</p>
+        <h1>Klasse bearbeiten · <span id="class-heading-name"></span></h1>
+        <p class="admin-page-intro">Stammdaten und Schülerübersicht der Klasse verwalten.</p>
     </header>
+    <nav class="admin-detail-nav" aria-label="Klassenverwaltung">
+        <a href="/manage_classes">← Klassenverwaltung</a>
+        <a href="/dashboard#schuldaten">Schuldaten</a>
+    </nav>
+    <p id="class-admin-status" class="admin-inline-status" role="status" aria-live="polite"></p>
     <main>
         <section id="editData">
             <h2>Daten bearbeiten</h2>
@@ -21,28 +28,26 @@
             <h2>Klasse archivieren</h2>
             <button id="deleteClassButton" type="button">Klasse archivieren</button>
         </section>
-        <section id="class-assignments-note">
-            <h2>Schuljahr &amp; Zuordnungen</h2>
+        <section id="class-assignments-note" class="admin-panel">
+            <h2>Zuordnungen</h2>
             <p>Fächer und zuständige Lehrkräfte werden semesterbezogen unter „Schuljahr &amp; Zuordnungen“ verwaltet.</p>
             <p><a href="/dashboard#schuljahr">Schuljahr &amp; Zuordnungen</a></p>
         </section>
         <section id="student-list">
             <h2>Schüler in der Klasse</h2>
-            <table id="studentTable">
+            <div class="admin-table-scroll"><table id="studentTable" class="admin-data-table">
+                <caption class="admin-visually-hidden">Schüler in dieser Klasse</caption>
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Abschlussstufe</th>
-                        <th>Aktionen</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Abschlussstufe</th>
+                        <th scope="col">Aktionen</th>
                     </tr>
                 </thead>
                 <tbody id="studentTableBody">
                     <!-- Student rows will be dynamically inserted here -->
                 </tbody>
-            </table>
+            </table></div>
         </section>
     </main>
-    <nav>
-        %[admin_class_nav]
-    </nav>
 </section>

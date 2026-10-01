@@ -270,6 +270,7 @@ table tr:last-child td {
 .admin-form-field { display:flex; flex:1 1 15rem; flex-direction:column; gap:.3rem; min-width:0; }
 .admin-form-field label, .admin-form label { color:var(--admin-sandstone-950); font-weight:700; }
 .admin-shell input, .admin-shell select { width:100%; min-height:2.55rem; margin:0; padding:.5rem .6rem; box-sizing:border-box; border:1px solid #bda69d; border-radius:.4rem; color:var(--admin-text); background:#fff; font:inherit; }
+.admin-shell textarea { width:100%; max-width:100%; min-height:7rem; margin:0; padding:.55rem .65rem; box-sizing:border-box; border:1px solid #bda69d; border-radius:.4rem; color:var(--admin-text); background:#fff; font:inherit; }
 .admin-shell button { min-height:2.55rem; margin:0; padding:.55rem .8rem; border:1px solid var(--admin-accent); border-radius:.4rem; color:#fffaf7; background:var(--admin-accent); font:inherit; font-weight:700; cursor:pointer; }
 .admin-shell button:hover:not(:disabled), .admin-shell button:focus:not(:disabled) { background:var(--admin-sandstone-800); }
 .admin-shell button:disabled { opacity:.6; cursor:wait; }
@@ -298,6 +299,30 @@ table tr:last-child td {
   .admin-form { align-items:stretch; flex-direction:column; }
   .admin-form-field, .admin-form button { width:100%; }
   .admin-detail-nav a, .admin-action-link { min-height:2.7rem; }
+}
+.admin-list-page main { min-width:0; }
+.admin-form-stacked { align-items:stretch; flex-direction:column; }
+.admin-admin-actions { display:flex; flex-wrap:wrap; align-items:end; gap:.65rem; margin:1rem 0; }
+.admin-admin-actions .admin-form-field { flex:1 1 11rem; }
+.admin-grade-export { flex:1 1 100%; align-items:end; }
+.admin-filter-bar { display:flex; flex-wrap:wrap; align-items:end; gap:.75rem; min-width:0; margin:1rem 0; padding:.85rem; border:1px solid var(--admin-border); border-radius:.5rem; }
+.admin-filter-bar legend { padding:0 .3rem; color:var(--admin-sandstone-950); font-weight:700; }
+.admin-filter-bar .admin-form-field { flex:1 1 12rem; }
+.admin-button-link { display:inline-flex; min-height:2.55rem; align-items:center; justify-content:center; box-sizing:border-box; padding:.55rem .8rem; border:1px solid var(--admin-accent); border-radius:.4rem; color:#fffaf7; background:var(--admin-accent); font-weight:700; text-decoration:none; }
+.admin-button-link:hover, .admin-button-link:focus-visible { color:#fffaf7; background:var(--admin-sandstone-800); text-decoration:underline; }
+.admin-sort-button { min-height:0 !important; padding:.2rem .3rem !important; border:0 !important; color:inherit !important; background:transparent !important; text-align:left; }
+.admin-sort-button::after { content:' ↕'; }
+.admin-sort-button:focus-visible { outline:3px solid #d59b55 !important; outline-offset:2px; }
+.admin-button-secondary { margin-left:.35rem !important; color:var(--admin-sandstone-950) !important; background:var(--admin-accent-soft) !important; }
+.admin-detail-page .admin-form { align-items:stretch; }
+.admin-detail-page textarea { width:100%; max-width:100%; box-sizing:border-box; font:inherit; }
+.admin-shell .admin-table-scroll { min-width:0; }
+@media (max-width:700px) {
+  .admin-filter-bar { align-items:stretch; flex-direction:column; }
+  .admin-admin-actions { align-items:stretch; flex-direction:column; }
+  .admin-admin-actions > * { width:100%; }
+  .admin-grade-export { align-items:stretch; }
+  .admin-data-table { min-width:36rem; }
 }
 
 /* Teacher Cockpit: dieselbe visuelle Sprache wie der Admin-Arbeitsbereich. */

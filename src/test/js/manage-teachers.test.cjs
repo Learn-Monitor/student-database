@@ -6,6 +6,7 @@ const {JSDOM,VirtualConsole}=require('jsdom');
 
 const html=fs.readFileSync(path.join(__dirname,'../../main/resources/html/admin/manage_teachers.html'),'utf8');
 const dashboardHtml=fs.readFileSync(path.join(__dirname,'../../main/resources/html/admin/dashboard.html'),'utf8');
+const teacherScript=fs.readFileSync(path.join(__dirname,'../../main/resources/js/admin/manage-teachers.js'),'utf8');
 const navigation=fs.readFileSync(path.join(__dirname,'../../main/resources/meta/navigation/navigation_elements.json'),'utf8');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,20));
 
@@ -19,12 +20,6 @@ function stripTemplate(value) {
   return value
     .replace('%[site;title=Lehrkräfte verwalten;content=!FOLLOWS]','')
     .replace('%[admin_nav]','');
-}
-
-function inlineScript(value) {
-  const match=value.match(/<script>([\s\S]*)<\/script>\s*$/);
-  assert.ok(match);
-  return match[1];
 }
 
 async function setup(options={}) {
@@ -54,7 +49,7 @@ async function setup(options={}) {
   };
   dom.window.postDataAndDownload=(url,data,filename)=>calls.downloads.push({url,data,filename});
   dom.window.viewTeacher=teacher=>calls.viewed.push(teacher);
-  dom.window.eval(inlineScript(html));
+  dom.window.eval(teacherScript);
   dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
   await tick();
   return {dom,calls,innerHTMLWrites:()=>innerHTMLWrites};
@@ -76,7 +71,7 @@ test('teacher list uses Lehrkräfte terminology and keeps existing forms',async(
     assert.doesNotMatch(text,/Lehrer verwalten|Lehrer hinzufügen|Lehrer-Liste/);
     assert.equal(dom.window.document.querySelector('#add-teacher-form').getAttribute('action'),'/add-teacher');
     assert.equal(dom.window.document.querySelector('#add-teachers-csv-form').getAttribute('action'),'/add-teachers');
-    assert.equal(dom.window.document.querySelector('#download-teachers').closest('a').getAttribute('href'),'/teachers');
+    assert.equal(dom.window.document.querySelector('#download-teachers').getAttribute('href'),'/teachers');
     dom.window.document.querySelector('#csv-input').value='csv-data';
     dom.window.document.querySelector('#add-teachers-csv-form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
     assert.deepEqual(calls.downloads[0],{url:'/add-teachers',data:'csv-data',filename:'lehrer.csv'});
@@ -111,7 +106,7 @@ test('teacher rows are rendered safely without innerHTML or inline onclick',asyn
     assert.equal(dom.window.document.querySelector('#teacherTableBody tr').innerHTML.includes('<img'),false);
     assert.equal(dom.window.document.querySelector('[onclick]'),null);
     assert.doesNotMatch(html,/onclick=/i);
-    assert.doesNotMatch(inlineScript(html),/innerHTML\s*=/);
+    assert.doesNotMatch(teacherScript,/innerHTML\s*=/);
   } finally {
     dom.window.close();
   }
@@ -144,11 +139,22 @@ test('teacher filter uses German case handling for name or login',async()=>{
   }
 });
 
+test('teacher sorting is operated by accessible buttons',async()=>{
+  const {dom}=await setup();
+  try {
+    const button=dom.window.document.querySelector('[data-sort="firstName"]');
+    assert.ok(button);
+    button.click();
+    assert.equal(button.closest('th').getAttribute('aria-sort'),'ascending');
+    button.click();
+    assert.equal(button.closest('th').getAttribute('aria-sort'),'descending');
+  } finally { dom.window.close(); }
+});
+
 test('admin dashboard teacher labels use Lehrkräfte only for manage teachers link',()=>{
   assert.match(dashboardHtml,/manage_teachers">Lehrkräfte verwalten/);
   const items=JSON.parse(navigation);
-  const dashboardTeacher=items.find(item=>item.type==='ADMIN_DASHBOARD' && item.path==='/manage_teachers');
-  assert.equal(dashboardTeacher.label,'Lehrkräfte verwalten');
+  assert.equal(items.some(item=>item.type==='ADMIN_DASHBOARD'),false);
 });
 
 test('teacher dashboard navigation links student progress exactly once',()=>{

@@ -1,161 +1,47 @@
 %[site;title=Lehrkräfte verwalten;content=!FOLLOWS]
-<section id="teachers">
-    <header>
+<section id="teachers" class="admin-shell admin-list-page">
+    <header class="admin-page-header">
+        <p class="admin-eyebrow">Admin · Schuldaten</p>
         <h1>Lehrkräfte verwalten</h1>
+        <p class="admin-page-intro">Lehrkraftkonten anlegen, suchen und sicher bearbeiten.</p>
     </header>
+    %[admin_nav]
     <main>
-        <section id="add-teacher">
+        <section id="add-teacher" class="admin-panel">
             <h2>Lehrkraft hinzufügen</h2>
-            <form id="add-teacher-form" method="POST" action="/add-teacher">
-                <label for="teacher-first-name">Vorname:</label>
-                <input type="text" id="teacher-first-name" name="firstName" required>
-                <label for="teacher-last-name">Nachname:</label>
-                <input type="text" id="teacher-last-name" name="lastName" required>
-                <label for="teacher-email">Loginname:</label>
-                <input type="text" id="teacher-email" name="email" required>
+            <form id="add-teacher-form" class="admin-form" method="POST" action="/add-teacher">
+                <div class="admin-form-field"><label for="teacher-first-name">Vorname</label><input type="text" id="teacher-first-name" name="firstName" required></div>
+                <div class="admin-form-field"><label for="teacher-last-name">Nachname</label><input type="text" id="teacher-last-name" name="lastName" required></div>
+                <div class="admin-form-field"><label for="teacher-email">Loginname</label><input type="text" id="teacher-email" name="email" required></div>
                 <button type="submit">Lehrkraft hinzufügen</button>
             </form>
         </section>
-        <section id="add-teachers-csv">
+        <section id="add-teachers-csv" class="admin-panel">
             <h2>Lehrkräfte aus CSV hinzufügen</h2>
-            <form id="add-teachers-csv-form" method="post" action="/add-teachers">
+            <form id="add-teachers-csv-form" class="admin-form admin-form-stacked" method="post" action="/add-teachers">
                 <label for="csv-input">CSV-Datei:</label>
                 <textarea id="csv-input" name="csv" rows="10" cols="50" placeholder="Vorname,Nachname,Loginname"></textarea>
                 <button type="submit">Lehrkräfte hinzufügen</button>
             </form>
         </section>
-        <section id="teacher-list">
+        <section id="teacher-list" class="admin-panel">
             <h2>Lehrkräfte-Liste</h2>
-            <input id="teacherFilter" placeholder="Name oder Loginname filtern">
-            <a href="/teachers" download="lehrer.json"><button id="download-teachers">Lehrkräfte herunterladen</button></a>
-            <table id="teacherTable">
+            <div class="admin-panel-heading"><div class="admin-form-field"><label for="teacherFilter">Lehrkräfte suchen</label><input id="teacherFilter" type="search" placeholder="Name oder Loginname filtern"></div><a class="admin-button-link" id="download-teachers" href="/teachers" download="lehrer.json">Lehrkräfte herunterladen</a></div>
+            <p id="teacher-list-status" class="admin-inline-status" role="status" aria-live="polite"></p>
+            <div class="admin-table-scroll"><table id="teacherTable" class="admin-data-table">
+                <caption class="admin-visually-hidden">Lehrkräfteliste</caption>
                 <thead>
                     <tr>
-                        <th>Nachname</th>
-                        <th>Vorname</th>
-                        <th>Loginname</th>
-                        <th>Aktionen</th>
+                        <th scope="col" aria-sort="ascending"><button type="button" class="admin-sort-button" data-sort="lastName" aria-label="Nachname sortieren">Nachname</button></th>
+                        <th scope="col"><button type="button" class="admin-sort-button" data-sort="firstName" aria-label="Vorname sortieren">Vorname</button></th>
+                        <th scope="col"><button type="button" class="admin-sort-button" data-sort="login" aria-label="Loginname sortieren">Loginname</button></th>
+                        <th scope="col">Aktionen</th>
                     </tr>
                 </thead>
                 <tbody id="teacherTableBody"></tbody>
-            </table>
+            </table></div>
         </section>
     </main>
-    <nav>
-        %[admin_nav]
-    </nav>
 </section>
-<script>
-(() => {
-    let teachers = [];
-    let sortColumn = "lastName";
-
-    function teacherFirstName(teacher) {
-        if (teacher.firstName) return teacher.firstName;
-        const name = teacher.name || "";
-        return name.split(" ").slice(0, -1).join(" ") || name;
-    }
-
-    function teacherLastName(teacher) {
-        if (teacher.lastName) return teacher.lastName;
-        const name = teacher.name || "";
-        return name.split(" ").slice(-1)[0] || "";
-    }
-
-    function teacherLogin(teacher) {
-        return teacher.email || teacher.login || teacher.username || "";
-    }
-
-    function compareText(a, b) {
-        return a.localeCompare(b, "de", {sensitivity: "base"});
-    }
-
-    function compareTeachers(a, b) {
-        const values = {
-            firstName: [teacherFirstName(a), teacherFirstName(b)],
-            lastName: [teacherLastName(a), teacherLastName(b)],
-            login: [teacherLogin(a), teacherLogin(b)]
-        };
-        const selected = values[sortColumn] || values.lastName;
-        const primary = compareText(selected[0], selected[1]);
-        if (primary !== 0) return primary;
-        const last = compareText(teacherLastName(a), teacherLastName(b));
-        if (last !== 0) return last;
-        return compareText(teacherFirstName(a), teacherFirstName(b));
-    }
-
-    function matchesFilter(teacher, query) {
-        if (!query) return true;
-        const haystack = [
-            teacherFirstName(teacher),
-            teacherLastName(teacher),
-            teacherLogin(teacher)
-        ].join(" ").toLocaleLowerCase("de");
-        return haystack.includes(query.toLocaleLowerCase("de"));
-    }
-
-    function appendCell(row, text) {
-        const cell = document.createElement("td");
-        cell.textContent = text;
-        row.appendChild(cell);
-        return cell;
-    }
-
-    function createTeacherRow(teacher) {
-        const row = document.createElement("tr");
-        appendCell(row, teacherLastName(teacher));
-        appendCell(row, teacherFirstName(teacher));
-        appendCell(row, teacherLogin(teacher));
-
-        const actionCell = appendCell(row, "");
-        const editButton = document.createElement("button");
-        editButton.type = "button";
-        editButton.className = "view-teacher";
-        editButton.textContent = "Bearbeiten";
-        editButton.addEventListener("click", () => viewTeacher(teacher.id));
-        actionCell.appendChild(editButton);
-        return row;
-    }
-
-    function renderTeachers() {
-        const query = document.getElementById("teacherFilter").value || "";
-        const rows = teachers
-            .filter(teacher => matchesFilter(teacher, query))
-            .sort(compareTeachers)
-            .map(createTeacherRow);
-        document.getElementById("teacherTableBody").replaceChildren(...rows);
-    }
-
-    async function loadTeachers() {
-        const loaded = await fetchJson("/teachers");
-        teachers = Array.isArray(loaded) ? loaded : [];
-        renderTeachers();
-    }
-
-    function bindCsvImport() {
-        document.getElementById("add-teachers-csv-form").addEventListener("submit", event => {
-            event.preventDefault();
-            postDataAndDownload("/add-teachers", document.getElementById("csv-input").value, "lehrer.csv");
-        });
-    }
-
-    function bindSorting() {
-        const columns = ["lastName", "firstName", "login", null];
-        document.querySelectorAll("#teacherTable th").forEach((th, index) => {
-            if (!columns[index]) return;
-            th.classList.add("sortable");
-            th.addEventListener("click", () => {
-                sortColumn = columns[index];
-                renderTeachers();
-            });
-        });
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-        bindCsvImport();
-        bindSorting();
-        document.getElementById("teacherFilter").addEventListener("input", renderTeachers);
-        loadTeachers();
-    });
-})();
-</script>
+<script src="/manage-teachers.js" defer></script>
+<script src="/admin-section-navigation.js" defer></script>

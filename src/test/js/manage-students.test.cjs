@@ -242,7 +242,7 @@ test('failed archive shows German error',async()=>{
   try {
     dom.window.document.querySelector('#studentTableBody .archive-student').click();
     await tick();
-    assert.deepEqual(calls.alerts,['Der Schüler konnte nicht archiviert werden.']);
+    assert.equal(dom.window.document.getElementById('student-admin-status').textContent,'Der Schüler konnte nicht archiviert werden.');
   } finally {
     dom.window.close();
   }
@@ -268,7 +268,7 @@ test('failed graduation level change shows German error',async()=>{
     select.value='3';
     select.dispatchEvent(new dom.window.Event('change'));
     await tick();
-    assert.deepEqual(calls.alerts,['Die Abschlussstufe konnte nicht geändert werden.']);
+    assert.equal(dom.window.document.getElementById('student-admin-status').textContent,'Die Abschlussstufe konnte nicht geändert werden.');
   } finally {
     dom.window.close();
   }
@@ -317,7 +317,7 @@ test('failed restore shows German error',async()=>{
     await tick();
     dom.window.document.querySelector('#studentTableBody .reactivate-student').click();
     await tick();
-    assert.deepEqual(calls.alerts,['Der Schüler konnte nicht wiederhergestellt werden.']);
+    assert.equal(dom.window.document.getElementById('student-admin-status').textContent,'Der Schüler konnte nicht wiederhergestellt werden.');
   } finally {
     dom.window.close();
   }

@@ -5,10 +5,7 @@
         <h1>Fächer</h1>
         <p class="admin-page-intro">Fachname, Fachart und Bearbeitung bleiben in einer gemeinsamen, kanonischen Liste.</p>
     </header>
-    <nav class="admin-detail-nav" aria-label="Fächerverwaltung">
-        <a href="/dashboard#schuldaten">← Schuldaten</a>
-        <a href="/dashboard">Admin-Übersicht</a>
-    </nav>
+    %[admin_nav]
     <main>
         <section id="manage-subjects" class="admin-panel" aria-labelledby="add-subject-heading">
             <h2 id="add-subject-heading">Fach hinzufügen</h2>
@@ -51,3 +48,4 @@
     </main>
 </section>
 <script src="/admin-subject-management.js" defer></script>
+<script src="/admin-section-navigation.js" defer></script>

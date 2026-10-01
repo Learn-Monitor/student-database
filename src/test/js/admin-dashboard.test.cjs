@@ -7,6 +7,7 @@ const {JSDOM}=require('jsdom');
 const dashboard=fs.readFileSync(path.join(__dirname,'../../main/resources/html/admin/dashboard.html'),'utf8');
 const nav=fs.readFileSync(path.join(__dirname,'../../main/resources/templates/html/admin_main_menu.html'),'utf8');
 const overviewScript=fs.readFileSync(path.join(__dirname,'../../main/resources/js/admin/admin-dashboard.js'),'utf8');
+const sectionNavigation=fs.readFileSync(path.join(__dirname,'../../main/resources/js/admin/admin-section-navigation.js'),'utf8');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,20));
 
 function html() {
@@ -18,7 +19,8 @@ function html() {
 }
 
 function setup(hash='') {
-  const dom=new JSDOM(html(),{url:`https://school.example.invalid/dashboard${hash}`,runScripts:'dangerously'});
+  const dom=new JSDOM(html(),{url:`https://school.example.invalid/dashboard${hash}`,runScripts:'outside-only'});
+  dom.window.eval(sectionNavigation);
   return dom;
 }
 
@@ -63,7 +65,7 @@ function visibleIds(document) {
 }
 
 function currentText(document) {
-  const current=document.querySelector('.admin-main-menu a[aria-current="true"]');
+  const current=document.querySelector('.admin-main-menu a[aria-current="page"]');
   return current ? current.textContent.trim() : '';
 }
 

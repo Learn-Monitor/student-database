@@ -1,87 +1,38 @@
 %[site;title=Klassen verwalten;content=!FOLLOWS]
-<section id="classes">
-    <header>
+<section id="classes" class="admin-shell admin-list-page">
+    <header class="admin-page-header">
+        <p class="admin-eyebrow">Admin · Schuldaten</p>
         <h1>Klassen verwalten</h1>
+        <p class="admin-page-intro">Klassen und Jahrgänge pflegen. Schüler-Stammklassen werden hier nicht automatisch verändert.</p>
     </header>
+    %[admin_nav]
     <main>
-        <section id="addClass">
+        <section id="addClass" class="admin-panel">
             <h2>Klasse hinzufügen</h2>
-            <form id="addClassForm" method="post" action="/add-class">
-                <label for="className">Name der Klasse:</label>
-                <input type="text" id="className" name="className" required>
-                <label for="grade">Stufe:</label>
-                <input type="number" id="grade" name="grade" required>
+            <form id="addClassForm" class="admin-form" method="post" action="/add-class">
+                <div class="admin-form-field"><label for="className">Name der Klasse</label><input type="text" id="className" name="className" required></div>
+                <div class="admin-form-field"><label for="grade">Jahrgang</label><input type="number" id="grade" name="grade" required></div>
                 <button type="submit">Hinzufügen</button>
             </form>
         </section>
-        <section id="classList">
+        <section id="classList" class="admin-panel">
             <h2>Klassenübersicht</h2>
-            <table id="classTable">
+            <p id="class-list-status" class="admin-inline-status" role="status" aria-live="polite"></p>
+            <div class="admin-table-scroll"><table id="classTable" class="admin-data-table">
+                <caption class="admin-visually-hidden">Klassenübersicht</caption>
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Stufe</th>
-                        <th>Aktionen</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Jahrgang</th>
+                        <th scope="col">Aktionen</th>
                     </tr>
                 </thead>
                 <tbody>
                     <!-- class rows will be inserted here -->
                 </tbody>
-            </table>
+            </table></div>
         </section>
     </main>
-    <nav>
-        %[admin_nav]
-    </nav>
 </section>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        loadClasses();
-    });
-
-    async function loadClasses() {
-        const classes = await fetchJson("/classes");
-        const tableBody = document.getElementById("classTable").getElementsByTagName("tbody")[0];
-        tableBody.replaceChildren();
-
-        classes.forEach(cls => {
-            const row = document.createElement("tr");
-
-            const nameCell = document.createElement("td");
-            nameCell.textContent = cls.label;
-            row.appendChild(nameCell);
-
-            const gradeCell = document.createElement("td");
-            gradeCell.textContent = cls.grade;
-            row.appendChild(gradeCell);
-
-            const actionCell = document.createElement("td");
-            const editButton = document.createElement("button");
-            editButton.className = "edit";
-            editButton.type = "button";
-            editButton.textContent = "Bearbeiten";
-            editButton.addEventListener("click", () => viewClass(cls));
-            actionCell.appendChild(editButton);
-
-            const archiveButton = document.createElement("button");
-            archiveButton.type = "button";
-            archiveButton.textContent = "Archivieren";
-            archiveButton.addEventListener("click", async () => {
-                if (!confirm("Klasse wirklich archivieren? Die Klasse wird deaktiviert. Die Schülerinnen und Schüler bleiben erhalten und werden der Klasse „Nicht zugeordnet“ zugewiesen.")) {
-                    return;
-                }
-                const response = await post("/delete-class", {id: cls.id});
-                if (response.ok) {
-                    alert("Klasse wurde archiviert.");
-                    await loadClasses();
-                } else {
-                    alert("Die Klasse konnte nicht archiviert werden.");
-                }
-            });
-            actionCell.appendChild(archiveButton);
-            row.appendChild(actionCell);
-
-            tableBody.appendChild(row);
-        });
-    }
-</script>
+<script src="/manage-classes.js" defer></script>
+<script src="/admin-section-navigation.js" defer></script>

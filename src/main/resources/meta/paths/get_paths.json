@@ -274,6 +274,20 @@
         "context": "js",
         "access_level": "admin"
     },
+    "/admin-section-navigation.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
+    "/admin-plugins.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
     "/admin-subject-management.js": {
         "type": "GET",
         "handler_type": "FileRequestHandler",
@@ -282,6 +296,20 @@
         "access_level": "admin"
     },
     "/manage_students.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
+    "/manage-teachers.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["admin"],
+        "context": "js",
+        "access_level": "admin"
+    },
+    "/manage-classes.js": {
         "type": "GET",
         "handler_type": "FileRequestHandler",
         "namespaces": ["admin"],

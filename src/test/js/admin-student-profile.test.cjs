@@ -181,7 +181,7 @@ test('missing selectedStudentId shows message and does not fetch student data',a
   try {
     assert.deepEqual(calls.fetchStudentData,[]);
     assert.match(dom.window.document.body.textContent,/Kein Schüler ausgewählt\./);
-    assert.equal(dom.window.document.querySelector('a[href="/manage_students"]')?.textContent.trim(),'Zurück zur Schülerverwaltung');
+    assert.equal(dom.window.document.querySelector('a[href="/manage_students"]')?.textContent.trim(),'← Schülerverwaltung');
     assert.equal(dom.window.document.getElementById('adminStudentForm').hidden,true);
   } finally {
     dom.window.close();

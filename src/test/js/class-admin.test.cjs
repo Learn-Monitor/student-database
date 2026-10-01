@@ -7,6 +7,7 @@ const {JSDOM,VirtualConsole}=require('jsdom');
 const manageClassesHtml=fs.readFileSync(path.join(__dirname,'../../main/resources/html/admin/manage_classes.html'),'utf8');
 const classHtml=fs.readFileSync(path.join(__dirname,'../../main/resources/html/admin/class.html'),'utf8');
 const classScript=fs.readFileSync(path.join(__dirname,'../../main/resources/js/admin/build_class.js'),'utf8');
+const manageClassesScript=fs.readFileSync(path.join(__dirname,'../../main/resources/js/admin/manage-classes.js'),'utf8');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,20));
 
 function stripTemplate(html) {
@@ -15,7 +16,9 @@ function stripTemplate(html) {
     .replace('%[site;title=Klasse bearbeiten;content=!FOLLOWS]','')
     .replace('%[admin_nav]','')
     .replace('%[admin_class_nav]','')
-    .replace('<script src="build_class.js"></script>','');
+    .replace('<script src="build_class.js"></script>','')
+    .replace('<script src="/build_class.js" defer></script>','')
+    .replace('<script src="/manage-classes.js" defer></script>','');
 }
 
 function setupClassList(options={}) {
@@ -25,7 +28,7 @@ function setupClassList(options={}) {
   virtualConsole.on('jsdomError',()=>{});
   const dom=new JSDOM(`<!doctype html><html><body>${stripTemplate(manageClassesHtml)}</body></html>`,{
     url:'https://school.example.invalid/manage_classes',
-    runScripts:'dangerously',
+    runScripts:'outside-only',
     virtualConsole,
     beforeParse(window) {
       if (options.trackInnerHTML) {
@@ -50,13 +53,14 @@ function setupClassList(options={}) {
         calls.posts.push({url,data});
         return {ok:options.postOk!==false};
       };
-      window.alert=message=>calls.alerts.push(message);
       window.confirm=message=>{
         calls.confirms.push(message);
         return options.confirm!==false;
       };
     }
   });
+  dom.window.eval(manageClassesScript);
+  dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
   return tick().then(()=>({dom,calls,innerHTMLWrites:()=>innerHTMLWrites}));
 }
 
@@ -108,8 +112,8 @@ function setupClassDetail(options={}) {
 test('class list shows name grade and actions columns',async()=>{
   const {dom}=await setupClassList();
   try {
-    const headers=[...dom.window.document.querySelectorAll('#classTable th')].map(th=>th.textContent.trim());
-    assert.deepEqual(headers,['Name','Stufe','Aktionen']);
+    const headers=[...dom.window.document.querySelectorAll('#classTable thead th')].map(th=>th.textContent.trim());
+    assert.deepEqual(headers,['Name','Jahrgang','Aktionen']);
   } finally {
     dom.window.close();
   }
@@ -118,7 +122,7 @@ test('class list shows name grade and actions columns',async()=>{
 test('class list no longer shows id as a visible table column',async()=>{
   const {dom}=await setupClassList();
   try {
-    assert.equal(dom.window.document.querySelector('#classTable th')?.textContent.trim(),'Name');
+    assert.equal(dom.window.document.querySelector('#classTable thead th')?.textContent.trim(),'Name');
     assert.equal(dom.window.document.querySelector('#classTable tbody tr')?.children.length,3);
     assert.equal(dom.window.document.querySelector('#classTable tbody tr')?.textContent.includes('12'),false);
   } finally {
@@ -154,7 +158,8 @@ test('class list archive uses German archive confirmation',async()=>{
     [...dom.window.document.querySelectorAll('#classTable button')].find(button=>button.textContent==='Archivieren').click();
     await tick();
     assert.equal(calls.confirms[0],'Klasse wirklich archivieren? Die Klasse wird deaktiviert. Die Schülerinnen und Schüler bleiben erhalten und werden der Klasse „Nicht zugeordnet“ zugewiesen.');
-    assert.equal(calls.alerts[0],'Klasse wurde archiviert.');
+    assert.equal(dom.window.document.getElementById('class-list-status').textContent,'Klasse wurde archiviert.');
+    assert.equal(calls.alerts.length,0);
   } finally {
     dom.window.close();
   }
