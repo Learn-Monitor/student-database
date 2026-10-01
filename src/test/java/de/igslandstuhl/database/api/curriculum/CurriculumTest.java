@@ -1611,8 +1611,8 @@ class CurriculumTest {
         var enrollment=enrollmentFixture();
         db.writeTransaction(c->{
             exec(c,"DELETE FROM semesters WHERE id=?",id+1);
-            exec(c,"UPDATE school_years SET label='2025/26',current_semester=NULL WHERE id=?",id);
-            exec(c,"UPDATE semesters SET label='2025_26_HJ1',position=1,school_year=? WHERE id=?",id,id);
+            exec(c,"UPDATE school_years SET label='2098/99',current_semester=NULL WHERE id=?",id);
+            exec(c,"UPDATE semesters SET label='2098_99_HJ1',position=1,school_year=? WHERE id=?",id,id);
             return null;
         });
         enrollment.assignClassTutors(admin,id,id,id,id+1);
@@ -1627,7 +1627,7 @@ class CurriculumTest {
             return null;
         });
         Map<String,Object> hj2=enrollment.createNextSemester(admin);int hj2Id=((Number)hj2.get("id")).intValue();
-        assertEquals("2025_26_HJ2",hj2.get("label"));assertEquals(true,hj2.get("frameCopied"));assertEquals(true,hj2.get("tutorsCopied"));
+        assertEquals("2098_99_HJ2",hj2.get("label"));assertEquals(true,hj2.get("frameCopied"));assertEquals(true,hj2.get("tutorsCopied"));
         assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_grade_subjects WHERE semester=? AND grade=13 AND subject=?",hj2Id,id));
         assertEquals(1,scalar("SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=? AND class=? AND subject=?",hj2Id,id,id));
         assertEquals(2,scalar("SELECT COUNT(*) FROM curriculum_class_tutors WHERE semester=? AND class=?",hj2Id,id));
@@ -1639,7 +1639,7 @@ class CurriculumTest {
         assertEquals(0,scalar("SELECT COUNT(*) FROM topics WHERE semester=?",hj2Id));
         assertEquals(0,scalar("SELECT COUNT(*) FROM school_years WHERE current_semester=?",hj2Id));
         Map<String,Object> nextYear=enrollment.createNextSemester(admin);int nextId=((Number)nextYear.get("id")).intValue();
-        assertEquals("2026_27_HJ1",nextYear.get("label"));assertEquals(true,nextYear.get("newSchoolYear"));assertEquals(false,nextYear.get("frameCopied"));assertEquals(true,nextYear.get("tutorsCopied"));
+        assertEquals("2099_00_HJ1",nextYear.get("label"));assertEquals(true,nextYear.get("newSchoolYear"));assertEquals(false,nextYear.get("frameCopied"));assertEquals(true,nextYear.get("tutorsCopied"));
         assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_grade_subjects WHERE semester=?",nextId));
         assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_class_teachers WHERE semester=?",nextId));
         assertEquals(0,scalar("SELECT COUNT(*) FROM course_groups WHERE semester=?",nextId));
@@ -1649,13 +1649,13 @@ class CurriculumTest {
     }
     @Test void semesterCatalogPreviewDescribesTheSameServerCopyRulesAsCreation() throws Exception {
         var enrollment=enrollmentFixture();
-        db.writeTransaction(c->{exec(c,"UPDATE school_years SET label='2025/26' WHERE id=?",id);exec(c,"UPDATE semesters SET label='2025_26_HJ1',position=1 WHERE id=?",id);exec(c,"UPDATE semesters SET label='2025_26_HJ2',position=2 WHERE id=?",id+1);return null;});
+        db.writeTransaction(c->{exec(c,"UPDATE school_years SET label='2098/99' WHERE id=?",id);exec(c,"UPDATE semesters SET label='2098_99_HJ1',position=1 WHERE id=?",id);exec(c,"UPDATE semesters SET label='2098_99_HJ2',position=2 WHERE id=?",id+1);return null;});
         @SuppressWarnings("unchecked") Map<String,Object> preview=(Map<String,Object>)enrollment.catalog(admin).get("nextSemesterPreview");
-        assertEquals("2026_27_HJ1",preview.get("label"));assertEquals("2026/27",preview.get("schoolYear"));
+        assertEquals("2099_00_HJ1",preview.get("label"));assertEquals("2099/00",preview.get("schoolYear"));
         assertEquals(true,preview.get("newSchoolYear"));assertEquals(false,preview.get("frameCopied"));assertEquals(true,preview.get("tutorsCopied"));
-        db.writeTransaction(c->{exec(c,"UPDATE semesters SET label='2025_26_HJ1',position=1 WHERE id=?",id+1);return null;});
+        db.writeTransaction(c->{exec(c,"UPDATE semesters SET label='2098_99_HJ1',position=1 WHERE id=?",id+1);return null;});
         @SuppressWarnings("unchecked") Map<String,Object> sameYearPreview=(Map<String,Object>)enrollment.catalog(admin).get("nextSemesterPreview");
-        assertEquals("2025_26_HJ2",sameYearPreview.get("label"));assertEquals(false,sameYearPreview.get("newSchoolYear"));
+        assertEquals("2098_99_HJ2",sameYearPreview.get("label"));assertEquals(false,sameYearPreview.get("newSchoolYear"));
         assertEquals(true,sameYearPreview.get("frameCopied"));assertEquals(true,sameYearPreview.get("tutorsCopied"));
     }
 
