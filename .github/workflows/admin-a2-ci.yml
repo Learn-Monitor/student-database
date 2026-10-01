@@ -31,7 +31,27 @@ jobs:
         working-directory: src/test/js
         run: npm ci && npm test
       - name: Core tests and fat JAR
-        run: ./gradlew clean test shadowJar --no-daemon
+        run: ./gradlew clean test shadowJar --rerun-tasks --no-daemon
+      - name: Report complete JUnit XML inventory
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          totals = {key: 0 for key in ("tests", "failures", "errors", "skipped")}
+          for task in ("test", "curriculumTest"):
+              task_totals = dict.fromkeys(totals, 0)
+              for path in glob.glob(f"build/test-results/{task}/TEST-*.xml"):
+                  root = ET.parse(path).getroot()
+                  for key in task_totals:
+                      task_totals[key] += int(root.get(key, "0"))
+              print(f"JUnit {task}: " + ", ".join(f"{key}={value}" for key, value in task_totals.items()))
+              for key in totals:
+                  totals[key] += task_totals[key]
+          print("JUnit TOTAL: " + ", ".join(f"{key}={value}" for key, value in totals.items()))
+          if not totals["tests"]:
+              raise SystemExit("No JUnit XML test cases were found")
+          PY
       - name: Validate route JSON and patch formatting
         run: |
           python3 -m json.tool src/main/resources/meta/paths/post_paths.json >/dev/null
@@ -54,4 +74,6 @@ jobs:
           path: |
             ${{ steps.provenance.outputs.artifact }}
             build/provenance.txt
+            build/test-results/test/TEST-*.xml
+            build/test-results/curriculumTest/TEST-*.xml
           if-no-files-found: error
