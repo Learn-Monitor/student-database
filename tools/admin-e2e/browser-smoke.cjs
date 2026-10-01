@@ -56,7 +56,7 @@ async function main() {
   page.on('console', msg => { if (msg.type() === 'error') failures.push(`console.error: ${msg.text()}`); });
   page.on('pageerror', error => failures.push(`pageerror: ${error.message}`));
   page.on('requestfailed', request => {
-    if (request.failure()?.errorText === 'net::ERR_ABORTED' && request.resourceType() === 'document') return;
+    if (request.failure()?.errorText === 'net::ERR_ABORTED' && new URL(request.url()).pathname === '/dashboard') return;
     failures.push(`request failed ${request.method()} ${new URL(request.url()).pathname}: ${request.failure()?.errorText || 'unknown'}`);
   });
   page.on('response', response => {

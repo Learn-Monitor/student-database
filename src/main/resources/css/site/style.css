@@ -247,6 +247,10 @@ table tr:last-child td {
 .admin-shell .admin-course-group-summary table,
 .admin-shell .admin-individual-teachers table,
 .admin-shell .curriculum-wpf-board table { display:block; max-width:100%; overflow-x:auto; border-collapse:collapse; }
+.admin-shell .admin-course-group-summary,
+.admin-shell .admin-individual-teachers { min-width:0; max-width:100%; box-sizing:border-box; overflow-x:auto; }
+.admin-shell .admin-course-group-summary table,
+.admin-shell .admin-individual-teachers table { display:table; width:100%; min-width:45rem; table-layout:fixed; }
 .admin-shell .admin-tutor-table th,
 .admin-shell .admin-tutor-table td,
 .admin-shell .admin-course-group-summary th,
