@@ -111,13 +111,14 @@ jobs:
           set -euo pipefail
           umask 077
           work="$RUNNER_TEMP/arcanum-admin-a4b-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          mkdir -p "$work"/{runtime,database,keys,plugins/config,logs,screenshots,fixture,artifacts,classes}
+          mkdir -p "$work"/{runtime,database,keys,logs,screenshots,fixture,artifacts,classes}
+          mkdir -p "$work/runtime/plugins/config"
           core="$GITHUB_WORKSPACE/build/libs/student-database-v2.0.0-fat.jar"
           pm="$GITHUB_WORKSPACE/permission-manager/build/libs/permission-manager-v1.0.1.jar"
           test -s "$core"
           test -s "$pm"
-          cp "$pm" "$work/plugins/permission-manager-v1.0.1.jar"
-          printf '{"enabled":true,"values":{"plugin-dir":"%s"}}\n' "$work/plugins" > "$work/runtime/plugins/config/plugin-loader.json"
+          cp "$pm" "$work/runtime/plugins/permission-manager-v1.0.1.jar"
+          printf '{"enabled":true,"values":{"plugin-dir":"%s"}}\n' "$work/runtime/plugins" > "$work/runtime/plugins/config/plugin-loader.json"
           printf '{"enabled":true,"values":{}}\n' > "$work/runtime/plugins/config/permission-manager.json"
           chmod 600 "$work/runtime/plugins/config/"*.json
           credentials="$work/fixture/credentials.json"
