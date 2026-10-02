@@ -11,6 +11,7 @@ public enum ContentType {
     JAVASCRIPT ("text/javascript"),
     CSS ("text/css"),
     PNG ("image/png"),
+    WEBP ("image/webp"),
     JSON ("text/json"),
     CSV ("text/csv")
     ;
@@ -60,6 +61,8 @@ public enum ContentType {
         } else if (l.context().equals("imgs")) {
             if (l.resource().endsWith(".png") || l.resource().endsWith(".ico")) {
                 return PNG;
+            } else if (l.resource().endsWith(".webp")) {
+                return WEBP;
             } else {
                 throw new NoWebResourceException(l);
             }
@@ -80,6 +83,8 @@ public enum ContentType {
                 return CSS;
             } else if (resource.endsWith(".png") || resource.endsWith(".ico")) {
                 return PNG;
+            } else if (resource.endsWith(".webp")) {
+                return WEBP;
             } else if (resource.endsWith(".html") || resource.endsWith(".htm")) {
                 return HTML;
             } else if (resource.endsWith(".json")) {

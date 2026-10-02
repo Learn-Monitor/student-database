@@ -112,14 +112,18 @@ test('admin static script routes are explicit admin-only file resources',()=>{
   }
 });
 
-test('legacy admin dashboard entries are removed while the PM-owned navigation type remains supported',()=>{
+test('legacy admin dashboard entries are removed while plugin-owned admin student navigation remains supported',()=>{
   const elements=JSON.parse(read('meta/navigation/navigation_elements.json'));
   const types=JSON.parse(read('meta/navigation/navigation_types.json'));
   const templatesManifest=JSON.parse(read('meta/templates/templates.json'));
   assert.equal(elements.some(item=>item.type==='ADMIN_DASHBOARD'),false);
-  assert.equal(elements.some(item=>item.type.startsWith('ADMIN_')),false);
+  assert.equal(elements.some(item=>item.type==='ADMIN_STUDENT'),false);
   assert.equal(types.includes('ADMIN_DASHBOARD'),true);
-  assert.deepEqual(Object.keys(templatesManifest).filter(key=>key.startsWith('admin_') && key.endsWith('_nav')),['admin_nav']);
+  assert.equal(types.includes('ADMIN_STUDENT'),true);
+  assert.equal(types.includes('ADMIN_STUDENT_OTHER'),true);
+  assert.deepEqual(Object.keys(templatesManifest).filter(key=>key.startsWith('admin_') && key.endsWith('_nav')),
+    ['admin_nav','admin_student_nav','admin_student_other_nav']);
+  assert.deepEqual(elements.filter(item=>item.type==='ADMIN_STUDENT_OTHER').map(item=>item.path),['/manage_students','/dashboard']);
   assert.equal(elements.filter(item=>item.type==='TEACHER_DASHBOARD').length,3);
 });
 

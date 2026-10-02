@@ -1,5 +1,15 @@
 [
     {
+        "type": "ADMIN_STUDENT_OTHER",
+        "path": "/manage_students",
+        "label": "Zurück zur Schülerverwaltung"
+    },
+    {
+        "type": "ADMIN_STUDENT_OTHER",
+        "path": "/dashboard",
+        "label": "Zurück zum Admin-Dashboard"
+    },
+    {
         "type": "TEACHER_OTHER",
         "path": "/dashboard",
         "label": "Zurück zum Lehrer-Dashboard"
