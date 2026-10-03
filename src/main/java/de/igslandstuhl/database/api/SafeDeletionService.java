@@ -25,6 +25,22 @@ public final class SafeDeletionService {
         return db.writeTransaction(c -> teacherPreflight(c, id));
     }
 
+    public static void archiveSubject(SQLiteConnection db, int id) throws SQLException {
+        db.writeTransaction(c -> { requireExisting(c, "subjects", id); writeArchive(c, "archived_subjects", "subject", id); return null; });
+    }
+
+    public static void restoreSubject(SQLiteConnection db, int id) throws SQLException {
+        db.writeTransaction(c -> { requireExisting(c, "subjects", id); deleteArchive(c, "archived_subjects", "subject", id); return null; });
+    }
+
+    public static void archiveTeacher(SQLiteConnection db, int id) throws SQLException {
+        db.writeTransaction(c -> { requireExisting(c, "teachers", id); writeArchive(c, "archived_teachers", "teacher", id); return null; });
+    }
+
+    public static void restoreTeacher(SQLiteConnection db, int id) throws SQLException {
+        db.writeTransaction(c -> { requireExisting(c, "teachers", id); deleteArchive(c, "archived_teachers", "teacher", id); return null; });
+    }
+
     public static void deleteSubject(SQLiteConnection db, int id) throws SQLException {
         db.writeTransaction(c -> {
             DeletionPreflight preflight = subjectPreflight(c, id);
@@ -200,6 +216,22 @@ public final class SafeDeletionService {
 
     private static boolean exists(Connection c, String table, int id) throws SQLException {
         return scalar(c, "SELECT COUNT(*) FROM " + quote(table) + " WHERE id=?", id) > 0;
+    }
+
+    private static void requireExisting(Connection c, String table, int id) throws SQLException {
+        if (!exists(c, table, id)) throw new MissingObjectException();
+    }
+
+    private static void writeArchive(Connection c, String table, String column, int id) throws SQLException {
+        try (PreparedStatement statement = c.prepareStatement("INSERT OR IGNORE INTO " + quote(table) + "(" + quote(column) + ") VALUES(?)")) {
+            statement.setInt(1, id); statement.executeUpdate();
+        }
+    }
+
+    private static void deleteArchive(Connection c, String table, String column, int id) throws SQLException {
+        try (PreparedStatement statement = c.prepareStatement("DELETE FROM " + quote(table) + " WHERE " + quote(column) + "=?")) {
+            statement.setInt(1, id); statement.executeUpdate();
+        }
     }
 
     private static long scalar(Connection c, String sql, int id) throws SQLException {

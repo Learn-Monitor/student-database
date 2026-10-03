@@ -205,14 +205,22 @@ public final class CurriculumEnrollment {
     }
     public Map<String,Object> catalog(Actor actor) throws SQLException {
         admin(actor);
-        return curriculum.transaction(c->Map.of(
-            "subjects",rows(c,"SELECT s.id,s.name,CASE WHEN t.mode='INDIVIDUAL' AND t.assignment_group='WPF' THEN 1 ELSE 0 END AS wpf,COALESCE(t.mode,'REGULAR') AS mode,t.assignment_group AS assignmentGroup,CASE WHEN t.subject IS NULL THEN 0 ELSE 1 END AS typeExplicit FROM subjects s LEFT JOIN curriculum_subject_types t ON t.subject=s.id ORDER BY s.name"),
-            "classes",rows(c,"SELECT id,label,grade FROM classes WHERE active=1 AND id<>0 ORDER BY grade,label"),
-            "semesters",rows(c,"SELECT s.id,s.label,s.school_year AS schoolYearId,y.label AS schoolYearLabel,COALESCE(s.archived,0) AS archived,CASE WHEN y.current_semester=s.id THEN 1 ELSE 0 END AS active FROM semesters s JOIN school_years y ON y.id=s.school_year ORDER BY s.school_year,s.position"),
-            "teachers",rows(c,"SELECT id,first_name,last_name FROM teachers ORDER BY last_name,first_name"),
-            "teaching",rows(c,"SELECT teacher AS teacherId,class AS classId,NULL AS grade,subject AS subjectId,semester AS semesterId FROM curriculum_class_teachers UNION SELECT teacher AS teacherId,NULL AS classId,grade,subject AS subjectId,semester AS semesterId FROM curriculum_grade_teachers"),
-            "gradeSubjects",rows(c,"SELECT grade,semester AS semesterId,subject AS subjectId FROM curriculum_grade_subjects"),
-            "nextSemesterPreview",semesterPreview(c)));
+        return curriculum.transaction(c->{
+            String subjectArchive = tableExists(c,"archived_subjects") ? " WHERE NOT EXISTS (SELECT 1 FROM archived_subjects a WHERE a.subject=s.id)" : "";
+            String teacherArchive = tableExists(c,"archived_teachers") ? " WHERE NOT EXISTS (SELECT 1 FROM archived_teachers a WHERE a.teacher=teachers.id)" : "";
+            return Map.of(
+                "subjects",rows(c,"SELECT s.id,s.name,CASE WHEN t.mode='INDIVIDUAL' AND t.assignment_group='WPF' THEN 1 ELSE 0 END AS wpf,COALESCE(t.mode,'REGULAR') AS mode,t.assignment_group AS assignmentGroup,CASE WHEN t.subject IS NULL THEN 0 ELSE 1 END AS typeExplicit FROM subjects s LEFT JOIN curriculum_subject_types t ON t.subject=s.id"+subjectArchive+" ORDER BY s.name"),
+                "classes",rows(c,"SELECT id,label,grade FROM classes WHERE active=1 AND id<>0 ORDER BY grade,label"),
+                "semesters",rows(c,"SELECT s.id,s.label,s.school_year AS schoolYearId,y.label AS schoolYearLabel,COALESCE(s.archived,0) AS archived,CASE WHEN y.current_semester=s.id THEN 1 ELSE 0 END AS active FROM semesters s JOIN school_years y ON y.id=s.school_year ORDER BY s.school_year,s.position"),
+                "teachers",rows(c,"SELECT id,first_name,last_name FROM teachers"+teacherArchive+" ORDER BY last_name,first_name"),
+                "teaching",rows(c,"SELECT teacher AS teacherId,class AS classId,NULL AS grade,subject AS subjectId,semester AS semesterId FROM curriculum_class_teachers UNION SELECT teacher AS teacherId,NULL AS classId,grade,subject AS subjectId,semester AS semesterId FROM curriculum_grade_teachers"),
+                "gradeSubjects",rows(c,"SELECT grade,semester AS semesterId,subject AS subjectId FROM curriculum_grade_subjects"),
+                "nextSemesterPreview",semesterPreview(c));
+        });
+    }
+
+    private static boolean tableExists(Connection c,String name) throws SQLException {
+        try(PreparedStatement s=c.prepareStatement("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?")){s.setString(1,name);try(ResultSet r=s.executeQuery()){return r.next()&&r.getLong(1)>0;}}
     }
     public List<Map<String,Object>> courseGroups(Actor actor,Integer semesterId,Integer grade,String assignmentGroup) throws SQLException {
         admin(actor);

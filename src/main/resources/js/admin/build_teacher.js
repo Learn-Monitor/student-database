@@ -125,11 +125,20 @@
         });
     }
 
+    function bindArchive() {
+        const archive = document.getElementById('archiveTeacherButton');
+        const restore = document.getElementById('restoreTeacherButton');
+        const request = action => fetch('/delete-teacher', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:selectedTeacherId(), action})});
+        archive?.addEventListener('click', async () => { archive.disabled=true; try { const response=await request('archive'); if(!response.ok) throw Error(); archive.hidden=true; restore.hidden=false; setDeleteStatus('Lehrkraft archiviert. Historie und bestehende Verbindungen bleiben erhalten.','success'); } catch { setDeleteStatus('Lehrkraft konnte nicht archiviert werden.','error'); archive.disabled=false; } });
+        restore?.addEventListener('click', async () => { restore.disabled=true; try { const response=await request('restore'); if(!response.ok) throw Error(); restore.hidden=true; archive.hidden=false; archive.disabled=false; setDeleteStatus('Lehrkraft wiederhergestellt.','success'); } catch { setDeleteStatus('Lehrkraft konnte nicht wiederhergestellt werden.','error'); restore.disabled=false; } });
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
         if (initialized) return;
         initialized = true;
         bindConfirmation();
         bindDelete();
+        bindArchive();
         const id = selectedTeacherId();
         if (!id) {
             showError(NO_SELECTION);

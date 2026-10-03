@@ -103,8 +103,18 @@ public class PostRequestHandler {
                 return PostResponse.json(Status.BAD_REQUEST, Map.of("error", "invalid_input", "message", "A positive integer id is required."), rq);
             int id = number.intValue();
             String action = body.get("action") == null ? "delete" : String.valueOf(body.get("action"));
-            if (!action.equals("preflight") && !action.equals("delete"))
-                return PostResponse.json(Status.BAD_REQUEST, Map.of("error", "invalid_input", "message", "action must be preflight or delete."), rq);
+            if (!Set.of("preflight", "delete", "archive", "restore").contains(action))
+                return PostResponse.json(Status.BAD_REQUEST, Map.of("error", "invalid_input", "message", "Unbekannte Verwaltungsaktion."), rq);
+            if (action.equals("archive")) {
+                if (teacherObject) de.igslandstuhl.database.api.SafeDeletionService.archiveTeacher(Server.getInstance().getConnection(), id);
+                else de.igslandstuhl.database.api.SafeDeletionService.archiveSubject(Server.getInstance().getConnection(), id);
+                return PostResponse.json(Map.of("archived", true), rq);
+            }
+            if (action.equals("restore")) {
+                if (teacherObject) de.igslandstuhl.database.api.SafeDeletionService.restoreTeacher(Server.getInstance().getConnection(), id);
+                else de.igslandstuhl.database.api.SafeDeletionService.restoreSubject(Server.getInstance().getConnection(), id);
+                return PostResponse.json(Map.of("archived", false), rq);
+            }
             DeletionPreflight preflight = teacherObject
                 ? de.igslandstuhl.database.api.SafeDeletionService.teacherPreflight(Server.getInstance().getConnection(), id)
                 : de.igslandstuhl.database.api.SafeDeletionService.subjectPreflight(Server.getInstance().getConnection(), id);

@@ -45,6 +45,9 @@
         <p class="admin-panel-intro">Ein Fach wird nur gelöscht, wenn es vollständig unbenutzt ist. Fachliche Zuordnungen und Leistungshistorie werden niemals mitgelöscht.</p>
         <p id="subjectDeleteStatus" class="admin-inline-status" role="status" aria-live="polite">Löschbarkeit wird geprüft …</p>
         <ul id="subjectDeleteReasons" aria-label="Verwendungen dieses Fachs"></ul>
+        <p class="admin-panel-intro">Archivieren nimmt das Fach aus neuen Zuordnungen, erhält aber alle Verbindungen und Lernstände.</p>
+        <button id="archiveSubjectButton" type="button">Fach archivieren</button>
+        <button id="restoreSubjectButton" type="button" hidden>Fach wiederherstellen</button>
         <button id="deleteSubjectButton" type="button" class="admin-button-danger" disabled>Fach löschen</button>
         <div id="subjectDeleteConfirmation" role="group" aria-labelledby="subjectDeleteConfirmTitle" hidden>
             <h3 id="subjectDeleteConfirmTitle">Fach wirklich löschen?</h3>

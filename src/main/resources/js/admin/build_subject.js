@@ -170,6 +170,14 @@
         });
     }
 
+    function bindArchive() {
+        const archive = document.getElementById('archiveSubjectButton');
+        const restore = document.getElementById('restoreSubjectButton');
+        const request = action => fetch('/delete-subject', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:Number(selectedSubject.id), action})});
+        archive?.addEventListener('click', async () => { archive.disabled=true; try { const response=await request('archive'); if(!response.ok) throw Error(); archive.hidden=true; restore.hidden=false; setDeleteStatus('Fach archiviert. Verbindungen und Lernstände bleiben erhalten.','success'); } catch { setDeleteStatus('Fach konnte nicht archiviert werden.','error'); archive.disabled=false; } });
+        restore?.addEventListener('click', async () => { restore.disabled=true; try { const response=await request('restore'); if(!response.ok) throw Error(); restore.hidden=true; archive.hidden=false; archive.disabled=false; setDeleteStatus('Fach wiederhergestellt.','success'); } catch { setDeleteStatus('Fach konnte nicht wiederhergestellt werden.','error'); restore.disabled=false; } });
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
         selectedSubject = await resolveSubject().catch(() => null);
         if (selectedSubject) {
@@ -182,6 +190,7 @@
         }
         document.getElementById('subjectTypeForm')?.addEventListener('submit', saveSubjectType);
         bindDelete();
+        bindArchive();
         if (selectedSubject) loadDeletePreflight();
     });
 })();

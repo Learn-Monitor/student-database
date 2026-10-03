@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS archived_subjects (
+    subject INTEGER PRIMARY KEY REFERENCES subjects(id),
+    archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS archived_teachers (
+    teacher INTEGER PRIMARY KEY REFERENCES teachers(id),
+    archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

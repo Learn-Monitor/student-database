@@ -29,6 +29,9 @@
         <p class="admin-panel-intro">Nur vollständig unbenutzte Lehrkräfte können gelöscht werden. Zuordnungen, Anwesenheitsdaten und Bewertungshistorie werden nicht mitgelöscht.</p>
         <p id="teacherDeleteStatus" class="admin-inline-status" role="status" aria-live="polite">Löschbarkeit wird geprüft …</p>
         <ul id="teacherDeleteReasons" aria-label="Verwendungen dieses Lehrkraftkontos"></ul>
+        <p class="admin-panel-intro">Archivieren nimmt die Lehrkraft aus neuen Zuordnungen, erhält aber Historie und bestehende Verbindungen.</p>
+        <button id="archiveTeacherButton" type="button">Lehrkraft archivieren</button>
+        <button id="restoreTeacherButton" type="button" hidden>Lehrkraft wiederherstellen</button>
         <button id="deleteTeacherButton" class="admin-button-danger" type="button" disabled>Lehrkraft löschen</button>
         <div id="teacherDeleteConfirmation" role="group" aria-labelledby="teacherDeleteConfirmTitle" hidden>
             <h3 id="teacherDeleteConfirmTitle">Lehrkraft wirklich löschen?</h3>
