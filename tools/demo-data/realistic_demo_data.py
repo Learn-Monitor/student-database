@@ -191,6 +191,9 @@ def apply_data(db: sqlite3.Connection, m: dict) -> dict:
         class_ids = {"0": ensure_class(db, "Nicht zugeordnet", 0),
                      **{c: ensure_class(db, c, 5) for c in ("5a", "5b", "5c", "5d")},
                      **{c: ensure_class(db, c, 6) for c in ("6a", "6b", "6c", "6d")}}
+        demo_umbau = db.execute("SELECT id FROM classes WHERE label='DEMO-Umbau 900010'").fetchone()
+        if demo_umbau:
+            class_ids["DEMO-Umbau 900010"] = demo_umbau[0]
         subject_names = set(m["subjects"]) | {x["subject"] for x in m["central"]} | {x["subject"] for x in m["flex_topics"]}
         subject_ids = {name: ensure_subject(db, name) for name in sorted(subject_names)}
         teacher_ids = {r["email"]: r["id"] for r in rows(db, "SELECT id,email FROM teachers")}
