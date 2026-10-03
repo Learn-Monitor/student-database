@@ -196,7 +196,7 @@ table tr:last-child td {
   border-radius:.9rem;
   box-shadow:0 5px 18px rgba(61,33,30,.09);
 }
-body:has(> .admin-shell) > header { display:none; }
+body:has(.admin-shell) > header { display:none; }
 .admin-shell [hidden] { display:none !important; }
 .admin-shell .admin-page-header { margin-bottom:1.1rem; border-bottom:1px solid var(--admin-border); }
 .admin-shell .admin-page-header h1 { margin:.15rem 0 .45rem; color:var(--admin-sandstone-950); }
