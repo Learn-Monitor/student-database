@@ -310,10 +310,10 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
     }
 
     public <T> T writeTransaction(Transaction<T> work, java.util.function.Consumer<T> committed) throws SQLException {
+        T result;
         lock.writeLock().lock();
         try {
             Connection c = getSQLConnection();
-            T result;
             try (Statement statement = c.createStatement()) {
                 statement.execute("BEGIN IMMEDIATE");
                 try {
@@ -324,11 +324,13 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
                     throw e;
                 }
             }
-            committed.accept(result);
-            return result;
         } finally {
             lock.writeLock().unlock();
         }
+        // Commit callbacks may touch read-side services such as session storage. Run them
+        // only after releasing the database write lock to avoid lock-order deadlocks.
+        committed.accept(result);
+        return result;
     }
 
     @Override
