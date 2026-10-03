@@ -204,6 +204,7 @@ def apply_data(db: sqlite3.Connection, m: dict) -> dict:
         tutor_by_class = {
             "5a": "Leni.Lehrerin", "5b": "Tanja.Tafel", "5c": "Klara.Kreide", "5d": "Anton.Atlas",
             "6a": "Paula.Papier", "6b": "Martin.Mappe", "6c": "Sonja.Schere", "6d": "Rainer.Radiergummi",
+            "DEMO-Umbau 900010": "Leni.Lehrerin",
         }
         for class_label, teacher_name in tutor_by_class.items():
             db.execute("INSERT INTO curriculum_class_tutors(semester,class,teacher,tutor_slot) VALUES(?,?,?,1) ON CONFLICT(semester,class,tutor_slot) DO UPDATE SET teacher=excluded.teacher", (semester, class_ids[class_label], teacher_ids[teacher_name]))
