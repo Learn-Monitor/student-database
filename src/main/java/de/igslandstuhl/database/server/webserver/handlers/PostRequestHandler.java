@@ -447,8 +447,8 @@ public class PostRequestHandler {
             Subject subject = rq.getSubject();
             if (student == null) return PostResponse.unauthorized(rq);
             Topic topic = student.getCurrentTopic(subject);
-            if (topic == null) return PostResponse.badRequest("No current topic for this subject.", rq);
-            if(rq.getUser().isStudent() && !visibleTopic(rq.getUser().asStudent(),topic))return PostResponse.badRequest("Current topic is not released.",rq);
+            if (topic == null) return PostResponse.ok("null", ContentType.JSON, rq);
+            if(rq.getUser().isStudent() && !visibleTopic(rq.getUser().asStudent(),topic))return PostResponse.ok("null", ContentType.JSON, rq);
             return PostResponse.ok(topic.toJSON(), ContentType.JSON, rq);
         });
         HttpHandler.registerPostRequestHandler("/change-current-topic", AccessLevel.TEACHER, (rq) -> {
