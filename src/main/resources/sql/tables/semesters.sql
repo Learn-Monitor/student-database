@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS semesters (
     label TEXT NOT NULL UNIQUE,
     position INTEGER NOT NULL,
     school_year INTEGER NOT NULL,
+    archived INTEGER NOT NULL DEFAULT 0,
 
     FOREIGN KEY (school_year) REFERENCES school_years(id) ON DELETE CASCADE
 );

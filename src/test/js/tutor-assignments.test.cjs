@@ -46,7 +46,7 @@ test('renders normal classes, existing assignments, and sends tutor assignment p
   assert.equal(selects.length,2);
   assert.equal(selects[0].value,'21');
   assert.equal(selects[1].value,'');
-  block.querySelector('tbody tr:first-child button').click();
+  block.querySelector('button.admin-section-save').click();
   await tick();
   const save=requests.find(request=>request.path==='/assign-class-tutors');
   assert.ok(save);

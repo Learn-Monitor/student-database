@@ -64,12 +64,31 @@ public final class CurriculumEnrollment {
     public void activateSemester(Actor actor,int semesterId) throws SQLException {
         admin(actor);
         curriculum.transaction(c->{
-            var semester=require(c,"SELECT id,school_year FROM semesters WHERE id=?",semesterId);
+            var semester=require(c,"SELECT id,school_year,COALESCE(archived,0) AS archived FROM semesters WHERE id=?",semesterId);
+            if (integer(semester,"archived") != 0) throw error(409,"archived_semester","Ein archiviertes Halbjahr kann nicht aktiviert werden.");
             int schoolYear=integer(semester,"school_year");
             require(c,"SELECT id FROM school_years WHERE id=?",schoolYear);
             write(c,"UPDATE school_years SET current_semester=? WHERE id=?",semesterId,schoolYear);
             return null;
         });
+    }
+
+    /** Archives a semester without deleting its curriculum or learning history. */
+    public void archiveSemester(Actor actor,int semesterId) throws SQLException {
+        admin(actor);
+        curriculum.transaction(c->{
+            var semester=require(c,"SELECT id,school_year,COALESCE(archived,0) AS archived FROM semesters WHERE id=?",semesterId);
+            if (number(c,"SELECT COUNT(*) FROM school_years WHERE id=? AND current_semester=?",integer(semester,"school_year"),semesterId)>0)
+                throw error(409,"active_semester","Das aktive Halbjahr kann nicht archiviert werden.");
+            write(c,"UPDATE semesters SET archived=1 WHERE id=?",semesterId);
+            return null;
+        });
+    }
+
+    /** Restores an archived semester; it is not activated implicitly. */
+    public void restoreSemester(Actor actor,int semesterId) throws SQLException {
+        admin(actor);
+        curriculum.transaction(c->{ require(c,"SELECT id FROM semesters WHERE id=?",semesterId); write(c,"UPDATE semesters SET archived=0 WHERE id=?",semesterId); return null; });
     }
 
     /** Assigns the canonical grade-wide teacher for one typed individual subject. */
@@ -189,7 +208,7 @@ public final class CurriculumEnrollment {
         return curriculum.transaction(c->Map.of(
             "subjects",rows(c,"SELECT s.id,s.name,CASE WHEN t.mode='INDIVIDUAL' AND t.assignment_group='WPF' THEN 1 ELSE 0 END AS wpf,COALESCE(t.mode,'REGULAR') AS mode,t.assignment_group AS assignmentGroup,CASE WHEN t.subject IS NULL THEN 0 ELSE 1 END AS typeExplicit FROM subjects s LEFT JOIN curriculum_subject_types t ON t.subject=s.id ORDER BY s.name"),
             "classes",rows(c,"SELECT id,label,grade FROM classes WHERE active=1 AND id<>0 ORDER BY grade,label"),
-            "semesters",rows(c,"SELECT s.id,s.label,s.school_year AS schoolYearId,CASE WHEN y.current_semester=s.id THEN 1 ELSE 0 END AS active FROM semesters s JOIN school_years y ON y.id=s.school_year ORDER BY s.school_year,s.position"),
+            "semesters",rows(c,"SELECT s.id,s.label,s.school_year AS schoolYearId,y.label AS schoolYearLabel,COALESCE(s.archived,0) AS archived,CASE WHEN y.current_semester=s.id THEN 1 ELSE 0 END AS active FROM semesters s JOIN school_years y ON y.id=s.school_year ORDER BY s.school_year,s.position"),
             "teachers",rows(c,"SELECT id,first_name,last_name FROM teachers ORDER BY last_name,first_name"),
             "teaching",rows(c,"SELECT teacher AS teacherId,class AS classId,NULL AS grade,subject AS subjectId,semester AS semesterId FROM curriculum_class_teachers UNION SELECT teacher AS teacherId,NULL AS classId,grade,subject AS subjectId,semester AS semesterId FROM curriculum_grade_teachers"),
             "gradeSubjects",rows(c,"SELECT grade,semester AS semesterId,subject AS subjectId FROM curriculum_grade_subjects"),

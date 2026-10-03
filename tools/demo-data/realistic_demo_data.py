@@ -173,6 +173,8 @@ def upsert(db: sqlite3.Connection, sql: str, args):
 
 def apply_data(db: sqlite3.Connection, m: dict) -> dict:
     db.execute("PRAGMA foreign_keys=ON")
+    if not any(row[1] == "archived" for row in db.execute("PRAGMA table_info(semesters)")):
+        db.execute("ALTER TABLE semesters ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
     baseline_fk = {tuple(r) for r in rows(db, 'SELECT "table",rowid,parent,fkid FROM pragma_foreign_key_check')}
     db.execute("BEGIN IMMEDIATE")
     try:
@@ -186,13 +188,25 @@ def apply_data(db: sqlite3.Connection, m: dict) -> dict:
         semester = sem[0]
         db.execute("UPDATE school_years SET current_semester=? WHERE id=?", (semester, year))
 
-        class_ids = {"0": ensure_class(db, "Nicht zugeordnet", 0), **{c: ensure_class(db, c, 6) for c in ("6a", "6b", "6c", "6d")}}
+        class_ids = {"0": ensure_class(db, "Nicht zugeordnet", 0),
+                     **{c: ensure_class(db, c, 5) for c in ("5a", "5b", "5c", "5d")},
+                     **{c: ensure_class(db, c, 6) for c in ("6a", "6b", "6c", "6d")}}
         subject_names = set(m["subjects"]) | {x["subject"] for x in m["central"]} | {x["subject"] for x in m["flex_topics"]}
         subject_ids = {name: ensure_subject(db, name) for name in sorted(subject_names)}
         teacher_ids = {r["email"]: r["id"] for r in rows(db, "SELECT id,email FROM teachers")}
         missing = sorted(set(EXPECTED_TEACHERS) - set(teacher_ids))
         if missing: die("known DEMO teacher missing: " + ",".join(missing))
         teacher_ids = {k: teacher_ids[k] for k in EXPECTED_TEACHERS}
+
+        # One deterministic tutor per active DEMO class.  This is the
+        # authoritative semester-scoped tutor relation; legacy teacher_classes
+        # is not used to decide the tutor.
+        tutor_by_class = {
+            "5a": "Leni.Lehrerin", "5b": "Tanja.Tafel", "5c": "Klara.Kreide", "5d": "Anton.Atlas",
+            "6a": "Paula.Papier", "6b": "Martin.Mappe", "6c": "Sonja.Schere", "6d": "Rainer.Radiergummi",
+        }
+        for class_label, teacher_name in tutor_by_class.items():
+            db.execute("INSERT INTO curriculum_class_tutors(semester,class,teacher,tutor_slot) VALUES(?,?,?,1) ON CONFLICT(semester,class,tutor_slot) DO UPDATE SET teacher=excluded.teacher", (semester, class_ids[class_label], teacher_ids[teacher_name]))
 
         individual = {name: v for name, v in m["subjects"].items() if v["mode"] == "INDIVIDUAL"}
         all_subjects = sorted(subject_ids)
@@ -201,6 +215,17 @@ def apply_data(db: sqlite3.Connection, m: dict) -> dict:
             db.execute("INSERT INTO curriculum_subject_types(subject,wpf,mode,assignment_group) VALUES(?,?,?,?) ON CONFLICT(subject) DO UPDATE SET wpf=excluded.wpf,mode=excluded.mode,assignment_group=excluded.assignment_group", (subject_ids[name], typ["wpf"], typ["mode"], typ["group"]))
             db.execute("INSERT OR IGNORE INTO curriculum_grade_subjects(grade,semester,subject) VALUES(6,?,?)", (semester, subject_ids[name]))
             db.execute("INSERT OR IGNORE INTO gradesubjects(grade,subject) VALUES(6,?)", (subject_ids[name],))
+
+        # The DEMO currently has no grade-5 student accounts.  Keep the
+        # fachliche frame and religion/ethics groups available without
+        # fabricating people or memberships.
+        grade5_individual = [name for name in sorted(individual) if m["subjects"].get(name, {}).get("group") == "RELIGION_ETHIK"]
+        for name in all_subjects:
+            db.execute("INSERT OR IGNORE INTO curriculum_grade_subjects(grade,semester,subject) VALUES(5,?,?)", (semester, subject_ids[name]))
+            db.execute("INSERT OR IGNORE INTO gradesubjects(grade,subject) VALUES(5,?)", (subject_ids[name],))
+            if name in grade5_individual:
+                teacher = teacher_ids[INDIVIDUAL_TEACHER.get(name, "Leni.Lehrerin")]
+                db.execute("INSERT INTO curriculum_grade_teachers(semester,grade,subject,teacher) VALUES(?,?,?,?) ON CONFLICT(semester,grade,subject) DO UPDATE SET teacher=excluded.teacher", (semester,5,subject_ids[name],teacher))
 
         group_ids = {}
         for name, typ in individual.items():
@@ -214,6 +239,17 @@ def apply_data(db: sqlite3.Connection, m: dict) -> dict:
                 gid = 600000 + len(group_ids) + 1
                 db.execute("INSERT INTO course_groups(id,subject,grade,semester,teacher,assignment_group,name,active) VALUES(?,?,?,?,?,?,?,1)", (gid, subject_ids[name], 6, semester, teacher, typ["group"] or "INDIVIDUAL", label))
                 group_ids[name] = gid
+
+        for name in grade5_individual:
+            teacher = teacher_ids[INDIVIDUAL_TEACHER.get(name, "Leni.Lehrerin")]
+            row = db.execute("SELECT id FROM course_groups WHERE subject=? AND grade=5 AND semester=?", (subject_ids[name], semester)).fetchone()
+            label = f"DEMO HJ1 {name} Jahrgang 5"
+            if row:
+                db.execute("UPDATE course_groups SET teacher=?,assignment_group=?,name=?,active=1 WHERE id=?", (teacher, m["subjects"][name].get("group") or "RELIGION_ETHIK", label, row[0]))
+            else:
+                gid = 650000 + len(group_ids) + 1
+                db.execute("INSERT INTO course_groups(id,subject,grade,semester,teacher,assignment_group,name,active) VALUES(?,?,?,?,?,?,?,1)", (gid, subject_ids[name], 5, semester, teacher, m["subjects"][name].get("group") or "RELIGION_ETHIK", label))
+                group_ids[f"5:{name}"] = gid
 
         central_ids = {}
         for x in m["central"]:
@@ -252,6 +288,14 @@ def apply_data(db: sqlite3.Connection, m: dict) -> dict:
         for subject, teacher_name in INDIVIDUAL_TEACHER.items():
             if subject in subject_ids:
                 db.execute("INSERT OR IGNORE INTO teacher_subjects(teacher_id,subject_id) VALUES(?,?)", (teacher_ids[teacher_name], subject_ids[subject]))
+
+        # Archive only the explicitly marked old DEMO test semester.  Its
+        # rows remain in place, and an active pointer is cleared only for its
+        # own synthetic school year.
+        old = db.execute("SELECT s.id,s.school_year FROM semesters s JOIN school_years y ON y.id=s.school_year WHERE s.label='DEMO Testhalbjahr 900010' AND y.label='DEMO Umbau 900010'").fetchone()
+        if old:
+            db.execute("UPDATE semesters SET archived=1 WHERE id=?", (old[0],))
+            db.execute("UPDATE school_years SET current_semester=NULL WHERE id=? AND current_semester=?", (old[1], old[0]))
 
         students = [dict(r) for r in rows(db, "SELECT id,email,class FROM students WHERE class IN (1,2,3,4) AND email NOT LIKE 'demo.%' ORDER BY lower(email),id")]
         if len(students) != 103: die(f"expected 103 known students, found {len(students)}")

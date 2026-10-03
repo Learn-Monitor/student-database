@@ -169,6 +169,8 @@ public final class CurriculumRequestHandler {
                 }
                 case "/create-curriculum-semester" -> result=enrollment.createNextSemester(actor);
                 case "/activate-curriculum-semester" -> {enrollment.activateSemester(actor,integer(rq,"semesterId"));result=Map.of("ok",true);}
+                case "/archive-curriculum-semester" -> {enrollment.archiveSemester(actor,integer(rq,"semesterId"));result=Map.of("ok",true);}
+                case "/restore-curriculum-semester" -> {enrollment.restoreSemester(actor,integer(rq,"semesterId"));result=Map.of("ok",true);}
                 case "/set-curriculum-subject-type" -> {
                     if(rq.containsKey("mode")) {
                         Object group=rq.getJson().get("assignmentGroup");
