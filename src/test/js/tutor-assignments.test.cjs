@@ -23,8 +23,8 @@ const catalog={
   teachers:[{id:21,first_name:'Ada',last_name:'Admin'},{id:22,first_name:'Tina',last_name:'Tutor'}]
 };
 
-test('tutor block precedes enrollment and is wired into the admin dashboard',()=>{
-  assert.ok(dashboard.indexOf('id="admin-tutors"')<dashboard.indexOf('id="admin-enrollment"'));
+test('enrollment block precedes tutor block and is wired into the admin dashboard',()=>{
+  assert.ok(dashboard.indexOf('id="admin-enrollment"')<dashboard.indexOf('id="admin-tutors"'));
   assert.match(dashboard,/src="\/tutor-assignments\.js"/);
 });
 

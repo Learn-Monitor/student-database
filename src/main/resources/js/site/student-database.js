@@ -206,7 +206,7 @@ async function setPluginSetting(pluginKey, setting, value) {
 }
 
 async function deleteClass(classId) {
-    return await post('/delete-class', { id: classId });
+    return await post('/delete-class', { classId });
 }
 async function deleteSubject(subjectId) {
     return await post('/delete-subject', { id: subjectId });

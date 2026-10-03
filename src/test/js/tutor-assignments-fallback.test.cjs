@@ -9,10 +9,10 @@ const dashboard=fs.readFileSync(path.join(root,'html/admin/dashboard.html'),'utf
 const script=fs.readFileSync(path.join(root,'js/admin/tutor-assignments.js'),'utf8');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,30));
 
-test('raw admin dashboard visibly advertises tutor assignments before enrollment',()=>{
+test('raw admin dashboard visibly advertises tutor assignments after enrollment',()=>{
   assert.match(dashboard,/id="admin-tutors"[^>]*>[\s\S]*Tutor:innen je Klasse/);
   assert.match(dashboard,/Tutorzuordnungen werden geladen/);
-  assert.ok(dashboard.indexOf('id="admin-tutors"')<dashboard.indexOf('id="admin-enrollment"'));
+  assert.ok(dashboard.indexOf('id="admin-enrollment"')<dashboard.indexOf('id="admin-tutors"'));
 });
 
 test('javascript keeps fallback markup and fills the content area',async()=>{

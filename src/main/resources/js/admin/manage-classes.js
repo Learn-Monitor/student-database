@@ -18,7 +18,7 @@
           if (!confirm('Klasse wirklich archivieren? Die Klasse wird deaktiviert. Die Schülerinnen und Schüler bleiben erhalten und werden der Klasse „Nicht zugeordnet“ zugewiesen.')) return;
           archive.disabled = true; status('Klasse wird archiviert …');
           try {
-            const response = await post('/delete-class', {id: schoolClass.id});
+            const response = await post('/delete-class', {classId: schoolClass.id});
             if (!response.ok) throw new Error('archive');
             await loadClasses();
             status('Klasse wurde archiviert.');

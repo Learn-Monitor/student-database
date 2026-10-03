@@ -171,7 +171,7 @@ test('class list archive still posts to delete-class',async()=>{
     [...dom.window.document.querySelectorAll('#classTable button')].find(button=>button.textContent==='Archivieren').click();
     await tick();
     assert.equal(calls.posts[0].url,'/delete-class');
-    assert.deepEqual({...calls.posts[0].data},{id:12});
+    assert.deepEqual({...calls.posts[0].data},{classId:12});
   } finally {
     dom.window.close();
   }

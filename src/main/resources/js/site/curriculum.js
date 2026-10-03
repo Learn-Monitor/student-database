@@ -329,7 +329,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             action(panel,'Freischaltungen laden',reload);
         }
         if(!catalog.admin || !await allowed('curriculum_manage_enrollment'))return;
-        const landing=el('div');landing.className='semester-landing';section.append(landing);
+        const landing=el('div');landing.className='semester-landing semester-create-panel';section.append(landing);
         const panel=el('details');panel.id='semester-setup';panel.open=true;panel.className='semester-create-panel';panel.append(el('summary','1. Schuljahr / Halbjahr'));landing.append(panel);
         const semesterForm=el('form'); semesterForm.append(el('h4','Neues Schulhalbjahr anlegen'));
         semesterForm.append(el('p','Der nächste logische Nachfolger wird automatisch angelegt (HJ1 → HJ2 → nächstes Schuljahr HJ1).'));
@@ -365,13 +365,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const selectorGate=el('fieldset');selectorGate.hidden=false;selectorGate.append(el('legend','Halbjahr und Klassenstufe auswählen'));
         selectorGate.append(grade);const confirmSelection=el('button','Auswahl bestätigen');confirmSelection.type='button';selectorGate.append(confirmSelection);managePanel.append(selectorGate);
         panel.append(el('p','Die Fachart wird vorab unter Schuldaten → Fächer verwalten festgelegt. Religion, Ethik und WPF sind standardmäßig individuell; alle übrigen Fächer gelten als verbindlich.'));
-        const mappingArea=el('section');mappingArea.id='regular-setup';mappingArea.className='admin-regular-assignments';mappingArea.append(el('h3','4. REGULAR-Fächer und Lehrkraftmatrix'));panel.append(mappingArea);let mappingVersion=0,proposal=null;
+        const mappingArea=el('section');mappingArea.id='regular-setup';mappingArea.className='admin-regular-assignments';mappingArea.append(el('h3','4. REGULAR-Fächer und Lehrkraftmatrix'));landing.append(mappingArea);let mappingVersion=0,proposal=null;
+        const tutorRoot=document.querySelector('#admin-tutors');
+        if(tutorRoot) managePanel.after(tutorRoot);
         mappingArea.hidden=false;wpfPanel.id='individual-setup';wpfPanel.hidden=false;
         confirmSelection.addEventListener('click',()=>{mappingArea.hidden=false;regularPicker.hidden=false;wpfPanel.hidden=false;status.textContent='Auswahl bestätigt. Die Einrichtungsfunktionen sind eingeblendet.';if(typeof prepareTeachersButton?.click==='function')prepareTeachersButton.click();if(typeof loadRoster==='function')loadRoster();});
         revealSemesterSetup=()=>{selectorGate.hidden=false;section.querySelectorAll(':scope > details').forEach(node=>node.hidden=false);status.textContent='Halbjahr und Klassenstufe auswählen und bestätigen.';};
-        const invalidate=()=>{mappingVersion++;proposal=null;mappingArea.replaceChildren(el('h3','REGULAR-Fächer und Lehrkraftmatrix'));};
+        const invalidate=()=>{mappingVersion++;proposal=null;mappingArea.replaceChildren(el('h3','REGULAR-Fächer und Lehrkraftmatrix'),prepareTeachersButton);};
         const regularSubjects=()=>data.subjects.filter(s=>s.mode==='REGULAR'&&Number(s.typeExplicit)===1);
-        const regularPicker=el('fieldset');regularPicker.className='admin-regular-subject-picker';regularPicker.hidden=false;regularPicker.append(el('legend','REGULAR-Fächer dieses Jahrgangs'));panel.insertBefore(regularPicker,mappingArea);
+        const regularPicker=el('fieldset');regularPicker.className='admin-regular-subject-picker';regularPicker.hidden=false;regularPicker.append(el('legend','REGULAR-Fächer dieses Jahrgangs'));landing.insertBefore(regularPicker,mappingArea);
         const renderRegularPicker=()=>{
             regularPicker.querySelectorAll(':scope > label,:scope > div').forEach(node=>node.remove());
             const configured=new Set(data.gradeSubjects.filter(item=>Number(item.semesterId)===Number(semester.value)&&Number(item.grade)===Number(grade.value)).map(item=>Number(item.subjectId)));
@@ -387,7 +389,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(existing)select.value=String(existing.teacherId);
             return select;
         };
-        const prepareTeachersButton=action(panel,'Lehrkräfte-Tabelle aufbauen',async()=>{
+        const prepareTeachersButton=action(mappingArea,'Lehrkräfte-Tabelle aufbauen',async()=>{
             const subjectIds=[...regularPicker.querySelectorAll('input:checked')].map(input=>Number(input.value));if(!subjectIds.length)throw Error('Bitte mindestens ein REGULAR-Fach für diesen Jahrgang auswählen.');
             invalidate();const version=mappingVersion,selectedGrade=Number(grade.value),semesterId=Number(semester.value),mappings=[];
             const classes=data.classes.filter(c=>c.grade===selectedGrade);
