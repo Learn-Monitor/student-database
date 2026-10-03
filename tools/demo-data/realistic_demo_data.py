@@ -240,6 +240,15 @@ def apply_data(db: sqlite3.Connection, m: dict) -> dict:
                 db.execute("INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?) ON CONFLICT(semester,class,subject) DO UPDATE SET teacher=excluded.teacher", (semester,class_ids[c],subject_ids[subject],teacher))
                 db.execute("INSERT OR IGNORE INTO teacher_classes(teacher_id,class_id) VALUES(?,?)", (teacher,class_ids[c]))
                 db.execute("INSERT OR IGNORE INTO teacher_subjects(teacher_id,subject_id) VALUES(?,?)", (teacher,subject_ids[subject]))
+
+        # The current runtime backfill validates every INDIVIDUAL subject
+        # context through curriculum_grade_teachers, even when the additive
+        # course_group columns are already populated.  Keep that legacy
+        # source-of-truth row deterministic and aligned with the CourseGroup
+        # owner used below.
+        for subject in sorted(individual):
+            teacher = teacher_ids[INDIVIDUAL_TEACHER[subject]]
+            db.execute("INSERT INTO curriculum_grade_teachers(semester,grade,subject,teacher) VALUES(?,?,?,?) ON CONFLICT(semester,grade,subject) DO UPDATE SET teacher=excluded.teacher", (semester,6,subject_ids[subject],teacher))
         for subject, teacher_name in INDIVIDUAL_TEACHER.items():
             if subject in subject_ids:
                 db.execute("INSERT OR IGNORE INTO teacher_subjects(teacher_id,subject_id) VALUES(?,?)", (teacher_ids[teacher_name], subject_ids[subject]))
