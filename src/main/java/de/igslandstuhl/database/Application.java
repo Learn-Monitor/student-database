@@ -74,10 +74,10 @@ public final class Application {
     }
 
     public boolean runsWebServer() {
-        return !beingTested() && (!getArguments().hasKey("web-server") || getArguments().get("web-server") == "true");
+        return !beingTested() && (!getArguments().hasKey("web-server") || "true".equals(getArguments().get("web-server")));
     }
     public boolean suppressCmd() {
-        return !beingTested() && getArguments().hasKey("suppress-cmd") && getArguments().get("suppress-cmd") == "true";
+        return !beingTested() && getArguments().hasKey("suppress-cmd") && "true".equals(getArguments().get("suppress-cmd"));
     }
 
     public String getOptionSafe(String key, String defaultValue) {
