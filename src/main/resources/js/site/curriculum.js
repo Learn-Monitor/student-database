@@ -110,7 +110,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         panel.className = 'teacher-filter-bar';
         rosterArea.className = 'teacher-roster-panel';
         detailArea.className = 'teacher-detail-panel';
-        const workspace = el('div'); workspace.className = 'teacher-progress-layout'; workspace.append(rosterArea, detailArea);
+        const workspace = el('div'); workspace.className = 'teacher-progress-layout'; workspace.append(rosterArea);
+        const detailDialog = document.createElement('dialog');
+        detailDialog.className = 'teacher-progress-dialog';
+        detailDialog.setAttribute('aria-labelledby', 'teacher-progress-dialog-title');
+        const dialogHeader = el('div'); dialogHeader.className = 'teacher-progress-dialog-header';
+        const dialogTitle = el('h3', 'Schülerdetails'); dialogTitle.id = 'teacher-progress-dialog-title';
+        const closeDetail = el('button', 'Details schließen'); closeDetail.type = 'button'; closeDetail.className = 'teacher-progress-dialog-close';
+        dialogHeader.append(dialogTitle, closeDetail);
+        const dialogBody = el('div'); dialogBody.className = 'teacher-progress-dialog-body'; dialogBody.append(detailArea);
+        detailDialog.append(dialogHeader, dialogBody);
+        detailDialog.hidden = true;
+        workspace.append(detailDialog);
         status.setAttribute('role', 'status');
         progressRoot.append(panel, status, workspace);
         const classes = uniqueBy(activeContexts, context => context.classId).map(context => ({id:context.classId,name:context.classLabel}));
@@ -126,7 +137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const classSelect = progressSelect('Klasse/Lerngruppe', classes, 'classId');
         const subjectSelect = progressSelect('Fach', [], 'subjectId');
         const reload = el('button', 'Aktualisieren'); reload.type = 'button'; panel.append(reload);
-        let generation = 0, detailGeneration = 0, selectedStudentId = null;
+        let generation = 0, detailGeneration = 0, selectedStudentId = null, lastDetailTrigger = null;
         function contextsForClass() {
             return activeContexts.filter(context => context.classId === Number(classSelect.value));
         }
@@ -152,6 +163,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedStudentId = null;
             detailGeneration++;
             detailArea.replaceChildren();
+            if (detailDialog.open || !detailDialog.hidden) closeDetails();
+        }
+        function openDetails() {
+            detailDialog.hidden = false;
+            if (typeof detailDialog.showModal === 'function' && !detailDialog.open) detailDialog.showModal();
+            else detailDialog.setAttribute('open', '');
+            closeDetail.focus();
+        }
+        function closeDetails() {
+            if (typeof detailDialog.close === 'function' && detailDialog.open) detailDialog.close();
+            else detailDialog.removeAttribute('open');
+            detailDialog.hidden = true;
+            if (lastDetailTrigger && typeof lastDetailTrigger.focus === 'function') lastDetailTrigger.focus();
+        }
+        closeDetail.addEventListener('click', closeDetails);
+        detailDialog.addEventListener('cancel', event => { event.preventDefault(); closeDetails(); });
+        detailDialog.addEventListener('close', () => { detailDialog.hidden = true; });
+        function rememberDetailTrigger(button) {
+            lastDetailTrigger = button;
+            openDetails();
         }
         const assessmentOptions = [
             ['PASSED','Bestanden'], ['FAILED_ONCE','1× nicht bestanden'],
@@ -159,6 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ];
         const assessmentWrites = new Set();
         function renderDetail(detail, canAssess) {
+            dialogTitle.textContent = detail.studentName || 'Schülerdetails';
             detailArea.replaceChildren();
             const detailStatus = el('p'); detailStatus.setAttribute('role','status');
             detailArea.append(el('h3', detail.studentName || 'Schülerdetail'),detailStatus);
@@ -212,6 +244,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedStudentId = studentId;
             const current = ++detailGeneration;
             const snapshot = `${context.classId}:${context.subjectId}:${context.semesterId}:${studentId}`;
+            openDetails();
             detailArea.replaceChildren(el('p', 'Details werden geladen.'));
             try {
                 const detail = await post('/curriculum-student-progress-detail', {
@@ -238,19 +271,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             const table = document.createElement('table'), head = table.insertRow();
-            ['Schüler','In Bearbeitung','Braucht Hilfe','Sucht Partner','Will experimentieren','Bereit für Gelingensnachweis','Details']
+            ['Details','Schüler','In Bearbeitung','Braucht Hilfe','Sucht Partner','Will experimentieren','Bereit für Gelingensnachweis']
                 .forEach(text => head.append(el('th', text)));
             for (const row of rows) {
                 const tr = table.insertRow(), signals = row.signals || {};
+                const detailButton = el('button', 'Details'); detailButton.type = 'button'; detailButton.className = 'teacher-progress-detail-trigger';
+                detailButton.addEventListener('click', () => { rememberDetailTrigger(detailButton); loadDetail(row.id); });
+                tr.insertCell().append(detailButton);
                 tr.insertCell().textContent = row.name || `${row.firstName || ''} ${row.lastName || ''}`.trim();
                 tr.insertCell().textContent = stageText(row.activeStage);
                 tr.insertCell().textContent = signalText(signals.help);
                 tr.insertCell().textContent = signalText(signals.partner);
                 tr.insertCell().textContent = signalText(signals.experiment);
                 tr.insertCell().textContent = signalText(signals.exam);
-                const detailButton = el('button', 'Details'); detailButton.type = 'button';
-                detailButton.addEventListener('click', () => loadDetail(row.id));
-                tr.insertCell().append(detailButton);
             }
             const tableWrap = el('div'); tableWrap.className = 'teacher-table-scroll'; tableWrap.append(table);
             rosterArea.append(tableWrap);

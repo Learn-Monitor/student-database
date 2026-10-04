@@ -296,13 +296,27 @@ test('student progress renders active stages and signals read only',async()=>{
   assert.match(progress.textContent,/Own task · Flexibel/);
   assert.match(progress.textContent,/Keine Etappe in Bearbeitung/);
   const rows=[...progress.querySelectorAll('table tr')].slice(1).map(row=>[...row.cells].map(cell=>cell.textContent));
-  assert.deepEqual(rows[0],['Ada Alpha','Central · Wanderer · Zentral','Ja','Ja','—','—','Details']);
-  assert.deepEqual(rows[1],['Ben Beta','Own task · Flexibel','—','—','Ja','Ja','Details']);
-  assert.deepEqual(rows[2],['Cara Gamma','Keine Etappe in Bearbeitung','—','—','—','—','Details']);
+  assert.deepEqual(rows[0],['Details','Ada Alpha','Central · Wanderer · Zentral','Ja','Ja','—','—']);
+  assert.deepEqual(rows[1],['Details','Ben Beta','Own task · Flexibel','—','—','Ja','Ja']);
+  assert.deepEqual(rows[2],['Details','Cara Gamma','Keine Etappe in Bearbeitung','—','—','—','—']);
   assert.equal(progress.querySelectorAll('form').length,0);
   assert.equal(progress.querySelectorAll('input[type=checkbox]').length,0);
   assert.equal([...progress.querySelectorAll('button')].filter(button=>button.textContent==='Details').length,3);
   assert.equal(requests.some(r=>['/subject-request','/complete-task','/lock-task','/reopen-task','/complete-flexible-task'].includes(r.url)),false);
+ }finally{dom.window.close();}
+});
+test('student progress details use an accessible modal and restore focus',async()=>{
+ const{dom}=await setup(false,{progress:true,detail:{studentId:50,studentName:'Ada Alpha',stages:[]}});
+ try{
+  const progress=dom.window.document.querySelector('#student-progress');
+  const trigger=progress.querySelector('.teacher-progress-detail-trigger');
+  trigger.focus();trigger.click();await tick();
+  const dialog=progress.querySelector('.teacher-progress-dialog');
+  assert.equal(dialog.hidden,false);
+  assert.equal(dialog.querySelector('.teacher-progress-dialog-close'),dom.window.document.activeElement);
+  const cancel=new dom.window.Event('cancel',{cancelable:true});dialog.dispatchEvent(cancel);await tick();
+  assert.equal(dialog.hidden,true);
+  assert.equal(dom.window.document.activeElement,trigger);
  }finally{dom.window.close();}
 });
 test('student progress handles empty roster and safe text rendering',async()=>{
