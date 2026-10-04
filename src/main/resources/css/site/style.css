@@ -209,6 +209,12 @@ body:has(.admin-shell) > header { display:none; }
 .admin-shell .admin-main-menu a[aria-current="page"] { background:var(--admin-sandstone-700); }
 .admin-setup-jump { display:flex; flex-wrap:wrap; gap:.45rem; margin:1rem 0; padding:.75rem; border:1px solid var(--admin-border); border-radius:.55rem; background:var(--admin-sandstone-050); }
 .admin-setup-jump a,.admin-back-to-top { color:var(--admin-sandstone-950); font-weight:700; }
+.admin-dashboard-page #semester-setup,
+.admin-dashboard-page #grade-setup,
+.admin-dashboard-page #admin-tutors,
+.admin-dashboard-page #regular-setup,
+.admin-dashboard-page #individual-setup,
+.admin-dashboard-page #student-setup { scroll-margin-top: 4.5rem; }
 .admin-back-to-top { display:inline-block; margin-top:1rem; }
 .admin-section-save { margin-top:1rem; }
 .admin-shell .admin-main-menu a:focus-visible,
