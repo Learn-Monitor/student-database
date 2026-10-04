@@ -76,8 +76,9 @@ public final class Curriculum {
                     + "JOIN student_active_curriculum_stages a ON a.student=r.student AND a.subject=r.subject AND a.semester=r.semester "
                     + "LEFT JOIN tasks ct ON ct.id=a.central_task "
                     + "LEFT JOIN flexible_tasks ft ON ft.id=a.flexible_task "
-                    + "WHERE r.semester=? AND r.request_type='EXAM' AND COALESCE(s.active,1)=1 AND cl.active=1 AND cl.id<>0",
-                    semester)) {
+                    + "WHERE r.semester=? AND r.request_type='EXAM' AND COALESCE(s.active,1)=1 AND cl.active=1 AND cl.id<>0 "
+                    + "AND (?=1 OR EXISTS (SELECT 1 FROM curriculum_class_teachers cct WHERE cct.semester=r.semester AND cct.class=s.class AND cct.subject=r.subject AND cct.teacher=?) OR ctx.teacher=?)",
+                    semester, actor.admin() ? 1 : 0, actor.teacherId(), actor.teacherId())) {
                 String key = row.get("studentId")+":"+row.get("subject")+":"+row.get("stageType")+":"+row.get("stageId");
                 Map<String,Object> entry = new LinkedHashMap<>();
                 entry.put("studentId", integer(row,"studentId")); entry.put("firstName", row.get("firstName"));
@@ -95,8 +96,9 @@ public final class Curriculum {
                     + "LEFT JOIN tasks ct ON a.stage_type='CENTRAL' AND ct.id=a.stage_id "
                     + "LEFT JOIN flexible_tasks ft ON a.stage_type='FLEXIBLE' AND ft.id=a.stage_id "
                     + "WHERE a.semester=? AND a.status IN ('FAILED_ONCE','FAILED_TWICE','LOCKED') "
-                    + "AND COALESCE(s.active,1)=1 AND cl.active=1 AND cl.id<>0",
-                    semester)) {
+                    + "AND COALESCE(s.active,1)=1 AND cl.active=1 AND cl.id<>0 "
+                    + "AND (?=1 OR EXISTS (SELECT 1 FROM curriculum_class_teachers cct WHERE cct.semester=a.semester AND cct.class=s.class AND cct.subject=a.subject AND cct.teacher=?) OR ctx.teacher=?)",
+                    semester, actor.admin() ? 1 : 0, actor.teacherId(), actor.teacherId())) {
                 String key = row.get("studentId")+":"+row.get("subject")+":"+row.get("stageType")+":"+row.get("stageId");
                 String status = switch (String.valueOf(row.get("status"))) {
                     case "FAILED_ONCE" -> "1x nicht bestanden";

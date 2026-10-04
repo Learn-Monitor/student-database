@@ -82,6 +82,26 @@ class CurriculumTest {
         assertEquals(2,Curriculum.noteForTokens(75));
         assertEquals(1,Curriculum.noteForTokens(90));
     }
+    @Test void schoolwideStageOverviewLimitsTeacherRowsToAuthorizedContexts() throws Exception {
+        makeCurrentSemester(id);
+        int task=centralNamed("Authorized overview stage",5);
+        int foreignStudent=id+2;
+        db.writeTransaction(c->{
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);
+            exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id+1,id,id+1);
+            exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Foreign','Student',?,'unused',?,1)",foreignStudent,"foreign-overview"+id+"@example.invalid",id+1);
+            exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)",foreignStudent,id,id,id+1,id+1);
+            exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?, ?,NULL)",id,id,id,task);
+            exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?, ?,NULL)",foreignStudent,id,id,task);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'EXAM')",id,id,id);
+            exec(c,"INSERT INTO student_subject_requests(student,subject,semester,request_type) VALUES(?,?,?,'EXAM')",foreignStudent,id,id);
+            return null;
+        });
+        var teacherRows=service.schoolwideStageOverview(teacher);
+        var otherRows=service.schoolwideStageOverview(other);
+        assertEquals(List.of(id),teacherRows.stream().map(r->((Number)r.get("studentId")).intValue()).toList());
+        assertEquals(List.of(foreignStudent),otherRows.stream().map(r->((Number)r.get("studentId")).intValue()).toList());
+    }
     @Test void adminCanCreateCompleteSubjectWithTypeAtomically() throws Exception {
         var enrollment=new CurriculumEnrollment(service);
         int before=(int)scalar("SELECT COUNT(*) FROM subjects");

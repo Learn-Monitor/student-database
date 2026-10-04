@@ -51,9 +51,11 @@ import de.igslandstuhl.database.server.webserver.access.AccessLevel;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
 import de.igslandstuhl.database.server.webserver.responses.HttpResponse;
+import de.igslandstuhl.database.server.webserver.responses.GetResponse;
 import de.igslandstuhl.database.server.webserver.responses.PostResponse;
 import de.igslandstuhl.database.server.webserver.sessions.Session;
 import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
+import de.igslandstuhl.database.server.resources.ResourceLocation;
 import de.igslandstuhl.database.utils.JSONUtils;
 import de.igslandstuhl.database.utils.ThrowingConsumer;
 
@@ -651,7 +653,13 @@ public class PostRequestHandler {
         });
         HttpHandler.registerPostRequestHandler("/logout", AccessLevel.USER, (rq) -> {
             Server.getInstance().getWebServer().getSessionManager().logout(rq);
-            return PostResponse.redirect("/login", rq);
+            return PostResponse.redirect("/arcanum-logout.html", rq);
+        });
+        HttpHandler.registerGetRequestHandler("/logout", AccessLevel.USER, (rq) -> {
+            Server.getInstance().getWebServer().getSessionManager().logout(rq);
+            return new GetResponse(rq, Status.OK,
+                    new ResourceLocation("html", "public", "arcanum-logout.html"),
+                    ContentType.HTML, "", false, false);
         });
     }
     static PostResponse handleSubjectRequest(APIPostRequest rq) throws SQLException {
