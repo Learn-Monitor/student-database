@@ -452,6 +452,14 @@ main.attendance.teacher-dashboard .filters {
   background:var(--admin-sandstone-050) !important;
   border-color:var(--admin-border) !important;
 }
+main.attendance.teacher-dashboard .teacher-main-menu a {
+  color:#fffaf7;
+}
+main.attendance.teacher-dashboard .teacher-main-menu a:hover,
+main.attendance.teacher-dashboard .teacher-main-menu a:focus,
+main.attendance.teacher-dashboard .teacher-main-menu a[aria-current="page"] {
+  color:#fffaf7;
+}
 main.attendance.teacher-dashboard .filters input,
 main.attendance.teacher-dashboard .filters select {
   border:1px solid #bda69d;
