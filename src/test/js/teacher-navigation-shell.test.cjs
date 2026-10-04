@@ -87,6 +87,18 @@ test('attendance view receives one sticky shell with attendance active',()=>{
   } finally { dom.window.close(); }
 });
 
+test('admin attendance view does not query teacher-only tutor classes',async()=>{
+  let calls=0;
+  const dom=shell('https://school.example.invalid/attendance',`<main class="attendance"><nav class="admin-main-menu"><ul><li><a href="/attendance">Anwesenheit</a></li></ul></nav><h1>Attendance</h1></main>`);
+  dom.window.fetch=async()=>{calls++;return {ok:false,status:403,json:async()=>({})};};
+  dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  try {
+    assert.equal(calls,0);
+    assert.equal(dom.window.document.querySelector('.admin-main-menu').classList.contains('teacher-main-menu'),false);
+  } finally { dom.window.close(); }
+});
+
 test('hash changes update the active dashboard item without duplicating navigation',()=>{
   const dom=shell('https://school.example.invalid/dashboard',`<nav class="teacher-main-menu">${navigation}</nav>`);
   try {

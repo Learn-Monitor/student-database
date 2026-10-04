@@ -118,7 +118,7 @@
 
     function updateTeacherNavigation() {
         const attendanceNavigation = document.querySelector('main.attendance > nav:first-child');
-        if (location.pathname === '/attendance' && attendanceNavigation) {
+        if (location.pathname === '/attendance' && attendanceNavigation && !attendanceNavigation.classList.contains('admin-main-menu')) {
             attendanceNavigation.classList.add('teacher-main-menu');
             attendanceNavigation.setAttribute('aria-label', 'Lehrkraftbereiche');
         }
