@@ -470,7 +470,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // the authoritative current semester explicitly; use that only for
         // the initial view and leave later user choices untouched.
         if (!teacherMode) {
-            const activeSemester = catalog.semesters.find(item => item.active === true);
+            const activeSemester = catalog.semesters.find(item => item.active === true || Number(item.active) === 1);
             if (activeSemester) semester.value = String(activeSemester.id);
         }
         const schoolClass = select('Klasse/Lerngruppe', teacherMode ? teacherClasses : catalog.classes, 'classId');

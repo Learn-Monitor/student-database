@@ -172,7 +172,7 @@ test('admin central curriculum renders topic and stage hierarchy with totals',as
 test('central curriculum initially selects the server-marked active semester',async()=>{
  const{dom,root,requests}=await setup(true,{semesters:[
   {id:20,label:'Demo-Halbjahr',archived:true,active:false},
-  {id:21,label:'2026/27 HJ1',archived:false,active:true}
+  {id:21,label:'2026/27 HJ1',archived:false,active:1}
  ]});
  try {
   const semester=root.querySelector('[name="semesterId"]');
