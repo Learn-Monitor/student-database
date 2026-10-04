@@ -77,6 +77,13 @@
         "context": "html",
         "access_level": "public"
     },
+    "/logout": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["public"],
+        "context": "html",
+        "access_level": "public"
+    },
 
     "/dashboard": {
         "type": "GET",
