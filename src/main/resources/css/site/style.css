@@ -438,6 +438,10 @@ main.attendance .attendance-location-form button { min-height:2.55rem; box-sizin
 main.attendance button { min-height:2.55rem; margin:0; padding:.55rem .8rem; border:1px solid var(--admin-accent); border-radius:.4rem; color:#fffaf7; background:var(--admin-accent); font:inherit; font-weight:700; cursor:pointer; }
 main.attendance button:hover, main.attendance button:focus { background:var(--admin-sandstone-800); }
 main.attendance a { color:var(--admin-sandstone-950); }
+main.attendance .admin-main-menu a { color:#fffaf7; }
+main.attendance .admin-main-menu a:hover,
+main.attendance .admin-main-menu a:focus,
+main.attendance .admin-main-menu a[aria-current="page"] { color:#fffaf7; }
 main.attendance .help { color:var(--admin-muted); }
 @media (max-width:700px) {
   .admin-filter-bar { align-items:stretch; flex-direction:column; }
