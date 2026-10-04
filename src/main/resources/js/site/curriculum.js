@@ -466,6 +466,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const teacherClasses = teacherMode ? uniqueBy(activeContexts, context => context.classId).map(context => ({id:context.classId,label:context.classLabel,grade:context.grade})) : [];
         const subject = teacherMode ? select('Fach', [], 'subjectId') : select('Fach', catalog.subjects, 'subjectId');
         const semester = teacherMode ? null : select('Halbjahr', catalog.semesters, 'semesterId');
+        // The first catalog row may be an archived semester. The server marks
+        // the authoritative current semester explicitly; use that only for
+        // the initial view and leave later user choices untouched.
+        if (!teacherMode) {
+            const activeSemester = catalog.semesters.find(item => item.active === true);
+            if (activeSemester) semester.value = String(activeSemester.id);
+        }
         const schoolClass = select('Klasse/Lerngruppe', teacherMode ? teacherClasses : catalog.classes, 'classId');
         const teacher = catalog.admin ? select('Lehrkraft (flexible Etappen)', catalog.teachers.map(t => ({id:t.id,name:t.first_name+' '+t.last_name})), 'teacherId') : null;
         const grade = catalog.admin ? select('Jahrgang (zentral)', Array.from({length:13},(_,i)=>({id:i+1,name:String(i+1)})), 'grade') : null;

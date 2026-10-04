@@ -40,7 +40,7 @@ async function setup(admin, options={}){
  const catalog={admin,enrollmentEnabled:options.enrollment===true,teacherId:7,
   subjects:admin?[{id:1,name:'Math'}]:[{id:1,name:'Math'},{id:2,name:'Legacy only'}],
   classes:admin?[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5}]:[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5},{id:12,label:'Legacy class',grade:8}],
-  semesters:[{id:20,label:'H1'},{id:21,label:'H2'}],teachers:[{id:7,first_name:'Test',last_name:'Teacher'}],contexts:options.contexts ?? defaultContexts};
+  semesters:options.semesters ?? [{id:20,label:'H1'},{id:21,label:'H2'}],teachers:[{id:7,first_name:'Test',last_name:'Teacher'}],contexts:options.contexts ?? defaultContexts};
  const defaultRoster=[
   {id:50,name:'Ada Alpha',firstName:'Ada',lastName:'Alpha',activeStage:{type:'CENTRAL',taskId:3,name:'Central',niveau:1},signals:{help:true,partner:true,experiment:false,exam:false}},
   {id:51,name:'Ben Beta',firstName:'Ben',lastName:'Beta',activeStage:{type:'FLEXIBLE',taskId:100,name:'Own task'},signals:{help:false,partner:false,experiment:true,exam:true}},
@@ -168,6 +168,18 @@ test('admin central curriculum renders topic and stage hierarchy with totals',as
   assert.equal(root.querySelectorAll('.curriculum-add-stage').length,2);
   assert.ok(root.querySelector('.curriculum-add-topic'));
  }finally{dom.window.close();}
+});
+test('central curriculum initially selects the server-marked active semester',async()=>{
+ const{dom,root,requests}=await setup(true,{semesters:[
+  {id:20,label:'Demo-Halbjahr',archived:true,active:false},
+  {id:21,label:'2026/27 HJ1',archived:false,active:true}
+ ]});
+ try {
+  const semester=root.querySelector('[name="semesterId"]');
+  assert.equal(semester.value,'21');
+  const structure=requests.find(request=>request.url==='/curriculum-structure');
+  assert.equal(structure.data.semesterId,21);
+ } finally { dom.window.close(); }
 });
 test('teacher gets own context, can edit and create, and UI blocks totals above 105',async()=>{
  const{dom,requests,root}=await setup(false);
