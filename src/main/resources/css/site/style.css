@@ -443,6 +443,10 @@ main.attendance .admin-main-menu a:hover,
 main.attendance .admin-main-menu a:focus,
 main.attendance .admin-main-menu a[aria-current="page"] { color:#fffaf7; }
 main.attendance .help { color:var(--admin-muted); }
+@media (min-width:701px) {
+  main.attendance table { min-width:0; table-layout:fixed; }
+  main.attendance th, main.attendance td { white-space:normal !important; overflow-wrap:anywhere; }
+}
 @media (max-width:700px) {
   .admin-filter-bar { align-items:stretch; flex-direction:column; }
   .admin-admin-actions { align-items:stretch; flex-direction:column; }
