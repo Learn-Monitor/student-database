@@ -184,6 +184,13 @@ public class PostRequestHandler {
     private static PostResponse handleStudentGetData(APIPostRequest request) {
         String path = request.getPath().replace("student-", "my");
         Student student = request.getCurrentStudent();
+        if (student == null) {
+            // The results page can be opened before a teacher selects a student.
+            // Return an empty, explicit result model instead of dereferencing null.
+            return PostResponse.ok(
+                    "{\"noStudentSelected\":true,\"firstName\":\"Keine Schülerauswahl\",\"lastName\":\"\",\"completedTasks\":[],\"selectedTasks\":[],\"currentProgress\":{},\"predictedProgress\":{}}",
+                    ContentType.JSON, request);
+        }
         String email = student.getEmail(); // Email is the username for the student
         return PostResponse.getResource(WebResourceHandler.locationFromPath(path, student), email, request, path);
     }
