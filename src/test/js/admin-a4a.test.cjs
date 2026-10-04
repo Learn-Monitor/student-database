@@ -37,7 +37,7 @@ test('legacy admin pages share the sandstone shell and one primary navigation',(
     try {
       const shell=dom.window.document.querySelector('.admin-shell');
       assert.ok(shell,`${name} has admin shell`);
-      assert.equal(shell.querySelectorAll('.admin-main-menu').length,['students','teachers','classes','subjects'].includes(name)?1:0,`${name} navigation count`);
+      assert.equal(shell.querySelectorAll('.admin-main-menu').length,1,`${name} navigation count`);
       assert.equal(dom.window.document.querySelectorAll('h1').length,1,`${name} has one page heading`);
     } finally { dom.window.close(); }
   }

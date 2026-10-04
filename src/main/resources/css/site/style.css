@@ -222,6 +222,12 @@ body:has(.admin-shell) > header { display:none; }
 .admin-shell a:focus-visible,
 .admin-shell select:focus-visible,
 .admin-shell input:focus-visible { outline:3px solid #d59b55; outline-offset:2px; }
+.admin-shell#students,
+.admin-shell#teachers,
+.admin-shell#classes,
+.admin-shell#subjects { max-width:1200px; }
+.admin-shell #admin-central-curriculum { min-width:0; max-width:100%; overflow-x:auto; }
+.admin-shell #admin-central-curriculum table { min-width:42rem; }
 .admin-shell .admin-main-menu-logout { background:var(--admin-sandstone-950); }
 .admin-shell .admin-function-page { margin:0; padding:clamp(1rem, 2vw, 1.5rem); background:var(--admin-surface); border-color:var(--admin-border); box-shadow:none; }
 .admin-shell .admin-function-page h2 { color:var(--admin-sandstone-950); }
@@ -342,12 +348,88 @@ body:has(.admin-shell) > header { display:none; }
 .admin-detail-page .admin-form { align-items:stretch; }
 .admin-detail-page textarea { width:100%; max-width:100%; box-sizing:border-box; font:inherit; }
 .admin-shell .admin-table-scroll { min-width:0; }
+
+/* Plugin-owned admin pages use the same page frame as the core admin pages. */
+body:has(#dashboard:not(.admin-shell)) > header,
+body:has(.attendance) > header { display:none; }
+#dashboard:not(.admin-shell) {
+  --admin-sandstone-950:#3d211e;
+  --admin-sandstone-900:#542c27;
+  --admin-sandstone-800:#713b33;
+  --admin-sandstone-100:#f4e7e1;
+  --admin-sandstone-050:#fbf7f4;
+  --admin-surface:#fffdfb;
+  --admin-border:#ddc8bf;
+  --admin-accent:#8f5145;
+  --admin-accent-soft:#f0ddd5;
+  --admin-text:#2d2522;
+  --admin-muted:#6d5b55;
+  max-width:1200px;
+  width:100%;
+  margin:0 auto;
+  padding:clamp(1rem, 2.5vw, 2rem);
+  box-sizing:border-box;
+  color:var(--admin-text);
+  background:var(--admin-surface);
+  border:1px solid var(--admin-border);
+  border-radius:.9rem;
+  box-shadow:0 5px 18px rgba(61,33,30,.09);
+  display:flex;
+  flex-direction:column;
+}
+#dashboard:not(.admin-shell) > header { margin:0 0 1.1rem; border-bottom:1px solid var(--admin-border); }
+#dashboard:not(.admin-shell) > header h1 { margin:.15rem 0 .45rem; color:var(--admin-sandstone-950); }
+#dashboard:not(.admin-shell) > nav { order:-1; margin:0 0 1.25rem; }
+#dashboard:not(.admin-shell) > nav .admin-main-menu { margin:0; }
+#dashboard:not(.admin-shell) > p { color:var(--admin-muted); }
+#dashboard:not(.admin-shell) #roles,
+#dashboard:not(.admin-shell) #add-roles { margin:1rem 0; padding:1rem; background:var(--admin-sandstone-050); border:1px solid var(--admin-border); border-radius:.65rem; }
+#dashboard:not(.admin-shell) #roles .panel { border:1px solid var(--admin-border); border-radius:.5rem; background:var(--admin-surface); }
+#dashboard:not(.admin-shell) #roles .panel h3 { margin:0; padding:.75rem; color:var(--admin-sandstone-950); background:var(--admin-sandstone-100); }
+#dashboard:not(.admin-shell) #roles .panel .panel-body { padding:.8rem; }
+#dashboard:not(.admin-shell) #add-roles form { display:flex; flex-wrap:wrap; align-items:end; gap:.75rem; }
+#dashboard:not(.admin-shell) #add-roles label { display:flex; flex:0 1 9rem; flex-direction:column; gap:.3rem; color:var(--admin-sandstone-950); font-weight:700; }
+#dashboard:not(.admin-shell) #add-roles input { width:100%; min-height:2.55rem; margin:0; padding:.5rem .6rem; box-sizing:border-box; border:1px solid #bda69d; border-radius:.4rem; font:inherit; }
+#dashboard:not(.admin-shell) #add-roles button { min-height:2.55rem; margin:0; padding:.55rem .8rem; border:1px solid var(--admin-accent); border-radius:.4rem; color:#fffaf7; background:var(--admin-accent); font:inherit; font-weight:700; }
+
+main.attendance {
+  max-width:1200px !important;
+  width:100% !important;
+  margin:0 auto !important;
+  padding:clamp(1rem, 2.5vw, 2rem) !important;
+  box-sizing:border-box;
+  color:var(--admin-text);
+  background:var(--admin-surface);
+  border:1px solid var(--admin-border);
+  border-radius:.9rem;
+  box-shadow:0 5px 18px rgba(61,33,30,.09);
+}
+main.attendance > nav { margin:0 0 1.25rem; }
+main.attendance h1 { margin:.15rem 0 .45rem; color:var(--admin-sandstone-950); border-bottom:1px solid var(--admin-border); }
+main.attendance h2 { color:var(--admin-sandstone-950); }
+main.attendance section { margin:1rem 0 !important; padding:1rem !important; background:var(--admin-sandstone-050) !important; border:1px solid var(--admin-border) !important; border-radius:.65rem !important; }
+main.attendance .table-wrap { max-width:100%; overflow-x:auto; }
+main.attendance table { min-width:58rem; box-shadow:none; border:1px solid var(--admin-border); }
+main.attendance th { background:var(--admin-sandstone-900); color:#fffaf7; }
+main.attendance th, main.attendance td { border-bottom-color:var(--admin-border); }
+main.attendance .attendance-location-form { gap:.75rem; }
+main.attendance .attendance-location-form input,
+main.attendance .attendance-location-form select,
+main.attendance .attendance-location-form button { min-height:2.55rem; box-sizing:border-box; border:1px solid #bda69d; border-radius:.4rem; font:inherit; }
+main.attendance .attendance-location-form button { color:#fffaf7; background:var(--admin-accent); font-weight:700; }
+main.attendance .help { color:var(--admin-muted); }
 @media (max-width:700px) {
   .admin-filter-bar { align-items:stretch; flex-direction:column; }
   .admin-admin-actions { align-items:stretch; flex-direction:column; }
   .admin-admin-actions > * { width:100%; }
   .admin-grade-export { align-items:stretch; }
   .admin-data-table { min-width:36rem; }
+  #dashboard:not(.admin-shell) { padding:.85rem; border-radius:.55rem; }
+  #dashboard:not(.admin-shell) #add-roles form { align-items:stretch; flex-direction:column; }
+  #dashboard:not(.admin-shell) #add-roles label,
+  #dashboard:not(.admin-shell) #add-roles button { width:100%; box-sizing:border-box; }
+  main.attendance { padding:.85rem !important; border-radius:.55rem; }
+  main.attendance section { padding:.75rem !important; }
 }
 
 /* Teacher Cockpit: dieselbe visuelle Sprache wie der Admin-Arbeitsbereich. */
