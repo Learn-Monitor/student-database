@@ -112,6 +112,11 @@ There are a few command line arguments you can give the program:
 
 The most important part of the program is the web interface, accessible over a browser using https.
 
+The public synthetic DEMO (separate test environment) is available at
+https://arcanum-demo.dynv6.net. Public DEMO accounts and the bilingual access
+notice are maintained in the public repository:
+https://github.com/synchronierer/arcanum-demo
+
 # 🧪 Running Tests
 
 To run the unit tests included in the project (after you cloned this project):

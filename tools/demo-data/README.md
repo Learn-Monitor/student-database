@@ -1,5 +1,10 @@
 # Realistic synthetic DEMO data
 
+Public DEMO website: https://arcanum-demo.dynv6.net
+
+Public synthetic DEMO accounts (fictional test identities) and the German and
+English access/reset notice: https://github.com/synchronierer/arcanum-demo
+
 `realistic_demo_data.py` is a guarded, repeatable DEMO curriculum builder. It
 has three independent modes:
 
