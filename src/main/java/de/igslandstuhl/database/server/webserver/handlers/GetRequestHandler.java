@@ -88,7 +88,7 @@ public class GetRequestHandler {
             };
             HttpHandler.registerGetRequestHandler(pathInfo.path(), webPath.accessLevel(), handlerFunction);
         }
-        HttpHandler.registerGetRequestHandler("/logout", AccessLevel.USER, request -> {
+        HttpHandler.registerGetRequestHandler("/logout", AccessLevel.PUBLIC, request -> {
             Server.getInstance().getWebServer().getSessionManager().logout(request);
             return new GetResponse(request, Status.OK,
                     new ResourceLocation("html", "public", "arcanum-logout.html"),
