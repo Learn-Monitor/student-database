@@ -20,9 +20,13 @@ function shell(url,markup,classes=null) {
     url,
     runScripts:'outside-only'
   });
+  dom.window.__fetchCalls=[];
   dom.window.fetch=classes === null
     ? (() => new Promise(() => {}))
-    : (async()=>({ok:true,status:200,json:async()=>classes}));
+    : (async(url)=>{dom.window.__fetchCalls.push(url); return url === '/dashboard'
+      ? ({ok:true,status:200,text:async()=>markup.includes('admin-main-menu')?'<nav class="admin-main-menu"></nav>':'<nav class="teacher-main-menu"></nav>'})
+      : ({ok:true,status:200,json:async()=>classes});
+    });
   dom.window.eval(navigationScript);
   dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
   return dom;
@@ -75,8 +79,9 @@ for (const [url,label] of [
   } finally { dom.window.close(); }
 });
 
-test('attendance view receives one sticky shell with attendance active',()=>{
-  const dom=shell('https://school.example.invalid/attendance',`<main class="attendance"><nav>${navigation}</nav><h1>Attendance</h1></main>`);
+test('attendance view receives one sticky shell with attendance active',async()=>{
+  const dom=shell('https://school.example.invalid/attendance',`<main class="attendance"><nav>${navigation}</nav><h1>Attendance</h1></main>`,[]);
+  await new Promise(resolve=>setTimeout(resolve,0));
   try {
     const menus=dom.window.document.querySelectorAll('.teacher-main-menu');
     assert.equal(menus.length,1);
@@ -88,13 +93,10 @@ test('attendance view receives one sticky shell with attendance active',()=>{
 });
 
 test('admin attendance view does not query teacher-only tutor classes',async()=>{
-  let calls=0;
-  const dom=shell('https://school.example.invalid/attendance',`<main class="attendance"><nav class="admin-main-menu"><ul><li><a href="/attendance">Anwesenheit</a></li></ul></nav><h1>Attendance</h1></main>`);
-  dom.window.fetch=async()=>{calls++;return {ok:false,status:403,json:async()=>({})};};
-  dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
+  const dom=shell('https://school.example.invalid/attendance',`<main class="attendance"><nav class="admin-main-menu"><ul><li><a href="/attendance">Anwesenheit</a></li></ul></nav><h1>Attendance</h1></main>`,[]);
   await new Promise(resolve=>setTimeout(resolve,0));
   try {
-    assert.equal(calls,0);
+    assert.equal(dom.window.__fetchCalls.filter(path=>path==='/my-tutor-classes').length,0);
     assert.equal(dom.window.document.querySelector('.admin-main-menu').classList.contains('teacher-main-menu'),false);
   } finally { dom.window.close(); }
 });

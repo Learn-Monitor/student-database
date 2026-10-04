@@ -93,6 +93,18 @@
         }
     }
 
+    async function isAdminSession() {
+        if (window.location.pathname !== '/attendance') return false;
+        try {
+            const response = await fetch('/dashboard', {credentials: 'same-origin', cache: 'no-store'});
+            if (!response.ok) return false;
+            const html = await response.text();
+            return html.includes('class="admin-main-menu"');
+        } catch {
+            return false;
+        }
+    }
+
     function activeDestination() {
         if (location.pathname === '/attendance') return '/attendance';
         if (location.pathname === '/student') return '/dashboard#student-progress';
@@ -108,7 +120,7 @@
 
         document.querySelectorAll('.teacher-main-menu').forEach(navigation => {
             navigation.querySelectorAll('a[href]').forEach(link => {
-                const target = new URL(link.getAttribute('href'), location.origin);
+                const target = new URL(link.getAttribute('href'), window.location.origin);
                 const linkDestination = `${target.pathname}${target.hash}`;
                 if (linkDestination === destination) link.setAttribute('aria-current', 'page');
                 else link.removeAttribute('aria-current');
@@ -116,9 +128,8 @@
         });
     }
 
-    function updateTeacherNavigation() {
-        const attendanceNavigation = document.querySelector('main.attendance > nav:first-child');
-        if (location.pathname === '/attendance' && attendanceNavigation && !attendanceNavigation.classList.contains('admin-main-menu')) {
+    function applyTeacherNavigation(attendanceNavigation) {
+        if (window.location.pathname === '/attendance' && attendanceNavigation && !attendanceNavigation.classList.contains('admin-main-menu')) {
             attendanceNavigation.classList.add('teacher-main-menu');
             attendanceNavigation.setAttribute('aria-label', 'Lehrkraftbereiche');
         }
@@ -128,10 +139,25 @@
 
         markActive();
 
-        if (navigation && location.pathname !== '/login' && !tutorLookupStarted) {
+        if (navigation && window.location.pathname !== '/login' && !tutorLookupStarted) {
             tutorLookupStarted = true;
             updateTutorAreaVisibility(navigation);
         }
+    }
+
+    function updateTeacherNavigation() {
+        const attendanceNavigation = document.querySelector('main.attendance > nav:first-child');
+        if (window.location.pathname !== '/attendance') {
+            applyTeacherNavigation(attendanceNavigation);
+            return;
+        }
+        isAdminSession().then(adminSession => {
+            if (adminSession) {
+                setTutorAreaAccess(false);
+                return;
+            }
+            applyTeacherNavigation(attendanceNavigation);
+        });
     }
 
     document.addEventListener('DOMContentLoaded', updateTeacherNavigation);
