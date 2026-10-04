@@ -445,6 +445,10 @@ main.attendance .admin-main-menu a:hover,
 main.attendance .admin-main-menu a:focus,
 main.attendance .admin-main-menu a[aria-current="page"] { color:#fffaf7; }
 main.attendance .help { color:var(--admin-muted); }
+main.attendance:not(.teacher-dashboard) .admin-main-menu {
+  background:var(--admin-sandstone-900);
+  box-shadow:0 3px 10px rgba(61,33,30,.2);
+}
 /* The school-wide attendance view is also reachable from the admin menu.
    Keep its teacher navigation, but use the same readable admin surfaces for
    filters, summaries and controls instead of the older blue plugin palette. */
