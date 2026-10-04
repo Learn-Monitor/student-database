@@ -33,7 +33,19 @@ import java.util.Set;
 public final class FixtureRunner {
     private FixtureRunner() {}
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
+        int exitCode = 0;
+        try { run(args); }
+        catch (Throwable failure) {
+            failure.printStackTrace(System.err);
+            exitCode = 1;
+        }
+        // Server creates a non-daemon session cleanup thread. The runner is
+        // disposable, so it must terminate after run() closes its resources.
+        System.exit(exitCode);
+    }
+
+    private static void run(String[] args) throws Exception {
         if (!"1".equals(System.getenv("ARCANUM_ADMIN_E2E")) || !has(args, "--confirm-admin-e2e")) {
             throw new IllegalArgumentException("A4b fixture guard confirmation missing");
         }
@@ -67,6 +79,8 @@ public final class FixtureRunner {
         server.getConnection().createTables();
         server.getConnection().migrateTables();
         System.out.println("A4b fixture: isolated schema ready");
+
+        try {
 
         String suffix = Long.toUnsignedString(new SecureRandom().nextLong(), 36);
         String adminPassword = password();
@@ -177,11 +191,14 @@ public final class FixtureRunner {
             // Touch the connection and make sure the fixture is persisted before the service starts.
             if (connection.isClosed()) throw new IllegalStateException("Fixture database did not persist");
         }
-        server.getConnection().close();
         System.out.println("A4b synthetic fixture prepared; credentials are in a mode-600 temp file.");
-        // Constructing the Server also creates the non-daemon session-cleanup
-        // thread. This disposable seeder process must exit before runtime startup.
-        System.exit(0);
+        } finally {
+            // Close the exact server created by this runner even when fixture
+            // creation fails halfway through. No unrelated process is touched.
+            // The fixture runner never starts the web listener, so closing the
+            // database connection is the complete owned-resource cleanup.
+            server.getConnection().close();
+        }
     }
 
     private static String password() {

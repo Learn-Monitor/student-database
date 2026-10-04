@@ -39,15 +39,26 @@ public final class DemoFixtureRunner {
                            String subjectEmail, String subjectPassword, String studentEmail, String studentPassword,
                            String adminPassword) {}
 
-    public static void main(String[] args) throws Exception {
-        String mode = value(args, "--mode", "");
-        run = value(args, "--run-id", "");
-        String db = value(args, "--database", "");
-        output = Path.of(value(args, "--output", "/tmp/arcanum-demo-fixture-" + run + ".json"));
-        guard(mode, db, args);
-        if ("create".equals(mode)) create();
-        else if ("cleanup".equals(mode)) cleanup();
-        else usage();
+    public static void main(String[] args) {
+        int exitCode = 0;
+        try {
+            String mode = value(args, "--mode", "");
+            run = value(args, "--run-id", "");
+            String db = value(args, "--database", "");
+            output = Path.of(value(args, "--output", "/tmp/arcanum-demo-fixture-" + run + ".json"));
+            guard(mode, db, args);
+            if ("create".equals(mode)) create();
+            else if ("cleanup".equals(mode)) cleanup();
+            else usage();
+        } catch (Throwable failure) {
+            failure.printStackTrace(System.err);
+            exitCode = 1;
+        } finally {
+            closeQuietly();
+        }
+        // Server creates a non-daemon session cleanup thread. Exit only after
+        // the database and web resources have been closed, including errors.
+        System.exit(exitCode);
     }
 
     private static void guard(String mode, String db, String[] args) throws IOException {
@@ -110,7 +121,6 @@ public final class DemoFixtureRunner {
         Fixture f = new Fixture(schoolClass.getId(), student.getId(), t1.getId(), t2.getId(), foreign.getId(), subject.getId(),
                 admin.getUsername(), semester.getId(), t1e,p,t2e,p2,fe,pf,se,ps,ue,pu, pa);
         writeJson(f, admin.getUsername());
-        close();
         System.out.println("created run=" + run + " output=" + output);
     }
 
@@ -131,7 +141,6 @@ public final class DemoFixtureRunner {
             for (String sql : statements) try (PreparedStatement s=c.prepareStatement(sql)) { s.setString(1, like); s.executeUpdate(); }
             return null;
         });
-        close();
         System.out.println("cleaned run=" + run);
     }
 
@@ -151,7 +160,14 @@ public final class DemoFixtureRunner {
     private static String randomPassword() { return "E2E!" + Long.toUnsignedString(new SecureRandom().nextLong(), 36) + "A9"; }
     private static String value(String[] a,String k,String d){for(int i=0;i<a.length-1;i++)if(a[i].equals(k))return a[i+1];return d;}
     private static boolean has(String[] a,String k){for(String x:a)if(x.equals(k))return true;return false;}
-    private static void close() throws SQLException { if(server!=null) { server.getConnection().close(); } server=null; }
+    private static void closeQuietly() {
+        if (server == null) return;
+        // These one-shot tools never start the web listener. Closing the
+        // database connection avoids the listener's unstarted-socket path.
+        try { server.getConnection().close(); }
+        catch (SQLException failure) { failure.printStackTrace(System.err); }
+        finally { server = null; }
+    }
     private static void fail(String s){throw new IllegalArgumentException("DEMO fixture refused: "+s);}
     private static void usage(){throw new IllegalArgumentException("usage: --mode create|cleanup --database /srv/arcanum/demo/shared/database.db --run-id E2E_TUTOR_GRAD_<id> --confirm-demo-fixture");}
 }
