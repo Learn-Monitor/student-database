@@ -8,7 +8,11 @@ import org.slf4j.LoggerFactory;
 import de.igslandstuhl.database.Registry;
 import de.igslandstuhl.database.api.User;
 import de.igslandstuhl.database.server.Server;
+import de.igslandstuhl.database.server.resources.ResourceLocation;
+import de.igslandstuhl.database.server.webserver.ContentType;
+import de.igslandstuhl.database.server.webserver.Status;
 import de.igslandstuhl.database.server.webserver.WebPath;
+import de.igslandstuhl.database.server.webserver.access.AccessLevel;
 import de.igslandstuhl.database.server.webserver.handlers.get.PluginRequestHandler;
 import de.igslandstuhl.database.server.webserver.requests.GetRequest;
 import de.igslandstuhl.database.server.webserver.requests.RequestType;
@@ -84,5 +88,11 @@ public class GetRequestHandler {
             };
             HttpHandler.registerGetRequestHandler(pathInfo.path(), webPath.accessLevel(), handlerFunction);
         }
+        HttpHandler.registerGetRequestHandler("/logout", AccessLevel.USER, request -> {
+            Server.getInstance().getWebServer().getSessionManager().logout(request);
+            return new GetResponse(request, Status.OK,
+                    new ResourceLocation("html", "public", "arcanum-logout.html"),
+                    ContentType.HTML, "", false, false);
+        });
     }
 }
