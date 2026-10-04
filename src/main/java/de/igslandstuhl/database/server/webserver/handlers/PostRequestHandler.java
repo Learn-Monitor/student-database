@@ -651,7 +651,7 @@ public class PostRequestHandler {
         });
         HttpHandler.registerPostRequestHandler("/logout", AccessLevel.USER, (rq) -> {
             Server.getInstance().getWebServer().getSessionManager().logout(rq);
-            return PostResponse.redirect("/arcanum-logout.html", rq);
+            return PostResponse.redirect("/arcanum-logout.html?session=ended", rq);
         });
     }
     static PostResponse handleSubjectRequest(APIPostRequest rq) throws SQLException {
