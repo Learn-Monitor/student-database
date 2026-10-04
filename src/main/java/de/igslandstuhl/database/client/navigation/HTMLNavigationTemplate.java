@@ -30,8 +30,9 @@ public record HTMLNavigationTemplate(NavigationAppearance appearance, Navigation
             case "/dashboard#overview" -> 0;
             case "/dashboard#curriculum" -> 1;
             case "/dashboard#student-progress" -> 2;
-            case "/dashboard#tutor-area" -> 3;
-            case "/attendance" -> 4;
+            case "/dashboard#schoolwide-stage-overview" -> 3;
+            case "/dashboard#tutor-area" -> 4;
+            case "/attendance" -> 5;
             default -> 5;
         };
     }

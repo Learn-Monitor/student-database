@@ -8,5 +8,5 @@
         <a href="/dashboard#rechte">Rechte</a>
         <a href="/dashboard#system">System</a>
     </div>
-    <div class="admin-main-menu-account"><span>Adminbereich</span><a class="admin-main-menu-logout" href="/logout">Abmelden</a></div>
+    <div class="admin-main-menu-account"><span>Adminbereich</span><form action="/logout" method="post"><input type="hidden" name="test-key" value="Value just so BadRequest is not triggered because of an empty post request"><button class="admin-main-menu-logout" href="/logout" type="submit">Abmelden</button></form></div>
 </nav>

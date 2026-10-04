@@ -143,12 +143,18 @@ public final class CurriculumRequestHandler {
                 Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
                 return PostResponse.jsonWithNulls(service.weeklyConversationOverview(actor,integer(rq,"semesterId"),integer(rq,"classId")),rq);
             }
+            if(rq.getPath().equals("/teacher-schoolwide-stage-overview")) {
+                if(!rq.getJson().isEmpty()) throw new CurriculumException(400,"invalid_input","No selection is accepted.");
+                return PostResponse.jsonWithNulls(service.schoolwideStageOverview(Curriculum.Actor.from(rq.getUser())),rq);
+            }
             if(rq.getPath().equals("/change-tutor-graduation")) {
                 if(!rq.getJson().keySet().equals(Set.of("studentId","semesterId","graduationLevel"))) throw new CurriculumException(400,"invalid_input","studentId, semesterId and graduationLevel are required.");
                 Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
                 return PostResponse.jsonWithNulls(service.changeTutorGraduation(actor,integer(rq,"studentId"),integer(rq,"semesterId"),integer(rq,"graduationLevel")),rq);
             }
             Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
+            if(rq.getPath().equals("/curriculum-teacher-roster") && rq.getJson().isEmpty())
+                return PostResponse.jsonWithNulls(service.schoolwideStageOverview(actor),rq);
             CurriculumEnrollment enrollment=new CurriculumEnrollment(service);
             Object result;
             boolean includeNulls=false;

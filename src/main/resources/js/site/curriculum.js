@@ -758,16 +758,40 @@ document.addEventListener('DOMContentLoaded', async () => {
             const panel=el('section');panel.className='central-curriculum-import';root.append(panel);
             panel.append(el('h3','Zentrales Curriculum importieren'));
             const controls=el('div');panel.append(controls);
-            const importSemester=el('select'), importGrade=el('select'), file=el('input');file.type='file';file.accept='.csv,text/csv';
-            for(const item of catalog.semesters){const option=el('option',item.label||item.name);option.value=item.id;importSemester.append(option);}
+            const importYear=el('select'), importSemester=el('select'), importGrade=el('select'), file=el('input');file.type='file';file.accept='.csv,text/csv';
+            const hasYearMetadata=(catalog.semesters||[]).some(item=>item.schoolYearId!=null);
+            const years=uniqueBy((catalog.semesters||[]).filter(item=>item.schoolYearId!=null),item=>Number(item.schoolYearId));
+            for(const item of years){const option=el('option',item.schoolYearLabel||'Schuljahr unbekannt');option.value=item.schoolYearId;importYear.append(option);}
             for(let i=1;i<=13;i++){const option=el('option',String(i));option.value=String(i);importGrade.append(option);}
-            controls.append(el('label','Halbjahr '),importSemester,el('label',' Jahrgang '),importGrade,el('label',' CSV-Datei '),file);
+            controls.append(el('label','Schuljahr '),importYear,el('label',' Halbjahr '),importSemester,el('label',' Jahrgang '),importGrade,el('label',' CSV-Datei '),file);
             const previewButton=el('button','Vorschau prüfen');previewButton.type='button';const importButton=el('button','Import bestätigen');importButton.type='button';importButton.disabled=true;controls.append(previewButton,importButton);
             panel.append(el('p','Format: Fach;Themennummer;Themenname;Etappennummer;Etappenname;Muenzen'));
             const filterBox=el('div'), subjectFilter=el('select'), textFilter=el('input');textFilter.placeholder='Themen-/Etappenname filtern';filterBox.append(subjectFilter,textFilter);panel.append(filterBox);
             const sums=el('div'), previewArea=el('div'), overviewArea=el('div');panel.append(sums,previewArea,overviewArea);
             let currentCsv='',currentPreview=null;
             const selected=()=>({grade:Number(importGrade.value),semesterId:Number(importSemester.value)});
+            const refreshSemesters=({preferActive=true}={})=>{
+                const yearId=Number(importYear.value), previous=Number(importSemester.value);
+                importSemester.replaceChildren();
+                const available=(catalog.semesters||[]).filter(item=>Number(item.schoolYearId)===yearId);
+                const active=available.find(item=>item.active===true||item.active===1);
+                for(const item of available){const option=el('option',`${item.label}${item.active?' · AKTIV':''}${item.archived?' · ARCHIVIERT':''}`);option.value=item.id;importSemester.append(option);}
+                const keep=available.some(item=>Number(item.id)===previous) ? previous : (preferActive&&active ? Number(active.id) : null);
+                if(keep==null){importSemester.replaceChildren(el('option','Für dieses Schuljahr ist kein aktives Halbjahr festgelegt.'));importSemester.firstChild.value='';importSemester.disabled=true;}
+                else {importSemester.disabled=false;importSemester.value=String(keep);}
+                const noActive=!active;
+                if(noActive) message.textContent='Für das ausgewählte Schuljahr ist kein aktives Halbjahr festgelegt. Bitte kein beliebiges Halbjahr auswählen.';
+                else if(importSemester.disabled) message.textContent='';
+                previewButton.disabled=noActive||importSemester.disabled;
+            };
+            if(years.length){const activeYear=years.find(year=>(catalog.semesters||[]).some(item=>Number(item.schoolYearId)===Number(year.schoolYearId)&&(item.active===true||item.active===1)));if(activeYear)importYear.value=String(activeYear.schoolYearId);}
+            if (hasYearMetadata) refreshSemesters();
+            else {
+                for(const item of (catalog.semesters||[])){const option=el('option',item.label||item.name);option.value=item.id;importSemester.append(option);}
+                const active=(catalog.semesters||[]).find(item=>item.active===true||item.active===1);
+                if(active) importSemester.value=String(active.id);
+                importYear.hidden=true;
+            }
             async function readCsv(){const selectedFile=file.files&&file.files[0];if(!selectedFile)throw Error('Bitte eine CSV-Datei auswählen.');if(typeof selectedFile.text==='function')return selectedFile.text();return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(Error('CSV-Datei konnte nicht gelesen werden.'));reader.readAsText(selectedFile,'UTF-8');});}
             function renderSubjects(subjects=[]){sums.replaceChildren();subjectFilter.replaceChildren(el('option','Alle Fächer'));subjectFilter.firstChild.value='';for(const subject of subjects){const option=el('option',subject.subjectName);option.value=String(subject.subjectId);subjectFilter.append(option);const line=el('p',`${subject.subjectName}: ${subject.centralTokens} / 100 zentrale Münzen. Rest regulär: ${subject.remainingRegular}; Rest bis absolute Grenze: ${subject.remainingHard}.`);if(subject.warning)line.style.color='darkred';sums.append(line);}}
             function table(headers, rows, area) {
@@ -780,7 +804,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             async function reloadOverview(){const overview=await post('/central-curriculum-overview',selected());renderOverview(overview);}
             previewButton.addEventListener('click',async()=>{try{currentCsv=await readCsv();currentPreview=await post('/preview-central-curriculum-import',{...selected(),csv:currentCsv});renderPreview(currentPreview);}catch(error){showError(error);}});
             importButton.addEventListener('click',async()=>{try{if(!currentPreview?.canImport)return;if(!confirm('Die angezeigten Themen und Etappen jetzt übernehmen?'))return;await post('/import-central-curriculum',{...selected(),csv:currentCsv});message.textContent='Import erfolgreich.';message.style.color='';importButton.disabled=true;await reloadOverview();}catch(error){showError(error);}});
-            importSemester.addEventListener('change',()=>reloadOverview().catch(showError));importGrade.addEventListener('change',()=>reloadOverview().catch(showError));await reloadOverview().catch(showError);
+            importYear.addEventListener('change',()=>{refreshSemesters();reloadOverview().catch(showError);});importSemester.addEventListener('change',()=>reloadOverview().catch(showError));importGrade.addEventListener('change',()=>reloadOverview().catch(showError));await reloadOverview().catch(showError);
         }
         schoolClass.addEventListener('change',()=>{rebuildTeacherSubjects();refresh().catch(showError);});
         for(const node of [subject,semester,teacher,grade].filter(Boolean))node.addEventListener('change',()=>refresh().catch(showError));

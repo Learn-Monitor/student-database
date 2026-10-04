@@ -142,6 +142,8 @@ table tr:last-child td {
 .admin-main-menu a:focus-visible { outline:3px solid #ffbf47; outline-offset:2px; }
 .admin-main-menu-account { display:flex; align-items:center; gap:.7rem; margin-left:auto; color:#fff; font-weight:700; }
 .admin-main-menu-logout { background:#0f2338; white-space:nowrap; }
+.admin-main-menu-account form { margin:0; }
+.admin-main-menu-logout { border:0; color:inherit; font:inherit; cursor:pointer; padding:.62rem .72rem; }
 .admin-function-page { margin:1rem 0; padding:1rem 1.2rem; background:#fff; border:1px solid #d9e1ea; border-radius:.7rem; box-shadow:0 2px 8px #172b4d12; scroll-margin-top:5rem; }
 .semester-landing { display:block; margin:1rem 0; }
 .semester-create-panel, .semester-manage-panel { min-height:12rem; padding:1.2rem; background:#fff; border:1px solid #d9e1ea; border-radius:.7rem; box-shadow:0 2px 8px #172b4d12; }
@@ -500,6 +502,11 @@ main.attendance .help { color:var(--admin-muted); }
 .teacher-topic-flexible { border-left-color:#8b5e34; }
 .teacher-topic-panel > summary { padding:.7rem 0; color:#17324d; font-weight:700; cursor:pointer; }
 .teacher-stage-row { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem; padding:.55rem .65rem; background:#fff; border:1px solid #e3e9ef; border-radius:.4rem; }
+.teacher-stage-overview-filters { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:.6rem; margin:0 0 1rem; }
+.teacher-stage-overview-filters label { display:grid; gap:.25rem; font-weight:700; }
+.teacher-stage-overview-table { width:100%; }
+.teacher-stage-overview-table th button { border:0; background:transparent; color:inherit; font:inherit; font-weight:700; cursor:pointer; padding:0; text-align:left; }
+@media (max-width: 760px) { .teacher-stage-overview-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .teacher-topic-panel form { display:flex; flex-wrap:wrap; align-items:end; gap:.5rem; margin:.6rem 0; padding:.6rem; background:#edf4f9; border-radius:.4rem; }
 .teacher-topic-panel form label { display:flex; flex-direction:column; gap:.25rem; font-weight:700; }
 .teacher-topic-panel form select { margin:0; }

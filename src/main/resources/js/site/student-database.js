@@ -282,10 +282,26 @@ async function populateSubjectStudentList(subjectSelectId, classSelectId, studen
   });
 }
 async function populatePartnerSubjectStudentList(subjectId) {
-    const students = await searchPartner(subjectId);
-
     const studentTable = document.getElementById("studentTableBody");
+    if (!studentTable) return;
     studentTable.innerHTML = ""; // clear previous rows
+    const status = document.getElementById('partnerSearchStatus');
+    if (status) status.textContent = 'Partner werden gesucht …';
+    let students;
+    try {
+        students = await searchPartner(subjectId);
+    } catch (error) {
+        const message = String(error?.message || '');
+        if (status) status.textContent = message.includes('aktive Etappe')
+            ? 'Wähle zuerst eine Etappe aus, bevor du die Partnersuche aktivierst.'
+            : 'Die Partnersuche konnte nicht geladen werden. Bitte später erneut versuchen.';
+        return;
+    }
+    if (!Array.isArray(students) || students.length === 0) {
+        if (status) status.textContent = 'Für diese Etappe sind derzeit keine passenden Partner verfügbar.';
+        return;
+    }
+    if (status) status.textContent = `${students.length} passende Partner gefunden.`;
     students.forEach(student => {
         const row = document.createElement('tr');
         const nameCell = document.createElement('td');

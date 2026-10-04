@@ -1,5 +1,5 @@
 (() => {
-    const dashboardSections = new Set(['overview', 'curriculum', 'student-progress', 'tutor-area']);
+    const dashboardSections = new Set(['overview', 'curriculum', 'student-progress', 'schoolwide-stage-overview', 'tutor-area']);
     const tutorAreaPath = '/dashboard#tutor-area';
     let tutorLookupStarted = false;
 
@@ -24,9 +24,22 @@
         item.append(link);
         const attendanceLink = [...navigation.querySelectorAll('a[href]')]
             .find(link => link.getAttribute('href') === '/attendance');
-        if (attendanceLink?.closest('li')) attendanceLink.closest('li').before(item);
+        const schoolwide = [...navigation.querySelectorAll('a[href]')]
+            .find(link => link.getAttribute('href') === '/dashboard#schoolwide-stage-overview');
+        if (schoolwide?.closest('li')) schoolwide.closest('li').before(item);
+        else if (attendanceLink?.closest('li')) attendanceLink.closest('li').before(item);
         else studentProgressLink.closest('li')?.after(item);
         return item;
+    }
+
+    function schoolwideOverviewItem(navigation) {
+        if ([...navigation.querySelectorAll('a[href]')].some(link => link.getAttribute('href') === '/dashboard#schoolwide-stage-overview')) return;
+        const progress = [...navigation.querySelectorAll('a[href]')]
+            .find(link => link.getAttribute('href') === '/dashboard#student-progress');
+        if (!progress) return;
+        const item = document.createElement('li');
+        const link = document.createElement('a'); link.href = '/dashboard#schoolwide-stage-overview'; link.textContent = 'Gelingensnachweise';
+        item.append(link); progress.closest('li')?.after(item);
     }
 
     function removeTutorAreaItem() {
@@ -111,7 +124,7 @@
         }
 
         const navigation = document.querySelector('.teacher-main-menu');
-        if (navigation) integrateTeacherLogout(navigation);
+        if (navigation) { integrateTeacherLogout(navigation); schoolwideOverviewItem(navigation); }
 
         markActive();
 

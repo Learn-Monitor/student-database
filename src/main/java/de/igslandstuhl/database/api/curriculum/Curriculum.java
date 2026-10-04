@@ -59,6 +59,69 @@ public final class Curriculum {
     }
     public record StudentProgressDetail(int studentId, String studentName, int subjectId, int semesterId,
                                         List<StudentStageProgress> stages) {}
+    /** Read-only entries for the school-wide teacher overview. */
+    public List<Map<String,Object>> schoolwideStageOverview(Actor actor) throws SQLException {
+        if (actor == null) throw error(401, "unauthorized", "Please sign in.");
+        return transaction(c -> {
+            int semester = currentSemester(c);
+            Map<String,Map<String,Object>> entries = new LinkedHashMap<>();
+            for (var row : rows(c,
+                    "SELECT s.id AS studentId,s.first_name AS firstName,s.last_name AS lastName,cl.label AS className,"
+                    + "ctx.subject,COALESCE(a.central_task,a.flexible_task) AS stageId,"
+                    + "CASE WHEN a.central_task IS NOT NULL THEN 'CENTRAL' ELSE 'FLEXIBLE' END AS stageType,"
+                    + "COALESCE(ct.name,ft.name) AS stageName "
+                    + "FROM student_subject_requests r "
+                    + "JOIN students s ON s.id=r.student JOIN classes cl ON cl.id=s.class "
+                    + "JOIN student_curriculum_contexts ctx ON ctx.student=s.id AND ctx.subject=r.subject AND ctx.semester=r.semester "
+                    + "JOIN student_active_curriculum_stages a ON a.student=r.student AND a.subject=r.subject AND a.semester=r.semester "
+                    + "LEFT JOIN tasks ct ON ct.id=a.central_task "
+                    + "LEFT JOIN flexible_tasks ft ON ft.id=a.flexible_task "
+                    + "WHERE r.semester=? AND r.request_type='EXAM' AND COALESCE(s.active,1)=1 AND cl.active=1 AND cl.id<>0",
+                    semester)) {
+                String key = row.get("studentId")+":"+row.get("subject")+":"+row.get("stageType")+":"+row.get("stageId");
+                Map<String,Object> entry = new LinkedHashMap<>();
+                entry.put("studentId", integer(row,"studentId")); entry.put("firstName", row.get("firstName"));
+                entry.put("lastName", row.get("lastName")); entry.put("className", row.get("className"));
+                entry.put("stage", row.get("stageName")); entry.put("entry", "Bereit für den Gelingensnachweis");
+                entries.put(key, entry);
+            }
+            for (var row : rows(c,
+                    "SELECT s.id AS studentId,s.first_name AS firstName,s.last_name AS lastName,cl.label AS className,"
+                    + "a.subject,a.stage_type AS stageType,a.stage_id AS stageId,"
+                    + "CASE WHEN a.stage_type='CENTRAL' THEN ct.name ELSE ft.name END AS stageName,a.status "
+                    + "FROM student_curriculum_stage_assessments a "
+                    + "JOIN students s ON s.id=a.student JOIN classes cl ON cl.id=s.class "
+                    + "JOIN student_curriculum_contexts ctx ON ctx.student=a.student AND ctx.subject=a.subject AND ctx.semester=a.semester "
+                    + "LEFT JOIN tasks ct ON a.stage_type='CENTRAL' AND ct.id=a.stage_id "
+                    + "LEFT JOIN flexible_tasks ft ON a.stage_type='FLEXIBLE' AND ft.id=a.stage_id "
+                    + "WHERE a.semester=? AND a.status IN ('FAILED_ONCE','FAILED_TWICE','LOCKED') "
+                    + "AND COALESCE(s.active,1)=1 AND cl.active=1 AND cl.id<>0",
+                    semester)) {
+                String key = row.get("studentId")+":"+row.get("subject")+":"+row.get("stageType")+":"+row.get("stageId");
+                String status = switch (String.valueOf(row.get("status"))) {
+                    case "FAILED_ONCE" -> "1x nicht bestanden";
+                    case "FAILED_TWICE" -> "2x nicht bestanden";
+                    case "LOCKED" -> "gesperrt";
+                    default -> String.valueOf(row.get("status"));
+                };
+                Map<String,Object> entry = entries.get(key);
+                if (entry == null) {
+                    entry = new LinkedHashMap<>();
+                    entry.put("studentId", integer(row,"studentId")); entry.put("firstName", row.get("firstName"));
+                    entry.put("lastName", row.get("lastName")); entry.put("className", row.get("className"));
+                    entry.put("stage", row.get("stageName")); entries.put(key, entry);
+                }
+                String old = String.valueOf(entry.getOrDefault("entry", ""));
+                entry.put("entry", old.isBlank() ? status : old + "; " + status);
+            }
+            var result = new ArrayList<>(entries.values());
+            result.sort(Comparator.comparing((Map<String,Object> r) -> String.valueOf(r.get("lastName")), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(r -> String.valueOf(r.get("firstName")), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(r -> String.valueOf(r.get("className")))
+                    .thenComparing(r -> String.valueOf(r.get("stage"))));
+            return result;
+        });
+    }
     public static int noteForTokens(long tokens) {
         if (tokens >= 90) return 1;
         if (tokens >= 75) return 2;
@@ -1157,7 +1220,9 @@ public final class Curriculum {
         return transaction(c->{Map<String,Object> out=new LinkedHashMap<>();out.put("admin",actor.admin());out.put("enrollmentEnabled",true);out.put("teacherId",actor.teacherId());
             out.put("subjects",rows(c,actor.admin()?"SELECT id,name FROM subjects ORDER BY name":"SELECT s.id,s.name FROM subjects s JOIN teacher_subjects t ON t.subject_id=s.id WHERE t.teacher_id=? ORDER BY s.name",actor.admin()?new Object[]{}:new Object[]{actor.teacherId()}));
             out.put("classes",rows(c,actor.admin()?"SELECT id,label,grade FROM classes WHERE active=1 AND id<>0 ORDER BY grade,label":"SELECT s.id,s.label,s.grade FROM classes s JOIN teacher_classes t ON t.class_id=s.id WHERE t.teacher_id=? AND s.active=1 AND s.id<>0 ORDER BY s.grade,s.label",actor.admin()?new Object[]{}:new Object[]{actor.teacherId()}));
-            out.put("semesters",rows(c,"SELECT id,label,school_year FROM semesters ORDER BY school_year,position"));
+            out.put("semesters",rows(c,"SELECT s.id,s.label,s.school_year AS schoolYearId,y.label AS schoolYearLabel,"
+                    + "COALESCE(s.archived,0) AS archived,CASE WHEN y.current_semester=s.id THEN 1 ELSE 0 END AS active "
+                    + "FROM semesters s JOIN school_years y ON y.id=s.school_year ORDER BY s.school_year,s.position"));
             if(!actor.admin()) out.put("contexts",teacherContexts(c,actor.teacherId()));
             if(actor.admin()) out.put("teachers",rows(c,"SELECT id,first_name,last_name FROM teachers ORDER BY id"));
             return out;});
