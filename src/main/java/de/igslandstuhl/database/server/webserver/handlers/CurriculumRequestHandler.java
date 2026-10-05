@@ -29,6 +29,7 @@ public final class CurriculumRequestHandler {
         HttpHandler.registerPostRequestHandler("/change-tutor-graduation",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-progress",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-catalog",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
+        HttpHandler.registerPostRequestHandler("/my-completed-results",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/my-curriculum-subjects",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/begin-flexible-task",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/cancel-flexible-task",AccessLevel.STUDENT,CurriculumRequestHandler::handle);
@@ -118,6 +119,13 @@ public final class CurriculumRequestHandler {
                 if(rq.getPath().equals("/my-curriculum-catalog"))
                     return PostResponse.jsonWithNulls(service.studentCatalog(rq.getUser(),subject,semester),rq);
                 return PostResponse.json(service.studentProgress(rq.getUser(),subject,semester),rq);
+            }
+            if(rq.getPath().equals("/my-completed-results")) {
+                if(!rq.getJson().isEmpty()) throw new CurriculumException(400,"invalid_input","No client scope is accepted.");
+                if(rq.getUser()==null || rq.getUser()==de.igslandstuhl.database.api.User.ANONYMOUS)
+                    throw new CurriculumException(401,"unauthorized","Please sign in.");
+                if(!rq.getUser().isStudent()) throw new CurriculumException(403,"forbidden","Student session required.");
+                return PostResponse.jsonWithNulls(service.studentCompletedResults(rq.getUser()),rq);
             }
             if(rq.getPath().equals("/set-curriculum-stage-assessment")) {
                 Set<String> allowed=Set.of("studentId","subjectId","classId","semesterId","stageType","stageId","status");
