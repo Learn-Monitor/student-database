@@ -494,6 +494,13 @@ main.attendance.admin-dashboard-page .admin-main-menu {
   background:var(--admin-sandstone-900);
   box-shadow:0 3px 10px rgba(61,33,30,.2);
 }
+/* The page-wide admin link color must not leak into the dark navigation. */
+main.attendance.admin-dashboard-page .admin-main-menu a,
+main.attendance.admin-dashboard-page .admin-main-menu a:hover,
+main.attendance.admin-dashboard-page .admin-main-menu a:focus,
+main.attendance.admin-dashboard-page .admin-main-menu a[aria-current="page"] {
+  color:#fffaf7;
+}
 /* The school-wide attendance view uses the teacher palette; the admin view above uses sandstone. */
 main.attendance.teacher-dashboard .filters {
   background:#f8fbfd !important;
