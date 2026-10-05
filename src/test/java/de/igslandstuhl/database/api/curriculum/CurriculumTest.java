@@ -712,6 +712,7 @@ class CurriculumTest {
             exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",subject,"Grouped HTTP-"+id);
             exec(c,"INSERT INTO curriculum_subject_types(subject,wpf,mode,assignment_group) VALUES(?,1,'INDIVIDUAL','WPF')",subject);
             exec(c,"INSERT INTO course_groups(id,subject,grade,semester,teacher,assignment_group,name) VALUES(?,?,5,?,?,?,?)",group,subject,id,id,"WPF","Grouped HTTP-"+id);
+            exec(c,"INSERT INTO curriculum_grade_teachers(semester,grade,subject,teacher) VALUES(?,5,?,?)",id,subject,id);
             exec(c,"INSERT INTO students(id,first_name,last_name,email,password,class,graduation_level) VALUES(?,'Other','Homeclass',?,'unused',?,1)",otherStudent,"other-homeclass"+id+"@example.invalid",id+1);
             exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade,course_group) VALUES(?,?,?,?,?,5,?)",id,subject,id,id,id,group);
             exec(c,"INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade,course_group) VALUES(?,?,?,?,?,5,?)",otherStudent,subject,id,id,id+1,group);

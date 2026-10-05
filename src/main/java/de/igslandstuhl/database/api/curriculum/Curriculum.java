@@ -611,11 +611,10 @@ public final class Curriculum {
         int grade=integer(require(c,"SELECT grade FROM classes WHERE id=?",scope.classId()),"grade");
         if(!managedTeacher(c,scope,grade))
             throw error(403,"forbidden","Teacher must be assigned to this managed curriculum context.");
-        var context=rows(c,"SELECT teacher,class,grade,course_group FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=?",
-                studentId,scope.subjectId(),scope.semesterId());
+        var context=rows(c,"SELECT teacher,class,grade,course_group FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=? AND teacher=? AND class=? AND grade=?",
+                studentId,scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),grade);
         boolean individual=individualSubject(c,scope.subjectId());
-        boolean valid=!context.isEmpty() && integer(context.get(0),"teacher")==scope.teacherId()
-                && integer(context.get(0),"grade")==grade;
+        boolean valid=!context.isEmpty();
         if(individual && valid) {
             Integer group=context.get(0).get("course_group")==null?null:integer(context.get(0),"course_group");
             valid=group!=null && group==resolveScope(c,scope).courseGroupId()
