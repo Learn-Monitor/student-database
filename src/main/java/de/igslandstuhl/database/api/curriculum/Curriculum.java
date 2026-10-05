@@ -687,47 +687,6 @@ public final class Curriculum {
         });
     }
 
-    /** Read-only results view containing only confirmed achievements. */
-    public Map<String,Object> studentCompletedResults(User user) throws SQLException {
-        if(user==null || user==User.ANONYMOUS) throw error(401,"unauthorized","Please sign in.");
-        if(!user.isStudent()) throw error(403,"forbidden","Student session required.");
-        int studentId=user.asStudent().getId();
-        return transaction(c -> {
-            require(c,"SELECT id FROM students WHERE id=? AND COALESCE(active,1)=1",studentId);
-            int semester=currentSemester(c);
-            var assignedSubjects=rows(c,"SELECT DISTINCT s.id,s.name FROM student_curriculum_contexts x JOIN subjects s ON s.id=x.subject "
-                    +"WHERE x.student=? AND x.semester=? ORDER BY s.id",studentId,semester);
-            List<Map<String,Object>> subjects=new ArrayList<>();
-            for(var subject:assignedSubjects) {
-                int subjectId=integer(subject,"id");
-                var assignment=assigned(c,studentId,subjectId,semester);
-                var earned=progress(c,studentId,assignmentScope(assignment,subjectId,semester));
-                List<Map<String,Object>> completed=new ArrayList<>();
-                for(Object value:(List<?>)earned.get("completedCentralTasks")) {
-                    CompletedCentralTask task=(CompletedCentralTask)value;
-                    Map<String,Object> item=new LinkedHashMap<>();
-                    item.put("id",task.id()); item.put("name",task.name()); item.put("tokens",task.tokens());
-                    item.put("niveau",task.niveau()); item.put("stageNumber",task.stageNumber());
-                    item.put("topicId",task.topicId()); item.put("topicName",task.topicName()); item.put("type","CENTRAL");
-                    completed.add(item);
-                }
-                for(Object value:(List<?>)earned.get("completedFlexibleTasks")) {
-                    CompletedFlexibleTask task=(CompletedFlexibleTask)value;
-                    Map<String,Object> item=new LinkedHashMap<>();
-                    item.put("id",task.id()); item.put("name",task.name()); item.put("tokens",task.tokens()); item.put("type","FLEXIBLE");
-                    completed.add(item);
-                }
-                String name=(String)subject.get("name");
-                Map<String,Object> item=new LinkedHashMap<>();
-                item.put("id",subjectId); item.put("name",name); item.put("displayName",Subject.displayName(name));
-                item.put("displayOrder",Subject.displayOrder(name)); item.put("completedTasks",completed);
-                subjects.add(item);
-            }
-            subjects.sort(Comparator.comparingInt((Map<String,Object> value) -> integer(value,"displayOrder"))
-                    .thenComparing((Map<String,Object> value) -> String.valueOf(value.get("displayName")),String.CASE_INSENSITIVE_ORDER));
-            return Map.of("semesterId",semester,"subjects",subjects);
-        });
-    }
     public List<PartnerCandidate> partnerCandidates(int studentId,int subjectId) throws SQLException {
         return transaction(c->{
             int semester=currentSemester(c);

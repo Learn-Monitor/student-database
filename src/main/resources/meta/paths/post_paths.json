@@ -465,12 +465,6 @@
         "namespaces": [],
         "access_level": "student"
     },
-    "/my-completed-results": {
-        "type": "POST",
-        "handler_type": "PostRequestHandler",
-        "namespaces": [],
-        "access_level": "student"
-    },
     "/begin-flexible-task": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
