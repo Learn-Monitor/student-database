@@ -252,23 +252,21 @@ test('teacher without active contexts sees message and sends no curriculum detai
   assert.equal(requests.filter(r=>['/curriculum-structure','/curriculum-budget','/flexible-curriculum-structure'].includes(r.url)).length,0);
  }finally{dom.window.close();}
 });
-test('student progress filters use active canonical contexts only',async()=>{
+test('student progress offers one selector with active canonical contexts only',async()=>{
  const{dom,requests}=await setup(false,{progress:true});
  try{
   const progress=dom.window.document.querySelector('#student-progress');
   assert.ok(progress.querySelector('button').textContent.includes('Aktualisieren'));
-  assert.deepEqual(optionsOf(progress.querySelector('[name=classId]')).map(option=>option.text),['5a','5b']);
-  assert.deepEqual(optionsOf(progress.querySelector('[name=subjectId]')).map(option=>option.text),['Math']);
+  const contextSelect=progress.querySelector('[name=teachingContext]');
+  assert.deepEqual(optionsOf(contextSelect).map(option=>option.text),['H1 · 5a · Math','H1 · 5b · Math','H1 · 5b · Science']);
   assert.equal(progress.querySelector('[name=semesterId]'),null);
   assert.equal(progress.querySelector('[name=teacherId]'),null);
   assert.equal(progress.querySelector('[name=grade]'),null);
   assert.doesNotMatch(progress.textContent,/Legacy class|Legacy only|History/);
   assert.deepEqual(requests.filter(r=>r.url==='/curriculum-teacher-roster').at(0).data,{subjectId:1,semesterId:20,classId:10,teacherId:7});
-  const classSelect=progress.querySelector('[name=classId]'),subjectSelect=progress.querySelector('[name=subjectId]');
-  classSelect.value='11';classSelect.dispatchEvent(new dom.window.Event('change'));await tick();
-  assert.deepEqual(optionsOf(subjectSelect),[{value:'1',text:'Math'},{value:'3',text:'Science'}]);
+  contextSelect.value='1';contextSelect.dispatchEvent(new dom.window.Event('change'));await tick();
   assert.deepEqual(requests.filter(r=>r.url==='/curriculum-teacher-roster').at(-1).data,{subjectId:1,semesterId:20,classId:11,teacherId:7});
-  subjectSelect.value='3';subjectSelect.dispatchEvent(new dom.window.Event('change'));await tick();
+  contextSelect.value='2';contextSelect.dispatchEvent(new dom.window.Event('change'));await tick();
   assert.deepEqual(requests.filter(r=>r.url==='/curriculum-teacher-roster').at(-1).data,{subjectId:3,semesterId:20,classId:11,teacherId:7});
   const before=requests.filter(r=>r.url==='/curriculum-teacher-roster').length;
   progress.querySelector('button').click();await tick();
@@ -332,12 +330,12 @@ test('student progress handles empty roster and safe text rendering',async()=>{
  }finally{env.dom.window.close();}
 });
 test('student progress blocks stale roster responses',async()=>{
- const pending=new Map();
+  const pending=new Map();
  const rosterHandler=data=>new Promise(resolve=>pending.set(data.classId,resolve));
  const{dom}=await setup(false,{progress:true,rosterHandler});
  try{
-  const progress=dom.window.document.querySelector('#student-progress'),classSelect=progress.querySelector('[name=classId]');
-  classSelect.value='11';classSelect.dispatchEvent(new dom.window.Event('change'));await tick();
+  const progress=dom.window.document.querySelector('#student-progress'),contextSelect=progress.querySelector('[name=teachingContext]');
+  contextSelect.value='1';contextSelect.dispatchEvent(new dom.window.Event('change'));await tick();
   pending.get(11)([{id:11,name:'Fresh Class',activeStage:null,signals:{help:false,partner:false,experiment:false,exam:false}}]);await tick();
   assert.match(progress.textContent,/Fresh Class/);
   pending.get(10)([{id:10,name:'Stale Class',activeStage:null,signals:{help:false,partner:false,experiment:false,exam:false}}]);await tick();
@@ -376,7 +374,7 @@ test('student progress detail ignores stale responses after context changes',asy
  try{
   const progress=dom.window.document.querySelector('#student-progress');
   [...progress.querySelectorAll('button')].find(button=>button.textContent==='Details').click();await tick();
-  const classSelect=progress.querySelector('[name=classId]');classSelect.value='11';classSelect.dispatchEvent(new dom.window.Event('change'));await tick();
+  const contextSelect=progress.querySelector('[name=teachingContext]');contextSelect.value='1';contextSelect.dispatchEvent(new dom.window.Event('change'));await tick();
   resolveDetail({studentId:50,studentName:'Stale Detail',subjectId:1,semesterId:20,stages:[]});await tick();
   assert.doesNotMatch(progress.textContent,/Stale Detail/);
  }finally{dom.window.close();}

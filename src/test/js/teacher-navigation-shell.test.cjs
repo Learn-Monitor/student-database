@@ -101,6 +101,18 @@ test('admin attendance view does not query teacher-only tutor classes',async()=>
   } finally { dom.window.close(); }
 });
 
+test('admin attendance view replaces the compatibility teacher menu with the server-provided admin menu',async()=>{
+  const dom=shell('https://school.example.invalid/attendance',`<main class="attendance teacher-dashboard"><nav class="teacher-main-menu"><ul><li><a href="/attendance">Anwesenheit</a></li></ul></nav><p hidden>class="admin-main-menu"</p><h1>Attendance</h1></main>`,[]);
+  await new Promise(resolve=>setTimeout(resolve,0));
+  try {
+    const menu=dom.window.document.querySelector('main.attendance > nav');
+    assert.equal(menu?.classList.contains('admin-main-menu'),true);
+    assert.equal(menu?.classList.contains('teacher-main-menu'),false);
+    assert.equal(dom.window.document.querySelector('main.attendance')?.classList.contains('teacher-dashboard'),false);
+    assert.equal(dom.window.document.querySelector('main.attendance')?.classList.contains('admin-dashboard-page'),true);
+  } finally { dom.window.close(); }
+});
+
 test('hash changes update the active dashboard item without duplicating navigation',()=>{
   const dom=shell('https://school.example.invalid/dashboard',`<nav class="teacher-main-menu">${navigation}</nav>`);
   try {

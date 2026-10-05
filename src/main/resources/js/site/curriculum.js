@@ -124,30 +124,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         workspace.append(detailDialog);
         status.setAttribute('role', 'status');
         progressRoot.append(panel, status, workspace);
-        const classes = uniqueBy(activeContexts, context => context.classId).map(context => ({id:context.classId,name:context.classLabel}));
-        if (!classes.length) {
+        if (!activeContexts.length) {
             status.textContent = 'Für das aktive Halbjahr sind keine Lerngruppen oder Fächer zugewiesen.';
             return;
         }
-        const progressSelect = (label, items, name) => {
-            const wrapper = el('label', label + ' '), node = el('select'); node.name = name;
-            for (const item of items) { const option = el('option', item.label || item.name); option.value = item.id; node.append(option); }
-            wrapper.append(node); panel.append(wrapper); return node;
-        };
-        const classSelect = progressSelect('Klasse/Lerngruppe', classes, 'classId');
-        const subjectSelect = progressSelect('Fach', [], 'subjectId');
+        const contextSelect = el('select'); contextSelect.name = 'teachingContext';
+        for (const [index, context] of activeContexts.entries()) {
+            const option = el('option', `${context.semesterLabel || 'Aktives Halbjahr'} · ${context.classLabel || 'Lerngruppe'} · ${context.subjectName || 'Fach'}`);
+            option.value = String(index); contextSelect.append(option);
+        }
+        const contextLabel = el('label', 'Unterrichtskontext '); contextLabel.append(contextSelect); panel.append(contextLabel);
         const reload = el('button', 'Aktualisieren'); reload.type = 'button'; panel.append(reload);
         let generation = 0, detailGeneration = 0, selectedStudentId = null, lastDetailTrigger = null;
-        function contextsForClass() {
-            return activeContexts.filter(context => context.classId === Number(classSelect.value));
-        }
-        function rebuildSubjects() {
-            const subjects = uniqueBy(contextsForClass(), context => context.subjectId).map(context => ({id:context.subjectId,name:context.subjectName}));
-            subjectSelect.replaceChildren();
-            for (const subject of subjects) { const option = el('option', subject.name); option.value = subject.id; subjectSelect.append(option); }
-        }
         function selectedContext() {
-            return activeContexts.find(context => context.classId === Number(classSelect.value) && context.subjectId === Number(subjectSelect.value)) || null;
+            return activeContexts[Number(contextSelect.value)] || null;
         }
         function stageText(stage) {
             if (!stage) return 'Keine Etappe in Bearbeitung';
@@ -313,10 +303,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 status.style.color = 'darkred';
             }
         }
-        classSelect.addEventListener('change', () => { resetDetail(); rebuildSubjects(); loadRoster(); });
-        subjectSelect.addEventListener('change', () => { resetDetail(); loadRoster(); });
+        contextSelect.addEventListener('change', () => { resetDetail(); loadRoster(); });
         reload.addEventListener('click', loadRoster);
-        rebuildSubjects();
         await loadRoster();
     }
     function field(form, label, value, type = 'text') {

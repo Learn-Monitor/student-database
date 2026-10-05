@@ -93,13 +93,15 @@
         }
     }
 
-    async function isAdminSession() {
+    async function adminAttendanceNavigation() {
         if (window.location.pathname !== '/attendance') return false;
         try {
             const response = await fetch('/dashboard', {credentials: 'same-origin', cache: 'no-store'});
             if (!response.ok) return false;
             const html = await response.text();
-            return html.includes('class="admin-main-menu"');
+            const documentFragment = new DOMParser().parseFromString(html, 'text/html');
+            const navigation = documentFragment.querySelector('.admin-main-menu');
+            return navigation ? navigation.cloneNode(true) : false;
         } catch {
             return false;
         }
@@ -151,8 +153,15 @@
             applyTeacherNavigation(attendanceNavigation);
             return;
         }
-        isAdminSession().then(adminSession => {
-            if (adminSession) {
+        adminAttendanceNavigation().then(adminNavigation => {
+            if (adminNavigation) {
+                const attendance = document.querySelector('main.attendance');
+                const currentNavigation = attendance?.querySelector(':scope > nav:first-child');
+                if (attendance && currentNavigation) {
+                    currentNavigation.replaceWith(adminNavigation);
+                    attendance.classList.remove('teacher-dashboard');
+                    attendance.classList.add('admin-dashboard-page');
+                }
                 setTutorAreaAccess(false);
                 return;
             }
