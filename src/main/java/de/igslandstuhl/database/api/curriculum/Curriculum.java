@@ -920,8 +920,8 @@ public final class Curriculum {
             Integer courseGroup=individual && number(c,"SELECT COUNT(*) FROM course_groups WHERE subject=? AND grade=? AND semester=?",scope.subjectId(),grade,scope.semesterId())>0
                     ?resolveScope(c,scope).courseGroupId():null;
             boolean grouped=individual && courseGroup!=null;
-            String filter=grouped?"x.course_group=?":"x.teacher=? AND x.class=?";
-            Object[] args=grouped?new Object[]{courseGroup,scope.subjectId(),scope.semesterId(),grade}:new Object[]{scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),grade};
+            String filter=grouped?"x.course_group=? AND x.class=?":"x.teacher=? AND x.class=?";
+            Object[] args=grouped?new Object[]{courseGroup,scope.classId(),scope.subjectId(),scope.semesterId(),grade}:new Object[]{scope.teacherId(),scope.classId(),scope.subjectId(),scope.semesterId(),grade};
             var roster=rows(c,"SELECT DISTINCT s.id,s.first_name AS firstName,s.last_name AS lastName "
                     + "FROM student_curriculum_contexts x JOIN students s ON s.id=x.student "
                     + "WHERE "+filter+" AND x.subject=? AND x.semester=? AND x.grade=? AND s.active=1 "
