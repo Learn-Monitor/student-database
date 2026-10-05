@@ -154,6 +154,7 @@ public final class Curriculum {
         result.put("endDate", end == null ? null : end.toString());
         result.put("earnedCoins", Math.max(0L, earnedCoins));
         if (start == null || end == null || end.isBefore(start) || today == null) {
+            result.put("paceCoinsPerDay", null);
             result.put("elapsedDays", null); result.put("remainingDays", null);
             result.put("completedStages", 0); result.put("remainingStages", 0); result.put("remainingCoinPotential", 0);
             result.put("reason", "semester_dates_unavailable");
@@ -162,6 +163,8 @@ public final class Curriculum {
         long totalDays = ChronoUnit.DAYS.between(start, end);
         long elapsedDays = Math.max(0, Math.min(totalDays, ChronoUnit.DAYS.between(start, today)));
         long remainingDays = Math.max(0, totalDays - elapsedDays);
+        double paceCoinsPerDay = elapsedDays == 0 ? 0.0 : Math.max(0L, earnedCoins) / (double) elapsedDays;
+        result.put("paceCoinsPerDay", Math.round(paceCoinsPerDay * 100.0) / 100.0);
         Map<String,Integer> valid = new LinkedHashMap<>();
         for (ForecastStage stage : stages == null ? List.<ForecastStage>of() : stages) {
             if (stage != null && stage.key() != null && !stage.key().isBlank() && stage.tokens() >= 0)

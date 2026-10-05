@@ -818,7 +818,7 @@ public class Student extends User {
         .append("\"currentProgress\": {");
         for (Map.Entry<Subject, Topic> entry : currentTopics.entrySet()) {
             builder.append("\"").append(entry.getKey().getName()).append("\": ");
-            builder.append("{\"topic\": ").append(entry.getValue().getId()).append(", ");
+            builder.append("{\"subjectId\": ").append(entry.getKey().getId()).append(", \"topic\": ").append(entry.getValue().getId()).append(", ");
             builder.append("\"progress\": ").append(getCurrentProgress(entry.getKey())).append("}, ");
         }
         if (!currentTopics.isEmpty()) {
@@ -828,7 +828,7 @@ public class Student extends User {
         builder.append("\"predictedProgress\": {");
         for (Map.Entry<Subject, Topic> entry : currentTopics.entrySet()) {
             builder.append("\"").append(entry.getKey().getName()).append("\": ");
-            builder.append("{\"topic\": ").append(entry.getValue().getId()).append(", ");
+            builder.append("{\"subjectId\": ").append(entry.getKey().getId()).append(", \"topic\": ").append(entry.getValue().getId()).append(", ");
             builder.append("\"predictedProgress\": ").append(getPredictedProgress(entry.getKey())).append("}, ");
         }
         if (!currentTopics.isEmpty()) {

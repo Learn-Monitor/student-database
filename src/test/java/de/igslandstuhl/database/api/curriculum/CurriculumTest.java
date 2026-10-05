@@ -107,6 +107,7 @@ class CurriculumTest {
         stages.add(new Curriculum.ForecastStage("C:3",40)); stages.add(new Curriculum.ForecastStage("F:1",25));
         var result=Curriculum.calculateForecast(LocalDate.of(2026,10,1),LocalDate.of(2026,9,1),LocalDate.of(2026,12,31),20,stages, new HashSet<>(Set.of("C:1","C:2")));
         assertTrue((Boolean)result.get("available"));
+        assertEquals(0.67,((Number)result.get("paceCoinsPerDay")).doubleValue(),0.001);
         assertEquals(2L,result.get("completedStages"));
         assertEquals(2L,result.get("remainingStages"));
         assertEquals(65L,result.get("remainingCoinPotential"));
@@ -122,6 +123,7 @@ class CurriculumTest {
         assertTrue((Boolean)result.get("available"));
         assertEquals("semester_ended",result.get("reason"));
         assertEquals(11L,result.get("forecastCoins"));
+        assertEquals(0.07,((Number)result.get("paceCoinsPerDay")).doubleValue(),0.001);
         assertEquals(6,result.get("forecastGrade"));
         assertEquals(1L,result.get("completedStages"));
         assertEquals(1L,result.get("remainingStages"));
