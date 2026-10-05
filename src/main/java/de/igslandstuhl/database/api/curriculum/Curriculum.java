@@ -135,6 +135,40 @@ public final class Curriculum {
         if (tokens >= 20) return 5;
         return 6;
     }
+
+    /** Competition ranking: equal valid coin totals receive the same rank. */
+    public static int competitionRank(Collection<Long> totals, long ownTotal) {
+        return 1 + (int) totals.stream().filter(Objects::nonNull).filter(total -> total > ownTotal).count();
+    }
+
+    /** Fresh, read-only ranking for the current semester; no rank is stored. */
+    public Map<String,Object> rankingForStudent(int studentId) throws SQLException {
+        return transaction(c -> {
+            int semester = currentSemester(c);
+            List<Map<String,Object>> rows = rows(c,
+                    "SELECT s.id, "
+                    + "COALESCE((SELECT SUM(t.tokens) FROM taskstats x JOIN tasks t ON t.id=x.task "
+                    + "JOIN topics p ON p.id=t.topic WHERE x.student=s.id AND x.status=2 AND p.semester=? "
+                    + "AND EXISTS (SELECT 1 FROM student_curriculum_contexts ctx WHERE ctx.student=s.id "
+                    + "AND ctx.subject=p.subject AND ctx.semester=p.semester AND (ctx.class=s.class OR ctx.class IS NULL))),0) "
+                    + "+ COALESCE((SELECT SUM(t.tokens) FROM completed_flexible_tasks x JOIN flexible_tasks t ON t.id=x.flexible_task "
+                    + "WHERE x.student=s.id AND t.semester=? AND EXISTS (SELECT 1 FROM student_curriculum_contexts ctx "
+                    + "WHERE ctx.student=s.id AND ctx.subject=t.subject AND ctx.semester=t.semester "
+                    + "AND (ctx.course_group=t.course_group OR (t.course_group IS NULL AND ctx.class=t.class)))),0) AS totalCoins "
+                    + "FROM students s WHERE COALESCE(s.active,1)=1 AND s.class<>0", semester, semester);
+            Map<Integer,Long> totalsByStudent = new HashMap<>();
+            for (Map<String,Object> row : rows) totalsByStudent.put(integer(row,"id"), ((Number) row.get("totalCoins")).longValue());
+            long ownTotal = totalsByStudent.getOrDefault(studentId, 0L);
+            int rank = competitionRank(totalsByStudent.values(), ownTotal);
+            Map<String,Object> result = new LinkedHashMap<>();
+            result.put("semesterId", semester);
+            result.put("totalValidCoins", ownTotal);
+            result.put("rank", rank);
+            result.put("inTopTen", rank <= 10);
+            result.put("tieRule", "Gleiche Münzzahl erhält denselben Rang; alle mit Rang 10 gehören zur Top Ten.");
+            return result;
+        });
+    }
     private static final int MIN_FORECAST_DAYS = 14;
     private static final int MIN_FORECAST_STAGES = 2;
     private static final ZoneId FORECAST_ZONE = ZoneId.of("Europe/Berlin");

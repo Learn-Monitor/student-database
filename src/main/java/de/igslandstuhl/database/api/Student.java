@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 
 import de.igslandstuhl.database.Application;
 import de.igslandstuhl.database.api.curriculum.CurriculumException;
+import de.igslandstuhl.database.api.curriculum.Curriculum;
 import de.igslandstuhl.database.api.results.StudentGenerationResult;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLHelper;
@@ -800,6 +801,12 @@ public class Student extends User {
     @Override
     public String toJSON() {
         ensureCurrentRequestsLoaded();
+        Map<String,Object> ranking = Map.of("totalValidCoins", 0L, "rank", 0, "inTopTen", false);
+        try {
+            ranking = Curriculum.current().rankingForStudent(id);
+        } catch (SQLException e) {
+            Application.LOGGER_API.warn("Could not calculate live student ranking for {}", id, e);
+        }
         StringBuilder builder = new StringBuilder();
         builder.append("{\n")
         .append("\"id\": ").append(id).append(",\n")
@@ -809,6 +816,9 @@ public class Student extends User {
         .append("\"schoolClass\": ").append(String.valueOf(schoolClass)).append(",\n")
         .append("\"graduationLevel\": ").append(graduationLevel.getLevel()).append(",\n")
         .append("\"active\": ").append(active).append(",\n")
+        .append("\"totalValidCoins\": ").append(ranking.getOrDefault("totalValidCoins", 0)).append(",\n")
+        .append("\"ranking\": {\"rank\": ").append(ranking.getOrDefault("rank", 0))
+        .append(", \"inTopTen\": ").append(ranking.getOrDefault("inTopTen", false)).append("},\n")
         .append("\"selectedTasks\": ").append(selectedTasks).append(",\n")
         .append("\"completedTasks\": ").append(completedTasks).append(",\n")
         .append("\"lockedTasks\": ").append(lockedTasks).append(",\n")

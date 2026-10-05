@@ -28,9 +28,17 @@ public interface SQLRequestHandler {
 
         Registry.sqlRequestHandlerRegistry().register("mysubjects", (user) -> {
             if (user instanceof Student student) {
-                return student.getSubjects().toString();
+                return student.getSubjects().stream()
+                        .sorted(java.util.Comparator.comparingInt(Subject::getDisplayOrder)
+                                .thenComparing(Subject::getName, String.CASE_INSENSITIVE_ORDER))
+                        .map(Subject::toStudentJSON)
+                        .collect(java.util.stream.Collectors.joining(",", "[", "]"));
             } else if (user instanceof Teacher teacher) {
-                return teacher.getSubjects().toString();
+                return teacher.getSubjects().stream()
+                        .sorted(java.util.Comparator.comparingInt(Subject::getDisplayOrder)
+                                .thenComparing(Subject::getName, String.CASE_INSENSITIVE_ORDER))
+                        .map(Subject::toStudentJSON)
+                        .collect(java.util.stream.Collectors.joining(",", "[", "]"));
             } else {
                 return null;
             }

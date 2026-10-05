@@ -101,6 +101,13 @@ class CurriculumTest {
         assertEquals(2,Curriculum.noteForTokens(75));
         assertEquals(1,Curriculum.noteForTokens(90));
     }
+
+    @Test void competitionRankingUsesEqualRanksAndIncludesRankTenAtBoundary() {
+        assertEquals(1, Curriculum.competitionRank(List.of(100L, 100L, 90L), 100L));
+        assertEquals(3, Curriculum.competitionRank(List.of(100L, 90L, 80L, 80L), 80L));
+        assertEquals(10, Curriculum.competitionRank(List.of(100L, 90L, 80L, 70L, 60L, 50L, 40L, 30L, 20L, 10L), 10L));
+        assertEquals(11, Curriculum.competitionRank(List.of(100L, 90L, 80L, 70L, 60L, 50L, 40L, 30L, 20L, 10L), 0L));
+    }
     @Test void forecastUsesBerlinSemesterDatesCapsAtRemainingPotentialAndDoesNotStoreAnything() {
         var stages=new ArrayList<Curriculum.ForecastStage>();
         stages.add(new Curriculum.ForecastStage("C:1",10)); stages.add(new Curriculum.ForecastStage("C:2",10));
