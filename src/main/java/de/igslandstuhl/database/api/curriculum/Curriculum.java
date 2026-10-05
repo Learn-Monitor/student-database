@@ -611,15 +611,20 @@ public final class Curriculum {
         int grade=integer(require(c,"SELECT grade FROM classes WHERE id=?",scope.classId()),"grade");
         if(!managedTeacher(c,scope,grade))
             throw error(403,"forbidden","Teacher must be assigned to this managed curriculum context.");
-        var context=rows(c,"SELECT teacher,class,grade,course_group FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=? AND teacher=? AND class=? AND grade=?",
-                studentId,scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),grade);
         boolean individual=individualSubject(c,scope.subjectId());
-        boolean valid=!context.isEmpty();
-        if(individual && valid) {
-            Integer group=context.get(0).get("course_group")==null?null:integer(context.get(0),"course_group");
-            valid=group!=null && group==resolveScope(c,scope).courseGroupId()
-                    && number(c,"SELECT COUNT(*) FROM course_group_members WHERE course_group=? AND student=?",group,studentId)>0;
-        } else if(!individual && valid) valid=integer(context.get(0),"class")==scope.classId();
+        boolean valid;
+        if(individual) {
+            valid=number(c,"SELECT COUNT(*) FROM student_curriculum_contexts x "
+                    + "JOIN course_groups g ON g.id=x.course_group "
+                    + "JOIN course_group_members m ON m.course_group=g.id AND m.student=x.student "
+                    + "WHERE x.student=? AND x.subject=? AND x.semester=? AND x.teacher=? AND x.class=? AND x.grade=? "
+                    + "AND g.subject=? AND g.grade=? AND g.semester=? AND g.teacher=?",
+                    studentId,scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),grade,
+                    scope.subjectId(),grade,scope.semesterId(),scope.teacherId())>0;
+        } else {
+            valid=number(c,"SELECT COUNT(*) FROM student_curriculum_contexts WHERE student=? AND subject=? AND semester=? AND teacher=? AND class=? AND grade=?",
+                    studentId,scope.subjectId(),scope.semesterId(),scope.teacherId(),scope.classId(),grade)>0;
+        }
         if(!valid)
             throw error(403,"forbidden","Student is not assigned to this curriculum context.");
         return grade;
