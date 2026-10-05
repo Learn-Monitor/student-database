@@ -233,7 +233,7 @@ public final class Curriculum {
         result.put("forecastGrade", noteForTokens(forecastCoins));
         result.put("forecastGradeLabel", gradeLabel(noteForTokens(forecastCoins)));
         result.put("message", semesterEnded ? "Das Halbjahr ist beendet; die Prognose entspricht dem tatsächlichen Endstand."
-                : "Prognose bei gleichbleibendem Arbeitstempo.");
+                : "");
         return result;
     }
 

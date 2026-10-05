@@ -81,32 +81,32 @@ public class Subject implements APIObject {
     public static String displayName(String value) {
         String subject = value == null ? "" : value.strip();
         String normalized = subject.toLowerCase(Locale.ROOT);
-        if (normalized.contains("deutsch")) return "D – Deutsch";
-        if (normalized.contains("englisch")) return "E – Englisch";
-        if (normalized.matches(".*(^|[^a-z])m(ath|athematik).*" ) || normalized.contains("mathematik")) return "M – Mathematik";
-        if (normalized.contains("gesellschaft")) return "GL – Gesellschaftslehre";
-        if (normalized.contains("naturwissenschaft") || normalized.matches(".*(^|[^a-z])nawi([^a-z]|$).*")) return "Nawi – Naturwissenschaften";
-        if (normalized.contains("wpf")) return "WPF – Wahlpflichtfach";
-        if (normalized.contains("relig") || normalized.contains("ethik") || normalized.matches("reli\\d+.*")) return "Reli/Ethik – Religion/Ethik";
+        if (normalized.equals("d") || normalized.contains("deutsch")) return "Deutsch";
+        if (normalized.equals("e") || normalized.contains("englisch")) return "Englisch";
+        if (normalized.equals("m") || normalized.matches(".*(^|[^a-z])m(ath|athematik).*" ) || normalized.contains("mathematik")) return "Mathematik";
+        if (normalized.equals("gl") || normalized.contains("gesellschaft")) return "Gesellschaftslehre";
+        if (normalized.contains("naturwissenschaft") || normalized.matches(".*(^|[^a-z])nawi([^a-z]|$).*")) return "Naturwissenschaften";
+        if (normalized.contains("wpf")) return "Wahlpflichtfach";
+        if (normalized.contains("relig") || normalized.contains("ethik") || normalized.matches("reli\\d+.*")) return "Religion/Ethik";
         if (normalized.contains("sport")) return "Sport";
         if (normalized.contains("musik")) return "Musik";
-        if (normalized.contains("bildende kunst") || normalized.matches(".*(^|[^a-z])bk([^a-z]|$).*")) return "BK – Bildende Kunst";
+        if (normalized.contains("bildende kunst") || normalized.matches(".*(^|[^a-z])bk([^a-z]|$).*")) return "Bildende Kunst";
         return subject;
     }
 
     public static int displayOrder(String value) {
         String display = displayName(value);
         return switch (display) {
-            case "D – Deutsch" -> 1;
-            case "E – Englisch" -> 2;
-            case "M – Mathematik" -> 3;
-            case "GL – Gesellschaftslehre" -> 4;
-            case "Nawi – Naturwissenschaften" -> 5;
-            case "WPF – Wahlpflichtfach" -> 6;
-            case "Reli/Ethik – Religion/Ethik" -> 7;
+            case "Deutsch" -> 1;
+            case "Englisch" -> 2;
+            case "Mathematik" -> 3;
+            case "Gesellschaftslehre" -> 4;
+            case "Naturwissenschaften" -> 5;
+            case "Wahlpflichtfach" -> 6;
+            case "Religion/Ethik" -> 7;
             case "Sport" -> 8;
             case "Musik" -> 9;
-            case "BK – Bildende Kunst" -> 10;
+            case "Bildende Kunst" -> 10;
             default -> 1000;
         };
     }
