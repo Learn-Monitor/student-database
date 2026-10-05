@@ -1,6 +1,7 @@
 package de.igslandstuhl.database.api.curriculum;
 
 import de.igslandstuhl.database.api.*;
+import de.igslandstuhl.database.holidays.Holiday;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLiteConnection;
 import java.sql.*;
@@ -1281,12 +1282,19 @@ public final class Curriculum {
                 t.put("inProgress",!completed && finalActiveStage!=null && finalActiveStage.type()==ActiveStageType.FLEXIBLE && finalActiveStage.taskId()==taskId);
             });
             long centralPlanned=central(c,subject,grade,semester),flexiblePlanned=flexible(c,scope);
-            var dateRows=rows(c,"SELECT y.start_date AS startDate,y.end_date AS endDate FROM semesters s JOIN school_years y ON y.id=s.school_year WHERE s.id=?",semester);
+            var dateRows=rows(c,"SELECT y.label AS schoolYearLabel,s.label AS semesterLabel FROM semesters s JOIN school_years y ON y.id=s.school_year WHERE s.id=?",semester);
             LocalDate startDate=null,endDate=null;
             if(!dateRows.isEmpty()) {
-                Object start=dateRows.get(0).get("startDate"),end=dateRows.get(0).get("endDate");
-                try { if(start!=null) startDate=LocalDate.parse(String.valueOf(start)); if(end!=null) endDate=LocalDate.parse(String.valueOf(end)); }
-                catch(DateTimeException ignored) { startDate=null; endDate=null; }
+                String yearLabel=String.valueOf(dateRows.get(0).get("schoolYearLabel"));
+                String semesterLabel=String.valueOf(dateRows.get(0).get("semesterLabel"));
+                try {
+                    var match=java.util.regex.Pattern.compile("(20\\d{2})/(?:20)?\\d{2}").matcher(yearLabel);
+                    var semesterMatch=java.util.regex.Pattern.compile("HJ([12])").matcher(semesterLabel);
+                    if(match.find() && semesterMatch.find()) {
+                        Holiday.SemesterDates dates=Holiday.semesterDates(Integer.parseInt(match.group(1)),Integer.parseInt(semesterMatch.group(1)));
+                        if(dates!=null) { startDate=dates.start(); endDate=dates.end(); }
+                    }
+                } catch (RuntimeException ignored) { startDate=null; endDate=null; }
             }
             List<ForecastStage> forecastStages=new ArrayList<>();
             Set<String> completedKeys=new HashSet<>();

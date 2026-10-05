@@ -13,7 +13,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.DayOfWeek;
+import java.time.temporal.TemporalAdjusters;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -34,6 +37,9 @@ public final class Holiday {
     static String API_URL = "https://www.mehr-schulferien.de/api/v2.1/schools/66849-integrierte-gesamtschule-am-na/periods";
     private static final String SUMMER_HOLIDAY_ID = "Sommer";
     private static final Logger LOGGER = LoggerFactory.getLogger(Holiday.class);
+    private static final Map<String, SemesterDates> SEMESTER_DATE_CACHE = new HashMap<>();
+
+    public record SemesterDates(LocalDate start, LocalDate end) {}
 
     private final int id;
     private final String name;
@@ -168,6 +174,52 @@ public final class Holiday {
         Instant now = Instant.now();
         Instant inAYear = now.plusSeconds(31536000);
         return getSummerHoliday(now, inAYear);
+    }
+
+    /**
+     * Returns realistic RLP semester boundaries for a school year label.
+     * The database school-year dates remain an administrative year frame.
+     */
+    public static SemesterDates semesterDates(int schoolYearStart, int position) {
+        if (position != 1 && position != 2) return null;
+        String key = schoolYearStart + ":" + position;
+        synchronized (SEMESTER_DATE_CACHE) {
+            if (SEMESTER_DATE_CACHE.containsKey(key)) return SEMESTER_DATE_CACHE.get(key);
+        }
+        try {
+            Instant from = LocalDate.of(schoolYearStart, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
+            Instant to = LocalDate.of(schoolYearStart + 2, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
+            List<Holiday> summers = Arrays.stream(holidaysInterval(from, to))
+                    .filter(h -> SUMMER_HOLIDAY_ID.equals(h.getName()))
+                    .toList();
+            Holiday currentSummer = summers.stream()
+                    .filter(h -> h.getStart().atZone(ZoneOffset.UTC).getYear() == schoolYearStart)
+                    .findFirst().orElse(null);
+            Holiday nextSummer = summers.stream()
+                    .filter(h -> h.getStart().atZone(ZoneOffset.UTC).getYear() == schoolYearStart + 1)
+                    .findFirst().orElse(null);
+            if (currentSummer == null || nextSummer == null) return null;
+            SemesterDates result = deriveSemesterDates(
+                    currentSummer.getEnd().atZone(ZoneOffset.UTC).toLocalDate(),
+                    nextSummer.getStart().atZone(ZoneOffset.UTC).toLocalDate(),
+                    schoolYearStart, position);
+            synchronized (SEMESTER_DATE_CACHE) { SEMESTER_DATE_CACHE.put(key, result); }
+            return result;
+        } catch (RuntimeException failure) {
+            LOGGER.warn("Could not resolve RLP semester dates for {} HJ{}", schoolYearStart, position, failure);
+            return null;
+        }
+    }
+
+    public static SemesterDates deriveSemesterDates(LocalDate currentSummerEnd, LocalDate nextSummerStart,
+                                                    int schoolYearStart, int position) {
+        if (currentSummerEnd == null || nextSummerStart == null || (position != 1 && position != 2)) return null;
+        LocalDate firstSemesterStart = currentSummerEnd.with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+        LocalDate firstSemesterEnd = LocalDate.of(schoolYearStart + 1, 1, 31)
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY));
+        return position == 1
+                ? new SemesterDates(firstSemesterStart, firstSemesterEnd)
+                : new SemesterDates(firstSemesterEnd.plusDays(3), nextSummerStart.minusDays(1));
     }
     public static int getTotalWeeks() {
         return (int) SchoolWeek.getAll(getLastSummerHoliday().getEnd(), getNextSummerHoliday().getStart(), ZoneId.of("UTC")).stream().filter(SchoolWeek::noSchoolUTC).count();
