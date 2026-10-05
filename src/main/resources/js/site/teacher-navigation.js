@@ -148,7 +148,7 @@
     }
 
     function updateTeacherNavigation() {
-        const attendanceNavigation = document.querySelector('main.attendance > nav:first-child');
+        const attendanceNavigation = document.querySelector('main.attendance > nav');
         if (window.location.pathname !== '/attendance') {
             applyTeacherNavigation(attendanceNavigation);
             return;
@@ -156,7 +156,7 @@
         adminAttendanceNavigation().then(adminNavigation => {
             if (adminNavigation) {
                 const attendance = document.querySelector('main.attendance');
-                const currentNavigation = attendance?.querySelector(':scope > nav:first-child');
+                const currentNavigation = attendance?.querySelector(':scope > nav');
                 if (attendance && currentNavigation) {
                     currentNavigation.replaceWith(adminNavigation);
                     attendance.classList.remove('teacher-dashboard');
