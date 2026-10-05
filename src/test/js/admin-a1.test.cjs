@@ -77,7 +77,7 @@ test('adminShellUsesScopedSandstonePaletteAndResponsiveStructure',()=>{
 });
 
 test('admin attendance navigation keeps light text after page-wide link colors',()=>{
-  assert.match(css,/main\.attendance\.admin-dashboard-page \.admin-main-menu a,\s*main\.attendance\.admin-dashboard-page \.admin-main-menu a:hover,\s*main\.attendance\.admin-dashboard-page \.admin-main-menu a:focus,\s*main\.attendance\.admin-dashboard-page \.admin-main-menu a\[aria-current="page"\][\s\S]*color:#fffaf7/);
+  assert.match(css,/main\.attendance:not\(\.teacher-dashboard\) \.admin-main-menu a,\s*main\.attendance:not\(\.teacher-dashboard\) \.admin-main-menu a:hover,\s*main\.attendance:not\(\.teacher-dashboard\) \.admin-main-menu a:focus,\s*main\.attendance:not\(\.teacher-dashboard\) \.admin-main-menu a\[aria-current="page"\][\s\S]*color:#fffaf7/);
   assert.doesNotMatch(css,/main\.attendance\.teacher-dashboard \.teacher-main-menu a[\s\S]*--admin-sandstone/);
 });
 
