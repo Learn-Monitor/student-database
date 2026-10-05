@@ -4,6 +4,8 @@ import de.igslandstuhl.database.api.*;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLiteConnection;
 import java.sql.*;
+import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /** Transactional curriculum operations. Budgets are read from SQL, never from caches. */
@@ -131,6 +133,77 @@ public final class Curriculum {
         if (tokens >= 40) return 4;
         if (tokens >= 20) return 5;
         return 6;
+    }
+    private static final int MIN_FORECAST_DAYS = 14;
+    private static final int MIN_FORECAST_STAGES = 2;
+    private static final ZoneId FORECAST_ZONE = ZoneId.of("Europe/Berlin");
+    static record ForecastStage(String key, int tokens) {}
+
+    /**
+     * Read-only end-of-semester estimate. The database never stores this map.
+     * A forecast is deliberately withheld until enough confirmed work exists.
+     */
+    static Map<String,Object> calculateForecast(LocalDate today, LocalDate start, LocalDate end,
+                                                 long earnedCoins, List<ForecastStage> stages,
+                                                 Set<String> completedKeys) {
+        Map<String,Object> result = new LinkedHashMap<>();
+        result.put("available", false);
+        result.put("message", "Noch keine belastbare Prognose. Es liegen bisher zu wenige bestätigte Leistungen vor.");
+        result.put("startDate", start == null ? null : start.toString());
+        result.put("endDate", end == null ? null : end.toString());
+        result.put("earnedCoins", Math.max(0L, earnedCoins));
+        if (start == null || end == null || end.isBefore(start) || today == null) {
+            result.put("elapsedDays", null); result.put("remainingDays", null);
+            result.put("completedStages", 0); result.put("remainingStages", 0); result.put("remainingCoinPotential", 0);
+            result.put("reason", "semester_dates_unavailable");
+            return result;
+        }
+        long totalDays = ChronoUnit.DAYS.between(start, end);
+        long elapsedDays = Math.max(0, Math.min(totalDays, ChronoUnit.DAYS.between(start, today)));
+        long remainingDays = Math.max(0, totalDays - elapsedDays);
+        Map<String,Integer> valid = new LinkedHashMap<>();
+        for (ForecastStage stage : stages == null ? List.<ForecastStage>of() : stages) {
+            if (stage != null && stage.key() != null && !stage.key().isBlank() && stage.tokens() >= 0)
+                valid.putIfAbsent(stage.key(), stage.tokens());
+        }
+        long completedStages = completedKeys == null ? 0 : completedKeys.stream()
+                .filter(valid::containsKey).filter(key -> valid.get(key) > 0).count();
+        long remainingStages = valid.keySet().stream().filter(key -> completedKeys == null || !completedKeys.contains(key)).count();
+        long remainingPotential = valid.entrySet().stream()
+                .filter(entry -> completedKeys == null || !completedKeys.contains(entry.getKey()))
+                .mapToLong(Map.Entry::getValue).sum();
+        result.put("elapsedDays", elapsedDays); result.put("remainingDays", remainingDays);
+        result.put("completedStages", completedStages); result.put("remainingStages", remainingStages);
+        result.put("remainingCoinPotential", remainingPotential);
+        boolean semesterEnded = today.compareTo(end) >= 0;
+        boolean enoughData = elapsedDays >= MIN_FORECAST_DAYS && completedStages >= MIN_FORECAST_STAGES;
+        if (!semesterEnded && !enoughData) {
+            result.put("reason", elapsedDays < MIN_FORECAST_DAYS ? "too_early" : "too_few_confirmed_stages");
+            return result;
+        }
+        long forecastCoins;
+        if (semesterEnded) {
+            forecastCoins = Math.max(0L, earnedCoins);
+        } else {
+            long paceProjection = Math.round(Math.max(0L, earnedCoins) * (double) remainingDays / Math.max(1L, elapsedDays));
+            forecastCoins = Math.min(Math.max(0L, earnedCoins) + paceProjection,
+                    Math.max(0L, earnedCoins) + remainingPotential);
+        }
+        result.put("available", true);
+        result.put("reason", semesterEnded ? "semester_ended" : "confirmed_pace");
+        result.put("forecastCoins", forecastCoins);
+        result.put("forecastGrade", noteForTokens(forecastCoins));
+        result.put("forecastGradeLabel", gradeLabel(noteForTokens(forecastCoins)));
+        result.put("message", semesterEnded ? "Das Halbjahr ist beendet; die Prognose entspricht dem tatsächlichen Endstand."
+                : "Prognose bei gleichbleibendem Arbeitstempo.");
+        return result;
+    }
+
+    private static String gradeLabel(int grade) {
+        return switch (grade) {
+            case 1 -> "sehr gut"; case 2 -> "gut"; case 3 -> "befriedigend";
+            case 4 -> "ausreichend"; case 5 -> "mangelhaft"; default -> "ungenügend";
+        };
     }
     private record CentralTask(int id, int subjectId, int semesterId, int grade, int topicId, String name) {}
     static CurriculumException error(int status, String code, String message) {
@@ -561,8 +634,8 @@ public final class Curriculum {
     }
     private static int currentSemester(Connection c) throws SQLException {
         var found=rows(c,"SELECT y.current_semester FROM school_years y JOIN semesters s ON s.id=y.current_semester "
-                + "WHERE y.start_date IS NOT NULL AND y.end_date IS NOT NULL AND date('now') BETWEEN date(y.start_date) AND date(y.end_date) "
-                + "AND y.current_semester IS NOT NULL ORDER BY y.id DESC LIMIT 1");
+                + "WHERE y.start_date IS NOT NULL AND y.end_date IS NOT NULL AND date(?) BETWEEN date(y.start_date) AND date(y.end_date) "
+                + "AND y.current_semester IS NOT NULL ORDER BY y.id DESC LIMIT 1", LocalDate.now(FORECAST_ZONE).toString());
         if(found.isEmpty()) throw error(409,"current_semester_unavailable","No current semester is configured.");
         return integer(found.get(0),"current_semester");
     }
@@ -1164,6 +1237,7 @@ public final class Curriculum {
                         : new ActiveStage(ActiveStageType.FLEXIBLE,integer(row,"flexible_task"),integer(row,"subject"),integer(row,"semester"),(String)row.get("flexibleName"));
             }
             var centralTasks=rows(c,"SELECT t.id,t.name,t.tokens,t.niveau,t.stage_number AS stageNumber,p.id AS topicId,p.name AS topicName FROM tasks t JOIN topics p ON p.id=t.topic WHERE p.subject=? AND p.grade=? AND p.semester=? ORDER BY p.number,t.stage_number,t.id",subject,grade,semester);
+            var allCentralTasks=new ArrayList<>(centralTasks);
             var visibleCentral=new ArrayList<Map<String,Object>>();
             for(var task:centralTasks) {
                 boolean active=CurriculumEnrollment.released(c,scope,integer(task,"id"),integer(task,"topicId"));
@@ -1179,6 +1253,7 @@ public final class Curriculum {
                 if(CurriculumEnrollment.topicReleased(c,scope,topicId) || centralTasks.stream().anyMatch(t->integer(t,"topicId")==topicId))visibleTopics.add(topic);
             }
             var flexibleTasks=plannedFlexibleTasks(c,scope);
+            var allFlexibleTasks=new ArrayList<>(flexibleTasks);
             var visibleFlexibleTasks=new ArrayList<Map<String,Object>>();
             for(var task:flexibleTasks) {
                 int taskId=integer(task,"id");
@@ -1206,6 +1281,25 @@ public final class Curriculum {
                 t.put("inProgress",!completed && finalActiveStage!=null && finalActiveStage.type()==ActiveStageType.FLEXIBLE && finalActiveStage.taskId()==taskId);
             });
             long centralPlanned=central(c,subject,grade,semester),flexiblePlanned=flexible(c,scope);
+            var dateRows=rows(c,"SELECT y.start_date AS startDate,y.end_date AS endDate FROM semesters s JOIN school_years y ON y.id=s.school_year WHERE s.id=?",semester);
+            LocalDate startDate=null,endDate=null;
+            if(!dateRows.isEmpty()) {
+                Object start=dateRows.get(0).get("startDate"),end=dateRows.get(0).get("endDate");
+                try { if(start!=null) startDate=LocalDate.parse(String.valueOf(start)); if(end!=null) endDate=LocalDate.parse(String.valueOf(end)); }
+                catch(DateTimeException ignored) { startDate=null; endDate=null; }
+            }
+            List<ForecastStage> forecastStages=new ArrayList<>();
+            Set<String> completedKeys=new HashSet<>();
+            for(var task:allCentralTasks) {
+                String key="CENTRAL:"+integer(task,"id"); forecastStages.add(new ForecastStage(key,integer(task,"tokens")));
+                if(centralDone.contains(integer(task,"id"))) completedKeys.add(key);
+            }
+            for(var task:allFlexibleTasks) {
+                String key="FLEXIBLE:"+integer(task,"id"); forecastStages.add(new ForecastStage(key,integer(task,"tokens")));
+                if(flexibleDone.contains(integer(task,"id"))) completedKeys.add(key);
+            }
+            Map<String,Object> forecast=calculateForecast(LocalDate.now(FORECAST_ZONE),startDate,endDate,
+                    ((Number)earned.get("totalTokens")).longValue(),forecastStages,completedKeys);
             Map<String,Object> out=new LinkedHashMap<>();
             out.put("semesterId",semester);
             Map<String,Object> activeJson=null;
@@ -1217,6 +1311,7 @@ public final class Curriculum {
             out.put("flexibleTasks",flexibleTasks);
             out.put("planned",Map.of("centralTokens",centralPlanned,"flexibleTokens",flexiblePlanned,"totalTokens",centralPlanned+flexiblePlanned,"regularLimit",REGULAR_LIMIT,"hardLimit",HARD_LIMIT,"unreleasedCentralTokens",centralPlanned-centralTasks.stream().mapToLong(t->integer(t,"tokens")).sum()));
             out.put("progress",earned);
+            out.put("forecast",forecast);
             return out;
         });
     }

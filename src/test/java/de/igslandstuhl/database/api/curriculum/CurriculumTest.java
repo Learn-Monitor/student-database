@@ -7,6 +7,9 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import java.sql.*;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
 import de.igslandstuhl.database.server.webserver.Status;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +84,51 @@ class CurriculumTest {
         assertEquals(3,Curriculum.noteForTokens(60));
         assertEquals(2,Curriculum.noteForTokens(75));
         assertEquals(1,Curriculum.noteForTokens(90));
+    }
+    @Test void forecastWithholdsEarlyAndLowEvidenceAndUsesCanonicalThresholds() {
+        var stages=List.of(new Curriculum.ForecastStage("C:1",5),new Curriculum.ForecastStage("C:2",6),
+                new Curriculum.ForecastStage("C:3",20),new Curriculum.ForecastStage("C:4",40));
+        var early=Curriculum.calculateForecast(LocalDate.of(2026,9,5),LocalDate.of(2026,9,1),LocalDate.of(2027,1,31),11,stages,Set.of());
+        assertFalse((Boolean)early.get("available"));
+        assertEquals("too_early",early.get("reason"));
+        var tooFew=Curriculum.calculateForecast(LocalDate.of(2026,10,1),LocalDate.of(2026,9,1),LocalDate.of(2027,1,31),11,stages,Set.of("C:1"));
+        assertFalse((Boolean)tooFew.get("available"));
+        assertEquals("too_few_confirmed_stages",tooFew.get("reason"));
+        assertEquals(6,Curriculum.noteForTokens(19));
+        assertEquals(5,Curriculum.noteForTokens(20));
+        assertEquals(4,Curriculum.noteForTokens(40));
+        assertEquals(3,Curriculum.noteForTokens(60));
+        assertEquals(2,Curriculum.noteForTokens(75));
+        assertEquals(1,Curriculum.noteForTokens(90));
+    }
+    @Test void forecastUsesBerlinSemesterDatesCapsAtRemainingPotentialAndDoesNotStoreAnything() {
+        var stages=new ArrayList<Curriculum.ForecastStage>();
+        stages.add(new Curriculum.ForecastStage("C:1",10)); stages.add(new Curriculum.ForecastStage("C:2",10));
+        stages.add(new Curriculum.ForecastStage("C:3",40)); stages.add(new Curriculum.ForecastStage("F:1",25));
+        var result=Curriculum.calculateForecast(LocalDate.of(2026,10,1),LocalDate.of(2026,9,1),LocalDate.of(2026,12,31),20,stages, new HashSet<>(Set.of("C:1","C:2")));
+        assertTrue((Boolean)result.get("available"));
+        assertEquals(2L,result.get("completedStages"));
+        assertEquals(2L,result.get("remainingStages"));
+        assertEquals(65L,result.get("remainingCoinPotential"));
+        assertTrue(((Number)result.get("forecastCoins")).longValue() <= 85L);
+        assertEquals(2,result.get("forecastGrade"));
+        var hj2=Curriculum.calculateForecast(LocalDate.of(2027,2,1),LocalDate.of(2027,2,1),LocalDate.of(2027,7,31),20,stages,Set.of("C:1","C:2"));
+        assertFalse((Boolean)hj2.get("available"));
+        assertEquals("too_early",hj2.get("reason"));
+    }
+    @Test void forecastAtSemesterEndEqualsActualAndIgnoresLegacyOrZeroValueStages() {
+        var stages=List.of(new Curriculum.ForecastStage("C:valid",20),new Curriculum.ForecastStage("C:zero",0));
+        var result=Curriculum.calculateForecast(LocalDate.of(2027,1,31),LocalDate.of(2026,9,1),LocalDate.of(2027,1,31),11,stages,Set.of("C:valid","LEGACY:99"));
+        assertTrue((Boolean)result.get("available"));
+        assertEquals("semester_ended",result.get("reason"));
+        assertEquals(11L,result.get("forecastCoins"));
+        assertEquals(6,result.get("forecastGrade"));
+        assertEquals(1L,result.get("completedStages"));
+        assertEquals(1L,result.get("remainingStages"));
+        assertEquals(0L,result.get("remainingCoinPotential"));
+        var invalid=Curriculum.calculateForecast(LocalDate.of(2026,10,1),null,LocalDate.of(2027,1,31),11,stages,Set.of());
+        assertFalse((Boolean)invalid.get("available"));
+        assertEquals("semester_dates_unavailable",invalid.get("reason"));
     }
     @Test void schoolwideStageOverviewLimitsTeacherRowsToAuthorizedContexts() throws Exception {
         makeCurrentSemester(id);
