@@ -1,4 +1,8 @@
 (function() {
+    const profileGraduationLevels = Array.isArray(window.graduationLevels)
+        ? window.graduationLevels
+        : ['Neustarter', 'Starter', 'Durchstarter', 'Lernprofi'];
+
     function studentClassId(student) {
         const cls = student.schoolClass || student.class || {};
         const id = cls.id ?? cls.classId ?? student.classId;
@@ -70,10 +74,10 @@
         const select = document.getElementById("adminStudentLevel");
         const currentLevel = Number(student.graduationLevel ?? 0);
         const options = [];
-        for (let i = 0; i < graduationLevels.length; i++) {
+        for (let i = 0; i < profileGraduationLevels.length; i++) {
             const option = document.createElement("option");
             option.value = String(i);
-            option.textContent = graduationLevels[i];
+            option.textContent = profileGraduationLevels[i];
             option.selected = i === currentLevel;
             options.push(option);
         }
