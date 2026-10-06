@@ -19,7 +19,10 @@
         <div class="admin-form-field"><label for="adminStudentPassword">Neues Passwort (optional)</label><input name="password" id="adminStudentPassword" type="password"></div>
         <div class="admin-form-field"><label for="adminStudentClass">Klasse</label><select name="classId" id="adminStudentClass" required></select></div>
         <div class="admin-form-field"><label for="adminStudentLevel">Abschlussstufe</label><select name="graduationLevel" id="adminStudentLevel"></select></div>
-        <button type="submit">Stammdaten speichern</button>
+        <div class="admin-dialog-actions">
+            <button type="button" id="adminStudentCancel">Abbrechen</button>
+            <button type="submit">Stammdaten speichern</button>
+        </div>
     </form>
 </section>
 <script src="/admin-student-profile.js" defer></script>

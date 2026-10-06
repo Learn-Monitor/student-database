@@ -290,6 +290,9 @@
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
+        if (new URLSearchParams(window.location.search).get("studentSaved") === "1") {
+            setAdminStatus("Schülerprofil wurde erfolgreich gespeichert.", "success");
+        }
         setupDownloads();
         bindSort();
         const [classes, subjects] = await Promise.all([

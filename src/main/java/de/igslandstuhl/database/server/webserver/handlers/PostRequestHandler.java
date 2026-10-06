@@ -195,6 +195,17 @@ public class PostRequestHandler {
         String email = student.getEmail(); // Email is the username for the student
         return PostResponse.getResource(WebResourceHandler.locationFromPath(path, student), email, request, path);
     }
+    private static PostResponse handleAdminStudentGetData(APIPostRequest request) {
+        try {
+            Student student = Student.get(requiredInt(request, "studentId"));
+            if (student == null) return PostResponse.badRequest("Schüler nicht gefunden", request);
+            return PostResponse.getResource(
+                    WebResourceHandler.locationFromPath("mydata", student),
+                    student.getEmail(), request, "mydata");
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return PostResponse.badRequest("Ungültige Schüler-ID.", request);
+        }
+    }
     private static PostResponse handleTeacherGetData(APIPostRequest request) {
         String path = request.getPath().replace("teacher-", "my");
         Teacher teacher = request.getCurrentTeacher();
@@ -517,6 +528,7 @@ public class PostRequestHandler {
         HttpHandler.registerPostRequestHandler("/lock-task", AccessLevel.USER, (rq) -> handleTaskChange(rq, Task.STATUS_LOCKED));
         HttpHandler.registerPostRequestHandler("/student-data", AccessLevel.TEACHER, PostRequestHandler::handleStudentGetData);
         HttpHandler.registerPostRequestHandler("/student-subjects", AccessLevel.TEACHER, PostRequestHandler::handleStudentGetData);
+        HttpHandler.registerPostRequestHandler("/admin-student-data", AccessLevel.ADMIN, PostRequestHandler::handleAdminStudentGetData);
         HttpHandler.registerPostRequestHandler("/teacher-classes", AccessLevel.ADMIN, PostRequestHandler::handleTeacherGetData);
         HttpHandler.registerPostRequestHandler("/teacher-subjects", AccessLevel.ADMIN, PostRequestHandler::handleTeacherGetData);
         HttpHandler.registerPostRequestHandler("/student-list", AccessLevel.TEACHER, (rq) -> {

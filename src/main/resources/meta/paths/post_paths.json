@@ -113,6 +113,12 @@
         "namespaces": [],
         "access_level": "teacher"
     },
+    "/admin-student-data": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "admin"
+    },
     "/student-subjects": {
         "type": "POST",
         "handler_type": "PostRequestHandler",

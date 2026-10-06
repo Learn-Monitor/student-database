@@ -35,6 +35,13 @@
         setFormDisabled(true);
     }
 
+    function showInlineMessage(message, state = '') {
+        const messageElement = document.getElementById("adminStudentMessage");
+        messageElement.textContent = message;
+        messageElement.dataset.state = state;
+        messageElement.hidden = false;
+    }
+
     function addOption(select, value, label, selected) {
         const option = document.createElement("option");
         option.value = String(value);
@@ -81,10 +88,37 @@
     }
 
     function setupSubmitConfirmation() {
-        document.getElementById("adminStudentForm").addEventListener("submit", event => {
-            if (!confirm("Änderungen an diesem Schüler speichern?")) {
-                event.preventDefault();
+        const form = document.getElementById("adminStudentForm");
+        form.addEventListener("submit", async event => {
+            event.preventDefault();
+            if (!form.reportValidity()) return;
+            if (!confirm("Änderungen an diesem Schüler speichern?")) return;
+            const submit = form.querySelector('button[type="submit"]');
+            submit.disabled = true;
+            try {
+                const response = await fetch(form.action, {
+                    method: "POST",
+                    body: new URLSearchParams(new FormData(form)),
+                    headers: {"Content-Type": "application/x-www-form-urlencoded"}
+                });
+                if (!response.ok) {
+                    let message = "Schülerprofil konnte nicht gespeichert werden.";
+                    try {
+                        const body = await response.text();
+                        if (body.trim()) message = body.replace(/<[^>]*>/g, "").trim() || message;
+                    } catch (_) { /* keep the safe fallback */ }
+                    showInlineMessage(message, "error");
+                    return;
+                }
+                window.location.href = "/manage_students?studentSaved=1";
+            } catch (_) {
+                showInlineMessage("Schülerprofil konnte wegen eines Verbindungsfehlers nicht gespeichert werden.", "error");
+            } finally {
+                submit.disabled = false;
             }
+        });
+        document.getElementById("adminStudentCancel").addEventListener("click", () => {
+            window.location.href = "/manage_students";
         });
     }
 
@@ -97,7 +131,7 @@
         }
 
         try {
-            const student = await fetchStudentData(id);
+            const student = await fetchStudentData(id, "/admin-student-data");
             if (!student || typeof student !== "object") {
                 showMessage("Der Schüler konnte nicht geladen werden.");
                 return;

@@ -170,7 +170,17 @@ test('form asks for German confirmation before submit',async()=>{
     const event=new dom.window.Event('submit',{bubbles:true,cancelable:true});
     dom.window.document.getElementById('adminStudentForm').dispatchEvent(event);
     assert.equal(calls.confirms[0],'Änderungen an diesem Schüler speichern?');
-    assert.equal(event.defaultPrevented,false);
+    assert.equal(event.defaultPrevented,true);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test('student profile has explicit cancel and save controls',()=>{
+  const dom=new JSDOM(`<!doctype html><html><body>${stripTemplate(html)}</body></html>`);
+  try {
+    assert.equal(dom.window.document.getElementById('adminStudentCancel')?.textContent.trim(),'Abbrechen');
+    assert.equal(dom.window.document.querySelector('#adminStudentForm button[type="submit"]')?.textContent.trim(),'Stammdaten speichern');
   } finally {
     dom.window.close();
   }

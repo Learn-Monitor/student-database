@@ -110,8 +110,8 @@ async function fetchAllSubjects() {
     const subjects = await fetchJson('/subjects');
     return subjects;
 }
-async function fetchStudentData(studentId) {
-    return await getJsonWithPost('/student-data', { studentId });
+async function fetchStudentData(studentId, endpoint = '/student-data') {
+    return await getJsonWithPost(endpoint, { studentId });
 }
 async function fetchMyData() {
     return await fetchJson('/mydata');
