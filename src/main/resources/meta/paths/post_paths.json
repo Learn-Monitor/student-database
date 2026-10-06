@@ -69,7 +69,7 @@
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "teacher"
+        "access_level": "user"
     },
     "/tasks": {
         "type": "POST",
@@ -87,19 +87,19 @@
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "teacher"
+        "access_level": "user"
     },
     "/cancel-task": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "teacher"
+        "access_level": "user"
     },
     "/reopen-task": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "teacher"
+        "access_level": "user"
     },
     "/lock-task": {
         "type": "POST",
@@ -506,25 +506,25 @@
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "teacher"
+        "access_level": "user"
     },
     "/delete-flexible-task": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "teacher"
+        "access_level": "user"
     },
     "/flexible-topic-delete-preview": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "teacher"
+        "access_level": "user"
     },
     "/delete-flexible-topic": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "teacher"
+        "access_level": "user"
     },
     "/curriculum-enrollment-catalog": {
         "type": "POST",

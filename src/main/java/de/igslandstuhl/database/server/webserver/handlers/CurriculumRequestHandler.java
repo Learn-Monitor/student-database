@@ -17,7 +17,6 @@ public final class CurriculumRequestHandler {
         for(String path:List.of("/curriculum-catalog","/curriculum-structure","/curriculum-budget","/curriculum-progress",
                 "/flexible-tasks","/add-flexible-task","/edit-flexible-task","/complete-flexible-task",
                 "/flexible-curriculum-structure","/add-flexible-topic","/rename-flexible-topic","/curriculum-releases","/set-curriculum-release",
-                "/flexible-task-delete-preview","/delete-flexible-task","/flexible-topic-delete-preview","/delete-flexible-topic",
                 "/curriculum-teacher-roster","/my-tutor-classes"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task",
@@ -25,6 +24,8 @@ public final class CurriculumRequestHandler {
                 "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/add-subject-with-type","/curriculum-course-groups","/curriculum-tutor-assignments","/set-curriculum-subject-type","/assign-grade-curriculum","/assign-individual-grade-teacher","/assign-class-tutors","/curriculum-wpf-roster","/assign-curriculum-wpf","/create-curriculum-semester","/activate-curriculum-semester"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/set-curriculum-stage-assessment",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
+        for(String path:List.of("/flexible-task-delete-preview","/delete-flexible-task","/flexible-topic-delete-preview","/delete-flexible-topic"))
+            HttpHandler.registerPostRequestHandler(path,AccessLevel.USER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/curriculum-student-progress-detail",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/curriculum-weekly-conversations",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         HttpHandler.registerPostRequestHandler("/change-tutor-graduation",AccessLevel.TEACHER,CurriculumRequestHandler::handle);
