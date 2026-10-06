@@ -75,7 +75,7 @@ public interface HttpResponse {
         out.println("Connection: close");
         out.println("Content-Type: text/html; charset=UTF8");
         out.println("Content-Length: " + body.length);
-        out.println("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie());
+        out.println("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie().toSetCookieHeader());
         out.println();
         out.write(body);
         out.flush();

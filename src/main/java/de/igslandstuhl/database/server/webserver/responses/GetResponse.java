@@ -214,7 +214,7 @@ public class GetResponse implements HttpResponse {
                     out.print("; charset=");out.print(charset);
                 }
                 out.print("\r\n");
-                out.print("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie() + "\r\n");
+                out.print("Set-Cookie: " + Server.getInstance().getWebServer().getSessionManager().getSession(request).createSessionCookie().toSetCookieHeader() + "\r\n");
             }
             out.print("Content-Length: " + body.length + "\r\n");
             out.print("\r\n");

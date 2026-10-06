@@ -54,7 +54,10 @@ public class PostResponseTest {
         assert response.contains("200");
         assert response.contains("Connection: close");
         assert response.contains("Content-Length: 4");
-        assert read(PostResponse.ok("Test", ContentType.TEXT_PLAIN, initialRequest, new Cookie("test-key", "test-value"))).contains("Set-Cookie: test-key=test-value");
+        String cookieResponse = read(PostResponse.ok("Test", ContentType.TEXT_PLAIN, initialRequest, new Cookie("test-key", "test-value")));
+        assert cookieResponse.contains("Set-Cookie: test-key=test-value; Path=/; Secure; HttpOnly; SameSite=Lax");
+        assert read(PostResponse.ok("Test", ContentType.TEXT_PLAIN, initialRequest))
+            .contains("Set-Cookie: session=");
     }
 
     @Test
@@ -68,6 +71,18 @@ public class PostResponseTest {
     @Test
     void testRedirect() {
         assert read(PostResponse.redirect("Test", initialRequest)).contains("302");
+    }
+
+    @Test
+    void logoutCookieIsDeletedWithTheSameScopeAndSecurityPolicy() {
+        String response = read(PostResponse.redirect(
+            "/arcanum-logout.html?session=ended",
+            initialRequest,
+            Cookie.deletion("session")
+        ));
+        assert response.contains(
+            "Set-Cookie: session=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Lax"
+        );
     }
 
     @Test

@@ -62,6 +62,8 @@ public class GetResponseTest {
         String responseBody = response.getResponseBody();
         assertTrue(responseString.contains(responseBody));
         assertTrue(responseString.contains("HTTP/1.1 200 OK"));
+        assertTrue(responseString.contains("Set-Cookie: session="));
+        assertTrue(responseString.contains("Path=/; Secure; HttpOnly; SameSite=Lax"));
         assertTrue(responseString.contains("Connection: close\r\n"));
         String headerBlock = responseString.substring(0, responseString.indexOf("\r\n\r\n") + 4);
         assertFalse(headerBlock.replace("\r\n", "").contains("\n"));
@@ -81,6 +83,8 @@ public class GetResponseTest {
                     .findFirst().orElseThrow().substring("Content-Length:".length()).trim();
             assertEquals(body.getBytes(StandardCharsets.UTF_8).length, Integer.parseInt(length));
             assertTrue(response.contains("Connection: close"));
+            assertTrue(response.contains("Set-Cookie: session="));
+            assertTrue(response.contains("Path=/; Secure; HttpOnly; SameSite=Lax"));
         }
     }
 }

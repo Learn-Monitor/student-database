@@ -46,6 +46,7 @@ import de.igslandstuhl.database.plugins.config.PluginSetting;
 import de.igslandstuhl.database.plugins.config.ShortAnswerSetting;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.webserver.ContentType;
+import de.igslandstuhl.database.server.webserver.Cookie;
 import de.igslandstuhl.database.server.webserver.Status;
 import de.igslandstuhl.database.server.webserver.access.AccessLevel;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
@@ -651,7 +652,11 @@ public class PostRequestHandler {
         });
         HttpHandler.registerPostRequestHandler("/logout", AccessLevel.USER, (rq) -> {
             Server.getInstance().getWebServer().getSessionManager().logout(rq);
-            return PostResponse.redirect("/arcanum-logout.html?session=ended", rq);
+            return PostResponse.redirect(
+                "/arcanum-logout.html?session=ended",
+                rq,
+                Cookie.deletion("session")
+            );
         });
     }
     static PostResponse handleSubjectRequest(APIPostRequest rq) throws SQLException {

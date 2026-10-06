@@ -118,7 +118,7 @@ public class PostResponse implements HttpResponse {
         out.print("Content-Type: " + contentType.getName() + "; charset=UTF-8\r\n");
         out.print("Content-Length: " + responseBody.length + "\r\n");
         if (cookie != null) {
-            out.print("Set-Cookie: " + cookie + "; HttpOnly; Secure\r\n");
+            out.print("Set-Cookie: " + cookie.toSetCookieHeader() + "\r\n");
         }
         for (String header : headers) {
             out.print(header + "\r\n");

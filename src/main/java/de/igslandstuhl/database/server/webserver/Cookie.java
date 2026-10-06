@@ -5,6 +5,7 @@ package de.igslandstuhl.database.server.webserver;
  * This class is used to store cookie information in HTTP requests and responses.
  */
 public class Cookie {
+    private static final String SESSION_COOKIE_ATTRIBUTES = "; Path=/; Secure; HttpOnly; SameSite=Lax";
     /**
      * The name of the cookie.
      * This is the identifier for the cookie, used to retrieve its value.
@@ -15,6 +16,7 @@ public class Cookie {
      * This is the data stored in the cookie, which can be used for session management or other purposes.
      */
     private final String value;
+    private final boolean deletion;
 
     /**
      * Constructs a new Cookie with the specified name and value.
@@ -23,8 +25,17 @@ public class Cookie {
      * @param value The value of the cookie.
      */
     public Cookie(String name, String value) {
+        this(name, value, false);
+    }
+
+    private Cookie(String name, String value, boolean deletion) {
         this.name = name;
         this.value = value;
+        this.deletion = deletion;
+    }
+
+    public static Cookie deletion(String name) {
+        return new Cookie(name, "", true);
     }
 
     /**
@@ -84,6 +95,23 @@ public class Cookie {
 
     public String toString() {
         return name + "=" + value;
+    }
+
+    /**
+     * Serializes this cookie for a response. Response cookies use one shared
+     * policy so that session cookies cannot accidentally be emitted without
+     * their security attributes on a particular response path.
+     */
+    public String toSetCookieHeader() {
+        return deletion ? toDeletionSetCookieHeader() : toString() + SESSION_COOKIE_ATTRIBUTES;
+    }
+
+    /**
+     * Serializes a cookie that removes the browser cookie while retaining the
+     * same scope and security policy as the normal session cookie.
+     */
+    public String toDeletionSetCookieHeader() {
+        return name + "=; Max-Age=0" + SESSION_COOKIE_ATTRIBUTES;
     }
 
     @Override

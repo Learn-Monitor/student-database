@@ -28,6 +28,22 @@ public class CookieTest {
     }
 
     @Test
+    void responseSerializationUsesTheSessionCookiePolicy() {
+        assertEquals(
+            "test-key=test-value; Path=/; Secure; HttpOnly; SameSite=Lax",
+            cookie.toSetCookieHeader()
+        );
+    }
+
+    @Test
+    void deletionSerializationKeepsScopeAndSecurityAttributes() {
+        assertEquals(
+            "session=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Lax",
+            Cookie.deletion("session").toSetCookieHeader()
+        );
+    }
+
+    @Test
     void testEquals() {
         assertEquals(cookie, new Cookie("test-key", "test-value"));
     }
