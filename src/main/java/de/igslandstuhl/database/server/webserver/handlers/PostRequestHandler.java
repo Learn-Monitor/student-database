@@ -200,8 +200,8 @@ public class PostRequestHandler {
             Student student = Student.get(requiredInt(request, "studentId"));
             if (student == null) return PostResponse.badRequest("Schüler nicht gefunden", request);
             return PostResponse.getResource(
-                    WebResourceHandler.locationFromPath("mydata", student),
-                    student.getEmail(), request, "mydata");
+                    WebResourceHandler.locationFromPath("/mydata", student),
+                    student.getEmail(), request, "/mydata");
         } catch (IllegalArgumentException | NullPointerException e) {
             return PostResponse.badRequest("Ungültige Schüler-ID.", request);
         }
