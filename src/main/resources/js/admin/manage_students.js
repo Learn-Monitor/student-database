@@ -1,5 +1,7 @@
 (function() {
     let allStudents = [];
+    let sortColumn = 'lastName';
+    let sortDirection = 'ascending';
 
     function setAdminStatus(message, state = '') {
         const status = document.getElementById('student-admin-status');
@@ -48,6 +50,11 @@
     }
 
     function compareStudents(a, b) {
+        const primaryValues = sortColumn === 'firstName'
+            ? [studentFirstName(a), studentFirstName(b)]
+            : [studentLastName(a), studentLastName(b)];
+        const primary = primaryValues[0].localeCompare(primaryValues[1], "de", {sensitivity: "base"}) * (sortDirection === 'ascending' ? 1 : -1);
+        if (primary !== 0) return primary;
         const last = studentLastName(a).localeCompare(studentLastName(b), "de", {sensitivity: "base"});
         if (last !== 0) return last;
         return studentFirstName(a).localeCompare(studentFirstName(b), "de", {sensitivity: "base"});
@@ -173,7 +180,54 @@
             reactivateButton.addEventListener("click", () => reactivateStudent(student));
             actionCell.appendChild(reactivateButton);
         }
+        if (activeStatus()) {
+            const passwordButton = document.createElement("button");
+            passwordButton.type = "button";
+            passwordButton.className = "reset-student-password";
+            passwordButton.textContent = "Passwort neu setzen";
+            passwordButton.addEventListener("click", () => openPasswordDialog(student));
+            actionCell.appendChild(passwordButton);
+        }
         return row;
+    }
+
+    function openPasswordDialog(student) {
+        const dialog = document.getElementById('student-password-dialog');
+        const form = document.getElementById('student-password-form');
+        const password = document.getElementById('student-new-password');
+        const confirmation = document.getElementById('student-password-confirmation');
+        const error = document.getElementById('student-password-error');
+        document.getElementById('student-password-target').textContent = `${studentFirstName(student)} ${studentLastName(student)} (${studentLogin(student)})`;
+        password.value = ''; confirmation.value = ''; error.textContent = '';
+        form.onsubmit = async event => {
+            event.preventDefault();
+            error.textContent = '';
+            if (!form.reportValidity()) return;
+            if (password.value !== confirmation.value) { error.textContent = 'Die Passwörter stimmen nicht überein.'; return; }
+            if (!window.confirm('Passwort für dieses Konto wirklich neu setzen?')) return;
+            const response = await post('/admin-reset-password', {targetType: 'student', targetId: student.id, password: password.value, passwordConfirmation: confirmation.value});
+            if (!response.ok) { error.textContent = 'Das Passwort konnte nicht gespeichert werden.'; return; }
+            closePasswordDialog(); setAdminStatus('Passwort wurde neu gesetzt.', 'success');
+        };
+        document.getElementById('student-password-cancel').onclick = closePasswordDialog;
+        if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+        password.focus();
+    }
+
+    function closePasswordDialog() {
+        const dialog = document.getElementById('student-password-dialog');
+        if (typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open');
+    }
+
+    function bindSort() {
+        document.querySelectorAll('#studentTable [data-sort]').forEach(button => button.addEventListener('click', () => {
+            const key = button.dataset.sort;
+            sortDirection = sortColumn === key && sortDirection === 'ascending' ? 'descending' : 'ascending';
+            sortColumn = key;
+            document.querySelectorAll('#studentTable th').forEach(th => th.removeAttribute('aria-sort'));
+            button.closest('th').setAttribute('aria-sort', sortDirection);
+            renderStudents();
+        }));
     }
 
     function renderStudents() {
@@ -237,6 +291,7 @@
 
     document.addEventListener("DOMContentLoaded", async () => {
         setupDownloads();
+        bindSort();
         const [classes, subjects] = await Promise.all([
             fetchClasses(),
             fetchAllSubjects()

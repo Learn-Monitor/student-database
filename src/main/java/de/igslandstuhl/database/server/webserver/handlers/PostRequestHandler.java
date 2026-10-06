@@ -307,6 +307,33 @@ public class PostRequestHandler {
             return PostResponse.badRequest("Lehrkraftprofil konnte nicht gespeichert werden.", rq);
         }
     }
+    static PostResponse handleAdminResetPassword(APIPostRequest rq) {
+        try {
+            String targetType = requiredPrepared(rq, "targetType", false);
+            int targetId = requiredInt(rq, "targetId");
+            String password = rq.getString("password");
+            String repeatedPassword = rq.getString("passwordConfirmation");
+            if (password == null || repeatedPassword == null || password.isBlank() || !password.equals(repeatedPassword))
+                return PostResponse.badRequest("Die neuen Passwörter müssen ausgefüllt sein und übereinstimmen.", rq);
+            if (password.length() < 8)
+                return PostResponse.badRequest("Das neue Passwort muss mindestens 8 Zeichen lang sein.", rq);
+
+            User target;
+            if ("student".equals(targetType)) target = Student.get(targetId);
+            else if ("teacher".equals(targetType)) target = Teacher.get(targetId);
+            else return PostResponse.badRequest("Ungültiger Kontotyp.", rq);
+            if (target == null) return PostResponse.notFound("Zielkonto nicht gefunden.", rq);
+
+            target.setPassword(password);
+            Server.getInstance().getWebServer().getSessionManager().invalidateUserSessions(target.getUsername());
+            return PostResponse.json(Map.of("success", true), rq);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return PostResponse.badRequest("Ungültige Passwortdaten.", rq);
+        } catch (SQLException e) {
+            LOGGER.warn("Could not reset managed account password", e);
+            return PostResponse.internalServerError("Passwort konnte nicht gespeichert werden.", rq);
+        }
+    }
     static PostResponse handleArchiveStudent(APIPostRequest rq) {
         try {
             Student student = Student.get(requiredInt(rq, "id"));
@@ -571,6 +598,7 @@ public class PostRequestHandler {
         );
         HttpHandler.registerPostRequestHandler("/edit-student-profile", AccessLevel.ADMIN, PostRequestHandler::handleEditStudentProfile);
         HttpHandler.registerPostRequestHandler("/edit-teacher-profile", AccessLevel.ADMIN, PostRequestHandler::handleEditTeacherProfile);
+        HttpHandler.registerPostRequestHandler("/admin-reset-password", AccessLevel.ADMIN, PostRequestHandler::handleAdminResetPassword);
         HttpHandler.registerPostRequestHandler("/add-subject-to-class", AccessLevel.ADMIN, (rq) -> 
             handleObjectAction(rq, new TypeToken<SchoolClass>() {}, PostResponse.redirect("/class", rq), (schoolClass) -> schoolClass.addSubject(rq.getSubject()))
         );

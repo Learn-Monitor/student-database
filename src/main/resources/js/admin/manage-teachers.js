@@ -33,6 +33,10 @@
         button.type = 'button'; button.className = 'view-teacher'; button.textContent = 'Bearbeiten';
         button.addEventListener('click', () => viewTeacher(teacher.id));
         action.append(button);
+        const passwordButton = document.createElement('button');
+        passwordButton.type = 'button'; passwordButton.className = 'reset-teacher-password'; passwordButton.textContent = 'Passwort neu setzen';
+        passwordButton.addEventListener('click', () => openPasswordDialog(teacher));
+        action.append(passwordButton);
         return row;
       });
     document.getElementById('teacherTableBody').replaceChildren(...rows);
@@ -49,6 +53,33 @@
         render();
       });
     });
+  }
+
+  function openPasswordDialog(teacher) {
+    const dialog = document.getElementById('teacher-password-dialog');
+    const form = document.getElementById('teacher-password-form');
+    const password = document.getElementById('teacher-new-password');
+    const confirmation = document.getElementById('teacher-password-confirmation');
+    const error = document.getElementById('teacher-password-error');
+    document.getElementById('teacher-password-target').textContent = `${firstName(teacher)} ${lastName(teacher)} (${login(teacher)})`;
+    password.value = ''; confirmation.value = ''; error.textContent = '';
+    form.onsubmit = async event => {
+      event.preventDefault(); error.textContent = '';
+      if (!form.reportValidity()) return;
+      if (password.value !== confirmation.value) { error.textContent = 'Die Passwörter stimmen nicht überein.'; return; }
+      if (!window.confirm('Passwort für dieses Konto wirklich neu setzen?')) return;
+      const response = await fetch('/admin-reset-password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({targetType:'teacher', targetId:teacher.id, password:password.value, passwordConfirmation:confirmation.value})});
+      if (!response.ok) { error.textContent = 'Das Passwort konnte nicht gespeichert werden.'; return; }
+      closePasswordDialog(); document.getElementById('teacher-list-status').textContent = 'Passwort wurde neu gesetzt.';
+    };
+    document.getElementById('teacher-password-cancel').onclick = closePasswordDialog;
+    if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+    password.focus();
+  }
+
+  function closePasswordDialog() {
+    const dialog = document.getElementById('teacher-password-dialog');
+    if (typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open');
   }
 
   document.addEventListener('DOMContentLoaded', async () => {

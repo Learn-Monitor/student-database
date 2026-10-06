@@ -42,6 +42,21 @@
             </table></div>
         </section>
     </main>
+    <dialog id="teacher-password-dialog" class="admin-password-dialog" aria-labelledby="teacher-password-title">
+        <form method="dialog" id="teacher-password-form">
+            <h2 id="teacher-password-title">Passwort neu setzen</h2>
+            <p id="teacher-password-target"></p>
+            <label for="teacher-new-password">Neues Passwort</label>
+            <input id="teacher-new-password" name="password" type="password" minlength="8" autocomplete="new-password" required>
+            <label for="teacher-password-confirmation">Neues Passwort wiederholen</label>
+            <input id="teacher-password-confirmation" name="passwordConfirmation" type="password" minlength="8" autocomplete="new-password" required>
+            <p id="teacher-password-error" class="admin-inline-status" role="alert"></p>
+            <div class="admin-dialog-actions">
+                <button type="button" id="teacher-password-cancel">Abbrechen</button>
+                <button type="submit" id="teacher-password-save">Passwort speichern</button>
+            </div>
+        </form>
+    </dialog>
 </section>
 <script src="/manage-teachers.js" defer></script>
 <script src="/admin-section-navigation.js" defer></script>

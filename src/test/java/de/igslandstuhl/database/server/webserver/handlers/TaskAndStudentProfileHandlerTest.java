@@ -176,6 +176,24 @@ class TaskAndStudentProfileHandlerTest {
     }
 
     @Test
+    void adminPasswordResetValidatesHashesAndInvalidatesExistingSessions() throws Exception {
+        String replacement = "A".repeat(8);
+        String body = "{\"targetType\":\"student\",\"targetId\":" + id + ",\"password\":\"" + replacement + "\",\"passwordConfirmation\":\"" + replacement + "\"}";
+        PostRequest loginRequest = new PostRequest("POST /login HTTP/1.1", "", "127.0.0.1", true);
+        Session session = Server.getInstance().getWebServer().getSessionManager().getSession(loginRequest);
+        Server.getInstance().getWebServer().getSessionManager().addSessionUser(session, Student.get(id).getUsername());
+        assertNotNull(Server.getInstance().getWebServer().getSessionManager().getSession(session.getUUID()));
+
+        APIPostRequest request = new APIPostRequest(new HttpHeader("POST /admin-reset-password HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: " + body.length() + "\r\n"), body, "127.0.0.1", true);
+        assertEquals(Status.OK, PostRequestHandler.handleAdminResetPassword(request).getStatus());
+        assertEquals(User.passHash(replacement), Student.get(id).getPasswordHash());
+        assertNull(Server.getInstance().getWebServer().getSessionManager().getSession(session.getUUID()));
+
+        String mismatch = "{\"targetType\":\"student\",\"targetId\":" + id + ",\"password\":\"" + replacement + "\",\"passwordConfirmation\":\"" + "B".repeat(8) + "\"}";
+        assertEquals(Status.BAD_REQUEST, PostRequestHandler.handleAdminResetPassword(new APIPostRequest(new HttpHeader("POST /admin-reset-password HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: " + mismatch.length() + "\r\n"), mismatch, "127.0.0.1", true)).getStatus());
+    }
+
+    @Test
     void subjectRequestsPersistMultipleTypesAndRemoveOnlyMatchingSignal() throws Exception {
         curriculum.activateCentralStage(id, task);
         assertEquals(Status.OK, subjectRequest(Student.get(id), "{\"subjectId\":" + id + ",\"subjectRequest\":\"hilfe\"}").getStatus());

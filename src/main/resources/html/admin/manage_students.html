@@ -45,8 +45,8 @@
                 <caption class="admin-visually-hidden">Schülerliste</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Nachname</th>
-                        <th scope="col">Vorname</th>
+                        <th scope="col" aria-sort="ascending"><button type="button" class="admin-sort-button" data-sort="lastName" aria-label="Nachname sortieren">Nachname</button></th>
+                        <th scope="col"><button type="button" class="admin-sort-button" data-sort="firstName" aria-label="Vorname sortieren">Vorname</button></th>
                         <th scope="col">Klasse</th>
                         <th scope="col">Abschlussstufe</th>
                         <th scope="col">Aktionen</th>
@@ -56,6 +56,21 @@
             </table></div>
         </section>
     </main>
+    <dialog id="student-password-dialog" class="admin-password-dialog" aria-labelledby="student-password-title">
+        <form method="dialog" id="student-password-form">
+            <h2 id="student-password-title">Passwort neu setzen</h2>
+            <p id="student-password-target"></p>
+            <label for="student-new-password">Neues Passwort</label>
+            <input id="student-new-password" name="password" type="password" minlength="8" autocomplete="new-password" required>
+            <label for="student-password-confirmation">Neues Passwort wiederholen</label>
+            <input id="student-password-confirmation" name="passwordConfirmation" type="password" minlength="8" autocomplete="new-password" required>
+            <p id="student-password-error" class="admin-inline-status" role="alert"></p>
+            <div class="admin-dialog-actions">
+                <button type="button" id="student-password-cancel">Abbrechen</button>
+                <button type="submit" id="student-password-save">Passwort speichern</button>
+            </div>
+        </form>
+    </dialog>
 </section>
 <script src="/manage_students.js" defer></script>
 <script src="/admin-section-navigation.js" defer></script>

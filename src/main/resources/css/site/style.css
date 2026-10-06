@@ -333,6 +333,15 @@ body:has(.admin-shell) > header { display:none; }
   .admin-form-field, .admin-form button { width:100%; }
   .admin-detail-nav a, .admin-action-link { min-height:2.7rem; }
 }
+
+.admin-password-dialog { width: min(32rem, calc(100vw - 2rem)); border: 1px solid #8b6f47; border-radius: .5rem; padding: 1.25rem; color: #211a14; background: #fffaf0; }
+.admin-password-dialog::backdrop { background: rgba(30, 20, 10, .55); }
+.admin-password-dialog form { display: grid; gap: .65rem; }
+.admin-password-dialog h2 { margin: 0 0 .25rem; }
+.admin-password-dialog input { width: 100%; box-sizing: border-box; padding: .65rem; font: inherit; }
+.admin-dialog-actions { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: flex-end; margin-top: .5rem; }
+.admin-sort-button { border: 0; background: transparent; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: .15em; cursor: pointer; padding: .25rem .35rem; }
+.admin-sort-button:focus-visible { outline: 3px solid #d99a35; outline-offset: 2px; }
 .admin-list-page main { min-width:0; }
 .admin-form-stacked { align-items:stretch; flex-direction:column; }
 .admin-admin-actions { display:flex; flex-wrap:wrap; align-items:end; gap:.65rem; margin:1rem 0; }

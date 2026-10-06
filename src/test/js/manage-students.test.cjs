@@ -159,6 +159,37 @@ test('student table has five requested columns',async()=>{
   }
 });
 
+test('student names are sortable with an accessible header button',async()=>{
+  const {dom}=await setup();
+  try {
+    const button=dom.window.document.querySelector('#studentTable [data-sort="firstName"]');
+    assert.ok(button);
+    button.click();
+    assert.ok(['ascending','descending'].includes(button.closest('th').getAttribute('aria-sort')));
+    button.click();
+    assert.equal(button.closest('th').getAttribute('aria-sort'),'descending');
+  } finally { dom.window.close(); }
+});
+
+test('student row offers password reset without exposing an existing password',async()=>{
+  const {dom,calls}=await setup();
+  try {
+    const button=dom.window.document.querySelector('.reset-student-password');
+    assert.equal(button.textContent,'Passwort neu setzen');
+    button.click();
+    const dialog=dom.window.document.getElementById('student-password-dialog');
+    assert.equal(dialog.hasAttribute('open'),true);
+    assert.equal(dom.window.document.getElementById('student-new-password').value,'');
+    const testValue='A'.repeat(8);
+    dom.window.document.getElementById('student-new-password').value=testValue;
+    dom.window.document.getElementById('student-password-confirmation').value=testValue;
+    dom.window.document.getElementById('student-password-form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
+    await tick();
+    assert.equal(calls.posts.at(-1).url,'/admin-reset-password');
+    assert.deepEqual({...calls.posts.at(-1).data},{targetType:'student',targetId:2,password:testValue,passwordConfirmation:testValue});
+  } finally { dom.window.close(); }
+});
+
 test('last and first names are separated and sorted by German locale',async()=>{
   const {dom}=await setup();
   try {

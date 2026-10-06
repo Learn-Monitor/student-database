@@ -123,6 +123,17 @@ test('edit button calls viewTeacher with only the teacher id',async()=>{
   }
 });
 
+test('teacher rows offer a password reset dialog without exposing passwords',async()=>{
+  const {dom}=await setup();
+  try {
+    const button=dom.window.document.querySelector('.reset-teacher-password');
+    assert.equal(button.textContent,'Passwort neu setzen');
+    button.click();
+    assert.equal(dom.window.document.getElementById('teacher-password-dialog').hasAttribute('open'),true);
+    assert.equal(dom.window.document.getElementById('teacher-new-password').value,'');
+  } finally { dom.window.close(); }
+});
+
 test('teacher filter uses German case handling for name or login',async()=>{
   const {dom}=await setup();
   try {
