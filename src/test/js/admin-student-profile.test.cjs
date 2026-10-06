@@ -174,6 +174,18 @@ test('password label and form post target stay correct',()=>{
   }
 });
 
+test('admin student profile uses the shared site shell and navigation',()=>{
+  assert.match(html,/^%\[site;title=Schüler bearbeiten;content=!FOLLOWS\]/);
+  assert.match(html,/admin-section-navigation\.js/);
+  const dom=new JSDOM(`<!doctype html><html><body>${stripTemplate(html)}</body></html>`);
+  try {
+    assert.equal(dom.window.document.querySelector('.admin-detail-current')?.textContent.trim(),'Schüler bearbeiten');
+    assert.equal(dom.window.document.querySelector('.admin-detail-current')?.getAttribute('aria-current'),'page');
+  } finally {
+    dom.window.close();
+  }
+});
+
 test('form asks for German confirmation before submit',async()=>{
   const {dom,calls}=await setup({selectedStudentId:17});
   try {

@@ -6,6 +6,7 @@
   const aliases = new Map([['halbjahre', 'schuljahr'], ['module', 'system']]);
   const routeSections = new Map([
     ['/manage_students', 'schuldaten'], ['/manage_teachers', 'schuldaten'],
+    ['/student', 'schuldaten'],
     ['/manage_classes', 'schuldaten'], ['/manage_subjects', 'schuldaten']
   ]);
   const sectionId = id => id === 'curriculum' ? 'curriculum-admin' : id;

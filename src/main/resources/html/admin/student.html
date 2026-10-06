@@ -1,3 +1,4 @@
+%[site;title=Schüler bearbeiten;content=!FOLLOWS]
 <section id="admin-student-profile" class="admin-shell admin-detail-page">
     <header class="admin-page-header">
         <p class="admin-eyebrow">Admin · Schuldaten · Schüler</p>
@@ -8,6 +9,7 @@
     <nav class="admin-detail-nav" aria-label="Schülerverwaltung">
         <a href="/manage_students">← Schülerverwaltung</a>
         <a href="/dashboard#schuldaten">Schuldaten</a>
+        <span class="admin-detail-current" aria-current="page">Schüler bearbeiten</span>
     </nav>
     <p id="adminStudentMessage" class="admin-inline-status" role="status" aria-live="polite" hidden></p>
     <p id="adminStudentBackLink" class="admin-inline-status" hidden><a href="/manage_students">Zurück zur Schülerverwaltung</a></p>
@@ -26,3 +28,4 @@
     </form>
 </section>
 <script src="/admin-student-profile.js" defer></script>
+<script src="/admin-section-navigation.js" defer></script>
