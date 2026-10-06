@@ -502,6 +502,30 @@
         "namespaces": [],
         "access_level": "teacher"
     },
+    "/flexible-task-delete-preview": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
+    "/delete-flexible-task": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
+    "/flexible-topic-delete-preview": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
+    "/delete-flexible-topic": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "teacher"
+    },
     "/curriculum-enrollment-catalog": {
         "type": "POST",
         "handler_type": "PostRequestHandler",

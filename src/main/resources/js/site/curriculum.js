@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 not_found: 'Der angefragte Eintrag wurde nicht gefunden.',
                 conflict: 'Die Änderung steht im Konflikt mit vorhandenen Daten. Bitte Kontext, Namen und Halbjahr prüfen und aktualisieren.',
                 budget_exceeded: 'Die Grenze von 105 Münzen würde überschritten.'
+                ,topic_has_stages: 'Dieses Thema enthält noch Etappen. Lösche die Etappen zuerst einzeln oder lasse das Thema bestehen.'
             };
             const contexts = response.status === 409 && Array.isArray(body?.affectedContexts)
                 ? body.affectedContexts.filter(b => b && ['teacherId','classId','semesterId','centralTokens','flexibleTokens','totalTokens'].every(k => Number.isSafeInteger(b[k])))
@@ -199,11 +200,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const placeholder=el('option','Bewertung wählen');placeholder.value='';placeholder.disabled=true;control.append(placeholder);
                     for(const [value,label] of assessmentOptions){const option=el('option',label);option.value=value;control.append(option);}
                     control.value=stage.status||'';
-                    const save=el('button','Speichern');save.type='button';save.className='assessment-save';
-                    save.addEventListener('click',async()=>{
+                    let previousValue = stage.status || '';
+                    const saveAssessment = async () => {
                         const key=`${stage.type}:${stage.stageId}`;
                         if(assessmentWrites.has(key)||!control.value)return;
-                        assessmentWrites.add(key);control.disabled=true;save.disabled=true;detailStatus.textContent='Bewertung wird gespeichert.';
+                        const nextValue = control.value;
+                        assessmentWrites.add(key);control.disabled=true;detailStatus.style.color='';detailStatus.textContent='Wird gespeichert …';
                         try {
                             if(!await allowed('curriculum_assess_students'))throw Error(permissionDenied);
                             const context=selectedContext();
@@ -212,15 +214,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 studentId:detail.studentId,subjectId:context.subjectId,classId:context.classId,semesterId:context.semesterId,
                                 stageType:stage.type,stageId:stage.stageId,status:control.value
                             });
-                            detailStatus.textContent='Bewertung gespeichert.';
+                            detailStatus.textContent='Gespeichert';
+                            previousValue = nextValue;
                             await loadRoster();
                         } catch(error) {
-                            detailStatus.textContent=error.message;detailStatus.style.color='darkred';
+                            control.value=previousValue;
+                            detailStatus.textContent='Speichern fehlgeschlagen';detailStatus.style.color='darkred';
                         } finally {
-                            assessmentWrites.delete(key);control.disabled=false;save.disabled=false;
+                            assessmentWrites.delete(key);control.disabled=false;
                         }
-                    });
-                    assessmentCell.append(document.createElement('br'),control,save);
+                    };
+                    control.addEventListener('change', saveAssessment);
+                    assessmentCell.append(document.createElement('br'),control);
                 }
                 tr.insertCell().textContent = stage.earned === true ? 'Ja' : '—';
                 tr.insertCell().textContent = stage.inProgress === true ? 'In Bearbeitung' : '—';
@@ -487,6 +492,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const teacherClasses = teacherMode ? uniqueBy(activeContexts, context => context.classId).map(context => ({id:context.classId,label:context.classLabel,grade:context.grade})) : [];
         const subject = teacherMode ? select('Fach', [], 'subjectId') : select('Fach', catalog.subjects, 'subjectId');
         const semester = teacherMode ? null : select('Halbjahr', catalog.semesters, 'semesterId');
+        const teacherContext = teacherMode ? select('Unterrichtskontext', activeContexts.map((context, index) => ({
+            id:index,
+            label:`${context.semesterLabel || 'Halbjahr'} · ${context.classLabel || 'Lerngruppe'} · ${context.subjectName || 'Fach'} · Lehrkraft ${catalog.teacherId}`
+        })), 'teachingContext') : null;
         // The first catalog row may be an archived semester. The server marks
         // the authoritative current semester explicitly; use that only for
         // the initial view and leave later user choices untouched.
@@ -510,9 +519,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         function selectedTeacherContext() {
             if (!teacherMode) return null;
+            if (teacherContext) return activeContexts[Number(teacherContext.value)] || null;
             return activeContexts.find(context => context.classId === Number(schoolClass.value) && context.subjectId === Number(subject.value)) || null;
         }
+        let reloadCurriculum = () => Promise.resolve();
         rebuildTeacherSubjects();
+        if (teacherContext) {
+            const syncTeacherContext = () => {
+                const context = activeContexts[Number(teacherContext.value)];
+                if (!context) return;
+                schoolClass.value = String(context.classId);
+                rebuildTeacherSubjects();
+                subject.value = String(context.subjectId);
+            };
+            syncTeacherContext();
+            teacherContext.addEventListener('change', () => { syncTeacherContext(); reloadCurriculum().catch(showError); });
+            [subject, schoolClass].forEach(node => { const label=node.closest('label'); if (label) label.hidden=true; });
+        }
         const load = el('button', 'Anzeigen / Aktualisieren'); load.type = 'button'; selectMount.append(load);
         const summary = el('p'), central = el('section'), flexible = el('section'), assignments = el('section'); root.append(summary, central, flexible, assignments);
         if (teacherMode) central.className = 'teacher-curriculum-content';
@@ -589,7 +612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             async function save(path, data) {
                 const scrollTop = window.scrollY;
                 const isAssignment = path === '/assign-curriculum-context' || path === '/transfer-curriculum-context';
-                const isFlexible = ['/add-flexible-task','/edit-flexible-task','/add-flexible-topic','/rename-flexible-topic'].includes(path);
+                const isFlexible = ['/add-flexible-task','/edit-flexible-task','/add-flexible-topic','/rename-flexible-topic','/delete-flexible-task','/delete-flexible-topic'].includes(path);
                 if (current !== version) throw Error('Die Auswahl wurde geändert. Bitte das aktuelle Formular verwenden.');
                 if ((!isFlexible && catalog.admin !== true) || !await allowed('curriculum_view') ||
                     !await allowed(isAssignment ? 'curriculum_assign_context' : isFlexible ? 'curriculum_manage_flexible' : 'curriculum_manage_central')) {
@@ -610,6 +633,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (base-task.tokens+Number(tokens.value)>105) throw Error('Die Summe darf 105 Münzen nicht überschreiten.');
                     await save(isFlexible?'/edit-flexible-task':'/edit-task',{taskId:task.id,name:name.value,tokens:Number(tokens.value),...(isFlexible?{topicId:topic.value?Number(topic.value):null}:{})});
                 } catch(error){showError(error);} });parent.append(form);
+            }
+            async function deleteFlexibleTask(task) {
+                const preview = await post('/flexible-task-delete-preview', {taskId: task.id});
+                const detail = `${preview.studentResults || 0} Schülerergebnisse, ${preview.coinEntries || 0} Münzeinträge`;
+                if (!window.confirm(`Etappe „${task.name}“ löschen?\nBetroffen: ${detail}. Diese Aktion kann nicht rückgängig gemacht werden.`)) return;
+                await save('/delete-flexible-task', {taskId: task.id});
+            }
+            async function deleteFlexibleTopic(topic) {
+                const preview = await post('/flexible-topic-delete-preview', {topicId: topic.id});
+                if (preview.stageCount) throw Error(`Thema „${topic.name}“ enthält ${preview.stageCount} Etappe(n) und kann nicht gelöscht werden. Bitte Etappen zuerst einzeln prüfen.`);
+                if (!window.confirm(`Thema „${topic.name}“ löschen? Es sind keine Etappen mehr zugeordnet.`)) return;
+                await save('/delete-flexible-topic', {topicId: topic.id});
             }
             let budget, flexibleTopics = [];
             function topicField(form, selected) {
@@ -656,13 +691,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if(manageFlexible) {
                         const form=el('form'),name=field(form,'Themenname',topic.name);button(form,'Flexibles Thema umbenennen');group.append(form);
                         form.addEventListener('submit',async e=>{e.preventDefault();try{await save('/rename-flexible-topic',{topicId:topic.id,name:name.value});}catch(error){showError(error);}});
+                        const removeTopic=el('button','Flexibles Thema löschen');removeTopic.type='button';group.append(removeTopic);
+                        removeTopic.addEventListener('click',()=>deleteFlexibleTopic(topic).catch(showError));
                     }
                     for(const task of topicTasks) {
                         const active=flexibleTaskRelease(releases,task)?.active === true;
                         const row=el('p',`${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);row.className='teacher-stage-row';
                         group.append(row);
                         if(canPublish) appendReleaseButton(row,active?'Sperren':'Freigeben',{flexibleTaskId:task.id,active:!active});
-                        if(manageFlexible) editTask(group,task,true);
+                        if(manageFlexible) { editTask(group,task,true); const remove=el('button','Etappe löschen');remove.type='button';group.append(remove);remove.addEventListener('click',()=>deleteFlexibleTask(task).catch(showError)); }
                     }
                 }
                 const unassigned=tasks.filter(task=>(task.topicId??null)===null);
@@ -673,7 +710,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const row=el('p',`${task.name}: ${task.tokens} Münzen · ${active?'freigegeben':'gesperrt'} `);row.className='teacher-stage-row';
                         group.append(row);
                         if(canPublish) appendReleaseButton(row,active?'Sperren':'Freigeben',{flexibleTaskId:task.id,active:!active});
-                        if(manageFlexible) editTask(group,task,true);
+                        if(manageFlexible) { editTask(group,task,true); const remove=el('button','Etappe löschen');remove.type='button';group.append(remove);remove.addEventListener('click',()=>deleteFlexibleTask(task).catch(showError)); }
                     }
                 }
                 if (!manageFlexible) { central.append(el('p','Flexible Inhalte sind nur lesbar.')); return; }
@@ -734,9 +771,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if(manageFlexible && topic.id!==null) {
                     const form=el('form'),name=field(form,'Themenname',topic.name);button(form,'Flexibles Thema umbenennen');group.append(form);
                     form.addEventListener('submit',async e=>{e.preventDefault();try{await save('/rename-flexible-topic',{topicId:topic.id,name:name.value});}catch(error){showError(error);}});
+                    const removeTopic=el('button','Flexibles Thema löschen');removeTopic.type='button';group.append(removeTopic);removeTopic.addEventListener('click',()=>deleteFlexibleTopic(topic).catch(showError));
                 }
                 for(const task of grouped) {
-                    if(manageFlexible) editTask(group,task,true);
+                    if(manageFlexible) { editTask(group,task,true); const remove=el('button','Etappe löschen');remove.type='button';group.append(remove);remove.addEventListener('click',()=>deleteFlexibleTask(task).catch(showError)); }
                     else group.append(el('p',task.name+': '+task.tokens+' Münzen'));
                 }
             }
@@ -781,6 +819,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await save('/add-flexible-task',{...scope,name:name.value,tokens:Number(tokens.value),topicId:topic.value?Number(topic.value):null});
             }catch(error){showError(error);}});
         }
+        reloadCurriculum = refresh;
         async function mountCentralImport() {
             if(!catalog.admin || !await allowed('curriculum_manage_central'))return;
             const panel=el('section');panel.className='central-curriculum-import';root.append(panel);

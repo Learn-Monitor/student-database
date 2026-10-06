@@ -108,6 +108,23 @@ class CurriculumTest {
         assertEquals(10, Curriculum.competitionRank(List.of(100L, 90L, 80L, 70L, 60L, 50L, 40L, 30L, 20L, 10L), 10L));
         assertEquals(11, Curriculum.competitionRank(List.of(100L, 90L, 80L, 70L, 60L, 50L, 40L, 30L, 20L, 10L), 0L));
     }
+
+    @Test void flexibleDeletionIsPreviewedAuthorizedAndAtomicallyRemovesOnlyItsHistory() throws Exception {
+        int flexibleTopic = service.createFlexibleTopic(teacher, scope, "Delete topic");
+        var task = service.create(teacher, scope, "Delete stage", 7, flexibleTopic);
+        db.writeTransaction(c -> { exec(c, "INSERT INTO completed_flexible_tasks(student,flexible_task) VALUES(?,?)", id, task.id()); return null; });
+        var preview = service.flexibleTaskDeletionPreview(teacher, task.id());
+        assertEquals(1L, preview.get("studentResults"));
+        assertEquals(1L, preview.get("coinEntries"));
+        assertEquals(403, assertThrows(CurriculumException.class, () -> service.flexibleTaskDeletionPreview(other, task.id())).status);
+        var remaining = service.create(teacher, scope, "Remaining stage", 3, flexibleTopic);
+        service.deleteFlexibleTask(teacher, task.id());
+        assertEquals(0, scalar("SELECT COUNT(*) FROM flexible_tasks WHERE id=?", task.id()));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE flexible_task=?", task.id()));
+        assertEquals(409, assertThrows(CurriculumException.class, () -> service.deleteFlexibleTopic(teacher, flexibleTopic)).status);
+        service.deleteFlexibleTask(teacher, remaining.id());
+        service.deleteFlexibleTopic(teacher, flexibleTopic);
+    }
     @Test void forecastUsesBerlinSemesterDatesCapsAtRemainingPotentialAndDoesNotStoreAnything() {
         var stages=new ArrayList<Curriculum.ForecastStage>();
         stages.add(new Curriculum.ForecastStage("C:1",10)); stages.add(new Curriculum.ForecastStage("C:2",10));

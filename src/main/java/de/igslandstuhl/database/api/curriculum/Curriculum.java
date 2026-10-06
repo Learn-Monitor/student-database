@@ -145,6 +145,15 @@ public final class Curriculum {
     public Map<String,Object> rankingForStudent(int studentId) throws SQLException {
         return transaction(c -> {
             int semester = currentSemester(c);
+            var ownClass = rows(c, "SELECT cl.grade FROM students s JOIN classes cl ON cl.id=s.class WHERE s.id=? AND COALESCE(s.active,1)=1 AND cl.id<>0 AND cl.grade<>0", studentId);
+            if (ownClass.isEmpty()) {
+                Map<String,Object> unavailable = new LinkedHashMap<>();
+                unavailable.put("semesterId", semester); unavailable.put("totalValidCoins", 0L);
+                unavailable.put("rank", 0); unavailable.put("rankTotal", 0); unavailable.put("rankAvailable", false);
+                unavailable.put("inTopTen", false); unavailable.put("tieRule", "Gleiche Münzzahl erhält denselben Rang; Rang 10 zählt zur Top Ten.");
+                return unavailable;
+            }
+            int grade = integer(ownClass.get(0), "grade");
             List<Map<String,Object>> rows = rows(c,
                     "SELECT s.id, "
                     + "COALESCE((SELECT SUM(t.tokens) FROM taskstats x JOIN tasks t ON t.id=x.task "
@@ -155,7 +164,7 @@ public final class Curriculum {
                     + "WHERE x.student=s.id AND t.semester=? AND EXISTS (SELECT 1 FROM student_curriculum_contexts ctx "
                     + "WHERE ctx.student=s.id AND ctx.subject=t.subject AND ctx.semester=t.semester "
                     + "AND (ctx.course_group=t.course_group OR (t.course_group IS NULL AND ctx.class=t.class)))),0) AS totalCoins "
-                    + "FROM students s WHERE COALESCE(s.active,1)=1 AND s.class<>0", semester, semester);
+                    + "FROM students s JOIN classes cl ON cl.id=s.class WHERE COALESCE(s.active,1)=1 AND s.class<>0 AND cl.grade=?", semester, semester, grade);
             Map<Integer,Long> totalsByStudent = new HashMap<>();
             for (Map<String,Object> row : rows) totalsByStudent.put(integer(row,"id"), ((Number) row.get("totalCoins")).longValue());
             long ownTotal = totalsByStudent.getOrDefault(studentId, 0L);
@@ -164,6 +173,9 @@ public final class Curriculum {
             result.put("semesterId", semester);
             result.put("totalValidCoins", ownTotal);
             result.put("rank", rank);
+            result.put("rankTotal", totalsByStudent.size());
+            result.put("grade", grade);
+            result.put("rankAvailable", true);
             result.put("inTopTen", rank <= 10);
             result.put("tieRule", "Gleiche Münzzahl erhält denselben Rang; alle mit Rang 10 gehören zur Top Ten.");
             return result;
@@ -538,6 +550,63 @@ public final class Curriculum {
         transaction(c->{var topic=require(c,"SELECT * FROM flexible_topics WHERE id=?",topicId);
             authorize(c,actor,new Scope(integer(topic,"owner_teacher"),integer(topic,"subject"),integer(topic,"class"),integer(topic,"semester")),false);
             write(c,"UPDATE flexible_topics SET name=? WHERE id=?",value,topicId);return null;});
+    }
+
+    /** Read-only deletion preview for a teacher-owned flexible stage. */
+    public Map<String,Object> flexibleTaskDeletionPreview(Actor actor, int taskId) throws SQLException {
+        return transaction(c -> {
+            var task = require(c, "SELECT * FROM flexible_tasks WHERE id=?", taskId);
+            authorize(c, actor, new Scope(integer(task,"owner_teacher"), integer(task,"subject"), integer(task,"class"), integer(task,"semester")), false);
+            long results = number(c, "SELECT COUNT(*) FROM completed_flexible_tasks WHERE flexible_task=?", taskId);
+            long active = number(c, "SELECT COUNT(*) FROM student_active_curriculum_stages WHERE flexible_task=?", taskId);
+            long transfers = number(c, "SELECT COUNT(*) FROM curriculum_completion_transfers WHERE source_task=? OR target_task=?", taskId, taskId);
+            return Map.of("taskId", taskId, "name", task.get("name"), "studentResults", results,
+                    "coinEntries", results, "activeReferences", active, "transferReferences", transfers,
+                    "canDelete", true);
+        });
+    }
+
+    /** Atomically deletes only one authorized flexible stage and its dependent records. */
+    public Map<String,Object> deleteFlexibleTask(Actor actor, int taskId) throws SQLException {
+        return transaction(c -> {
+            var task = require(c, "SELECT * FROM flexible_tasks WHERE id=?", taskId);
+            authorize(c, actor, new Scope(integer(task,"owner_teacher"), integer(task,"subject"), integer(task,"class"), integer(task,"semester")), false);
+            long results = number(c, "SELECT COUNT(*) FROM completed_flexible_tasks WHERE flexible_task=?", taskId);
+            write(c, "DELETE FROM curriculum_completion_transfers WHERE source_task=? OR target_task=?", taskId, taskId);
+            write(c, "DELETE FROM completed_flexible_tasks WHERE flexible_task=?", taskId);
+            write(c, "DELETE FROM student_active_curriculum_stages WHERE flexible_task=?", taskId);
+            write(c, "DELETE FROM course_group_flexible_task_releases WHERE flexible_task=?", taskId);
+            write(c, "DELETE FROM flexible_task_releases WHERE flexible_task=?", taskId);
+            write(c, "DELETE FROM flexible_task_topics WHERE flexible_task=?", taskId);
+            write(c, "DELETE FROM flexible_tasks WHERE id=?", taskId);
+            return Map.of("deleted", true, "taskId", taskId, "studentResults", results, "coinEntries", results);
+        });
+    }
+
+    /** Read-only deletion preview for a teacher-owned flexible topic. Topics with stages are protected. */
+    public Map<String,Object> flexibleTopicDeletionPreview(Actor actor, int topicId) throws SQLException {
+        return transaction(c -> {
+            var topic = require(c, "SELECT * FROM flexible_topics WHERE id=?", topicId);
+            authorize(c, actor, new Scope(integer(topic,"owner_teacher"), integer(topic,"subject"), integer(topic,"class"), integer(topic,"semester")), false);
+            long stages = number(c, "SELECT COUNT(*) FROM flexible_task_topics WHERE flexible_topic=?", topicId);
+            long results = number(c, "SELECT COUNT(*) FROM completed_flexible_tasks x JOIN flexible_task_topics m ON m.flexible_task=x.flexible_task WHERE m.flexible_topic=?", topicId);
+            return Map.of("topicId", topicId, "name", topic.get("name"), "stageCount", stages,
+                    "studentResults", results, "coinEntries", results, "canDelete", stages == 0);
+        });
+    }
+
+    /** Atomically deletes an empty authorized flexible topic; dependent stages must be removed explicitly first. */
+    public Map<String,Object> deleteFlexibleTopic(Actor actor, int topicId) throws SQLException {
+        return transaction(c -> {
+            var topic = require(c, "SELECT * FROM flexible_topics WHERE id=?", topicId);
+            authorize(c, actor, new Scope(integer(topic,"owner_teacher"), integer(topic,"subject"), integer(topic,"class"), integer(topic,"semester")), false);
+            long stages = number(c, "SELECT COUNT(*) FROM flexible_task_topics WHERE flexible_topic=?", topicId);
+            if (stages != 0) throw error(409, "topic_has_stages", "Das Thema enthält noch Etappen. Bitte diese zuerst einzeln prüfen.");
+            write(c, "DELETE FROM course_group_flexible_topic_releases WHERE flexible_topic=?", topicId);
+            write(c, "DELETE FROM flexible_topic_releases WHERE flexible_topic=?", topicId);
+            write(c, "DELETE FROM flexible_topics WHERE id=?", topicId);
+            return Map.of("deleted", true, "topicId", topicId);
+        });
     }
     /** Assignment is administrative; teacher/class and teacher/subject memberships must exist even for admins. */
     public void assign(Actor actor, int studentId, Scope scope) throws SQLException {

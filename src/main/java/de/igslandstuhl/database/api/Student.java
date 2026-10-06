@@ -801,7 +801,7 @@ public class Student extends User {
     @Override
     public String toJSON() {
         ensureCurrentRequestsLoaded();
-        Map<String,Object> ranking = Map.of("totalValidCoins", 0L, "rank", 0, "inTopTen", false);
+        Map<String,Object> ranking = Map.of("totalValidCoins", 0L, "rank", 0, "rankTotal", 0, "rankAvailable", false, "inTopTen", false);
         try {
             ranking = Curriculum.current().rankingForStudent(id);
         } catch (SQLException e) {
@@ -818,6 +818,8 @@ public class Student extends User {
         .append("\"active\": ").append(active).append(",\n")
         .append("\"totalValidCoins\": ").append(ranking.getOrDefault("totalValidCoins", 0)).append(",\n")
         .append("\"ranking\": {\"rank\": ").append(ranking.getOrDefault("rank", 0))
+        .append(", \"rankTotal\": ").append(ranking.getOrDefault("rankTotal", 0))
+        .append(", \"rankAvailable\": ").append(ranking.getOrDefault("rankAvailable", false))
         .append(", \"inTopTen\": ").append(ranking.getOrDefault("inTopTen", false)).append("},\n")
         .append("\"selectedTasks\": ").append(selectedTasks).append(",\n")
         .append("\"completedTasks\": ").append(completedTasks).append(",\n")

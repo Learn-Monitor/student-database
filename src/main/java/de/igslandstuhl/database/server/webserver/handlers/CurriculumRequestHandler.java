@@ -17,6 +17,7 @@ public final class CurriculumRequestHandler {
         for(String path:List.of("/curriculum-catalog","/curriculum-structure","/curriculum-budget","/curriculum-progress",
                 "/flexible-tasks","/add-flexible-task","/edit-flexible-task","/complete-flexible-task",
                 "/flexible-curriculum-structure","/add-flexible-topic","/rename-flexible-topic","/curriculum-releases","/set-curriculum-release",
+                "/flexible-task-delete-preview","/delete-flexible-task","/flexible-topic-delete-preview","/delete-flexible-topic",
                 "/curriculum-teacher-roster","/my-tutor-classes"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
         for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task",
@@ -261,6 +262,10 @@ public final class CurriculumRequestHandler {
                 case "/flexible-curriculum-structure" -> result=service.flexibleStructure(actor,scope(rq,actor));
                 case "/add-flexible-topic" -> result=Map.of("id",service.createFlexibleTopic(actor,scope(rq,actor),name(rq)));
                 case "/rename-flexible-topic" -> {service.renameFlexibleTopic(actor,integer(rq,"topicId"),name(rq));result=Map.of("ok",true);}
+                case "/flexible-task-delete-preview" -> result=service.flexibleTaskDeletionPreview(actor,integer(rq,"taskId"));
+                case "/delete-flexible-task" -> result=service.deleteFlexibleTask(actor,integer(rq,"taskId"));
+                case "/flexible-topic-delete-preview" -> result=service.flexibleTopicDeletionPreview(actor,integer(rq,"topicId"));
+                case "/delete-flexible-topic" -> result=service.deleteFlexibleTopic(actor,integer(rq,"topicId"));
                 case "/add-flexible-task" -> result=service.create(actor,scope(rq,actor),name(rq),integer(rq,"tokens"),optionalTopic(rq));
                 case "/edit-flexible-task" -> result=service.edit(actor,integer(rq,"taskId"),name(rq),integer(rq,"tokens"),rq.containsKey("topicId"),optionalTopic(rq));
                 case "/complete-flexible-task" -> {service.complete(actor,integer(rq,"taskId"),integer(rq,"studentId"));result=Map.of("ok",true);}

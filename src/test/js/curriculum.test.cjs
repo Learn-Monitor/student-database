@@ -189,7 +189,7 @@ test('teacher gets own context, can edit and create, and UI blocks totals above 
   assert.match(root.textContent,/Geplant: zentral 70 \+ flexibel 35 = 105 Münzen/);
   form=formWith(root,'Flexible Etappe anlegen');form.querySelector('input[type=text]').value='Too much';form.querySelector('input[type=number]').value=1;await submit(dom,form);
   assert.equal(requests.filter(r=>r.url==='/add-flexible-task').length,0);
-  const select=root.querySelector('[name=classId]');select.value=11;select.dispatchEvent(new dom.window.Event('change'));await tick();
+  const select=root.querySelector('[name=teachingContext]');select.value='1';select.dispatchEvent(new dom.window.Event('change'));await tick();
   form=formWith(root,'Flexible Etappe anlegen');form.querySelector('input[type=text]').value='Own 5b';form.querySelector('input[type=number]').value=30;await submit(dom,form);
   const create=requests.find(r=>r.url==='/add-flexible-task');assert.equal(create.data.teacherId,7);assert.equal(create.data.classId,11);assert.equal(create.data.semesterId,20);
  }finally{dom.window.close();}
@@ -231,10 +231,8 @@ test('teacher overview is a safe cockpit built only from active canonical contex
 test('teacher class changes rebuild subjects and requests canonical context scope',async()=>{
  const{dom,root,requests}=await setup(false);
  try{
-  const classSelect=root.querySelector('[name=classId]'),subjectSelect=root.querySelector('[name=subjectId]');
-  classSelect.value='11';classSelect.dispatchEvent(new dom.window.Event('change'));await tick();
-  assert.deepEqual(optionsOf(subjectSelect),[{value:'1',text:'Math'},{value:'3',text:'Science'}]);
-  subjectSelect.value='3';subjectSelect.dispatchEvent(new dom.window.Event('change'));await tick();
+  const contextSelect=root.querySelector('[name=teachingContext]');
+  contextSelect.value='2';contextSelect.dispatchEvent(new dom.window.Event('change'));await tick();
   const structure=requests.filter(r=>r.url==='/curriculum-structure').at(-1);
   assert.deepEqual(structure.data,{subjectId:3,semesterId:20,classId:11,teacherId:7,grade:6});
   const budget=requests.filter(r=>r.url==='/curriculum-budget').at(-1);
@@ -388,8 +386,8 @@ test('assessment controls are permission gated and revocation blocks mutation',a
  pm={...grants(),curriculum_assess_students:true};env=await setup(false,{progress:true,pm});
  try{
   const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
-  const control=progress.querySelector('.assessment-control'),save=progress.querySelector('.assessment-save');assert.ok(control);control.value='PASSED';pm.curriculum_assess_students=false;save.click();await tick();
-  assert.equal(env.requests.some(r=>r.url==='/set-curriculum-stage-assessment'),false);assert.match(progress.textContent,/Berechtigung/);
+  const control=progress.querySelector('.assessment-control');assert.ok(control);control.value='PASSED';pm.curriculum_assess_students=false;control.dispatchEvent(new env.dom.window.Event('change'));await tick();
+  assert.equal(env.requests.some(r=>r.url==='/set-curriculum-stage-assessment'),false);assert.match(progress.textContent,/Speichern fehlgeschlagen/);
  }finally{env.dom.window.close();}
 });
 test('assessment controls send exact payloads for all four explicit states',async()=>{
@@ -398,7 +396,7 @@ test('assessment controls send exact payloads for all four explicit states',asyn
   const env=await setup(false,{progress:true,detail,pm:{...grants(),curriculum_assess_students:true}});
   try{
    const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
-   const control=progress.querySelector('.assessment-control');control.value=status;progress.querySelector('.assessment-save').click();await tick();await tick();
+   const control=progress.querySelector('.assessment-control');control.value=status;control.dispatchEvent(new env.dom.window.Event('change'));await tick();await tick();
    const request=env.requests.find(r=>r.url==='/set-curriculum-stage-assessment');
    assert.deepEqual(request.data,{studentId:50,subjectId:1,classId:10,semesterId:20,stageType:status==='LOCKED'?'FLEXIBLE':'CENTRAL',stageId:77,status});
    assert.equal(Object.hasOwn(request.data,'teacherId'),false);assert.equal(Object.hasOwn(request.data,'earned'),false);assert.equal(Object.hasOwn(request.data,'tokens'),false);
@@ -410,7 +408,7 @@ test('successful assessment reloads roster and selected detail while preserving 
  try{
   const progress=dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
   const detailBefore=requests.filter(r=>r.url==='/curriculum-student-progress-detail').length,rosterBefore=requests.filter(r=>r.url==='/curriculum-teacher-roster').length;
-  const control=[...progress.querySelectorAll('.assessment-control')].find(node=>node.dataset.stageType==='CENTRAL'&&node.dataset.stageId==='3');control.value='PASSED';control.parentElement.querySelector('.assessment-save').click();await tick();await tick();
+  const control=[...progress.querySelectorAll('.assessment-control')].find(node=>node.dataset.stageType==='CENTRAL'&&node.dataset.stageId==='3');control.value='PASSED';control.dispatchEvent(new dom.window.Event('change'));await tick();await tick();
   assert.equal(requests.filter(r=>r.url==='/curriculum-teacher-roster').length,rosterBefore+1);
   assert.equal(requests.filter(r=>r.url==='/curriculum-student-progress-detail').length,detailBefore+1);
   assert.doesNotMatch([...progress.querySelectorAll('table')][0].textContent,/Central · Zentral/);
@@ -423,15 +421,15 @@ test('assessment double click sends once and unsafe server errors stay text only
  let env=await setup(false,{progress:true,pm:{...grants(),curriculum_assess_students:true},assessmentHandler});
  try{
   const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
-  const control=progress.querySelector('.assessment-control'),save=progress.querySelector('.assessment-save');control.value='PASSED';save.click();save.click();await tick();
-  assert.equal(env.requests.filter(r=>r.url==='/set-curriculum-stage-assessment').length,1);assert.equal(save.disabled,true);
+  const control=progress.querySelector('.assessment-control');control.value='PASSED';control.dispatchEvent(new env.dom.window.Event('change'));control.dispatchEvent(new env.dom.window.Event('change'));await tick();
+  assert.equal(env.requests.filter(r=>r.url==='/set-curriculum-stage-assessment').length,1);assert.equal(control.disabled,true);
   resolveAssessment({status:'PASSED',earned:true});await tick();await tick();
  }finally{env.dom.window.close();}
  env=await setup(false,{progress:true,pm:{...grants(),curriculum_assess_students:true},response:{url:'/set-curriculum-stage-assessment',status:500,body:'<script>alert(1)</script> stacktrace'}});
  try{
   const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
-  const control=progress.querySelector('.assessment-control');control.value='LOCKED';progress.querySelector('.assessment-save').click();await tick();
-  assert.equal(progress.querySelectorAll('script').length,0);assert.doesNotMatch(progress.textContent,/stacktrace|alert\(1\)/);assert.match(progress.textContent,/Anfrage fehlgeschlagen/);
+  const control=progress.querySelector('.assessment-control');control.value='LOCKED';control.dispatchEvent(new env.dom.window.Event('change'));await tick();
+  assert.equal(progress.querySelectorAll('script').length,0);assert.doesNotMatch(progress.textContent,/stacktrace|alert\(1\)/);assert.match(progress.textContent,/Speichern fehlgeschlagen/);
  }finally{env.dom.window.close();}
 });
 test('admin curriculum filters keep subject semester class teacher and grade selects',async()=>{
