@@ -489,8 +489,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectMount.className = 'teacher-filter-bar';
             root.append(selectMount);
         }
-        const teacherClasses = teacherMode ? uniqueBy(activeContexts, context => context.classId).map(context => ({id:context.classId,label:context.classLabel,grade:context.grade})) : [];
-        const subject = teacherMode ? select('Fach', [], 'subjectId') : select('Fach', catalog.subjects, 'subjectId');
+        const subject = teacherMode ? null : select('Fach', catalog.subjects, 'subjectId');
         const semester = teacherMode ? null : select('Halbjahr', catalog.semesters, 'semesterId');
         const teacherContext = teacherMode ? select('Unterrichtskontext', activeContexts.map((context, index) => ({
             id:index,
@@ -503,38 +502,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             const activeSemester = catalog.semesters.find(item => item.active === true || Number(item.active) === 1);
             if (activeSemester) semester.value = String(activeSemester.id);
         }
-        const schoolClass = select('Klasse/Lerngruppe', teacherMode ? teacherClasses : catalog.classes, 'classId');
+        const schoolClass = teacherMode ? null : select('Klasse/Lerngruppe', catalog.classes, 'classId');
         const teacher = catalog.admin ? select('Lehrkraft (flexible Etappen)', catalog.teachers.map(t => ({id:t.id,name:t.first_name+' '+t.last_name})), 'teacherId') : null;
         const grade = catalog.admin ? select('Jahrgang (zentral)', Array.from({length:13},(_,i)=>({id:i+1,name:String(i+1)})), 'grade') : null;
         if (catalog.admin && separatedAdmin) [schoolClass, teacher].filter(Boolean).forEach(node => node.closest('label').remove());
         if (grade) grade.value = String(catalog.classes[0]?.grade || 5);
-        function contextsForClass() {
-            return activeContexts.filter(context => context.classId === Number(schoolClass.value));
-        }
-        function rebuildTeacherSubjects() {
-            if (!teacherMode) return;
-            const subjects = uniqueBy(contextsForClass(), context => context.subjectId).map(context => ({id:context.subjectId,name:context.subjectName}));
-            subject.replaceChildren();
-            for (const item of subjects) { const option = el('option', item.name); option.value = item.id; subject.append(option); }
-        }
         function selectedTeacherContext() {
             if (!teacherMode) return null;
-            if (teacherContext) return activeContexts[Number(teacherContext.value)] || null;
-            return activeContexts.find(context => context.classId === Number(schoolClass.value) && context.subjectId === Number(subject.value)) || null;
+            return activeContexts[Number(teacherContext.value)] || null;
         }
         let reloadCurriculum = () => Promise.resolve();
-        rebuildTeacherSubjects();
         if (teacherContext) {
-            const syncTeacherContext = () => {
-                const context = activeContexts[Number(teacherContext.value)];
-                if (!context) return;
-                schoolClass.value = String(context.classId);
-                rebuildTeacherSubjects();
-                subject.value = String(context.subjectId);
-            };
-            syncTeacherContext();
-            teacherContext.addEventListener('change', () => { syncTeacherContext(); reloadCurriculum().catch(showError); });
-            [subject, schoolClass].forEach(node => { const label=node.closest('label'); if (label) label.hidden=true; });
+            teacherContext.addEventListener('change', () => { reloadCurriculum().catch(showError); });
         }
         const load = el('button', 'Anzeigen / Aktualisieren'); load.type = 'button'; selectMount.append(load);
         const summary = el('p'), central = el('section'), flexible = el('section'), assignments = el('section'); root.append(summary, central, flexible, assignments);
@@ -873,7 +852,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             importButton.addEventListener('click',async()=>{try{if(!currentPreview?.canImport)return;if(!confirm('Die angezeigten Themen und Etappen jetzt übernehmen?'))return;await post('/import-central-curriculum',{...selected(),csv:currentCsv});message.textContent='Import erfolgreich.';message.style.color='';importButton.disabled=true;await reloadOverview();}catch(error){showError(error);}});
             importYear.addEventListener('change',()=>{refreshSemesters();reloadOverview().catch(showError);});importSemester.addEventListener('change',()=>reloadOverview().catch(showError));importGrade.addEventListener('change',()=>reloadOverview().catch(showError));await reloadOverview().catch(showError);
         }
-        schoolClass.addEventListener('change',()=>{rebuildTeacherSubjects();refresh().catch(showError);});
+        if (schoolClass) schoolClass.addEventListener('change',()=>{refresh().catch(showError);});
         for(const node of [subject,semester,teacher,grade].filter(Boolean))node.addEventListener('change',()=>refresh().catch(showError));
         load.addEventListener('click',()=>refresh().catch(showError));await refresh().catch(showError);
         await mountCentralImport();

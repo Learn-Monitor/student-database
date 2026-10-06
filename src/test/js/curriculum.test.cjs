@@ -197,12 +197,8 @@ test('teacher gets own context, can edit and create, and UI blocks totals above 
 test('teacher filters use only active canonical contexts',async()=>{
  const{dom,root}=await setup(false);
  try{
-  const classes=optionsOf(root.querySelector('[name=classId]')).map(option=>option.text);
-  assert.deepEqual(classes,['5a','5b']);
-  assert.doesNotMatch(classes.join(' '),/Legacy class|7a/);
-  const subjects=optionsOf(root.querySelector('[name=subjectId]')).map(option=>option.text);
-  assert.deepEqual(subjects,['Math']);
-  assert.doesNotMatch(subjects.join(' '),/Legacy only|History/);
+  assert.equal(root.querySelector('[name=classId]'),null);
+  assert.equal(root.querySelector('[name=subjectId]'),null);
   assert.equal(root.querySelector('[name=semesterId]'),null);
   assert.equal(root.querySelector('[name=teacherId]'),null);
   assert.equal(root.querySelector('[name=grade]'),null);
@@ -735,7 +731,7 @@ test('context change invalidates an old topic form',async()=>{
  const {dom,root,requests}=await setup(false);
  try {
   const stale=formWith(root,'Flexibles Thema anlegen');stale.querySelector('input').value='Old context';
-  const choice=root.querySelector('[name=classId]');choice.value='11';choice.dispatchEvent(new dom.window.Event('change'));await tick();
+  const choice=root.querySelector('[name=teachingContext]');choice.value='1';choice.dispatchEvent(new dom.window.Event('change'));await tick();
   await submit(dom,stale);assert.equal(requests.filter(r=>r.url==='/add-flexible-topic').length,0);
   assert.match(root.textContent,/Auswahl wurde geändert/);
  } finally {dom.window.close();}
@@ -812,8 +808,8 @@ test('teacher publishes a whole topic or individual task but has no enrollment U
 });
 test('old publication controls cannot write after scope change or permission revocation',async()=>{
  const pm={...grants(),curriculum_publish:true};const {dom,root,requests}=await setup(false,{enrollment:true,pm});try{
-  const button=[...detailWith(root,'Zentral').querySelectorAll('button')].find(b=>b.textContent==='Freigeben');root.querySelector('[name=classId]').value='11';root.querySelector('[name=classId]').dispatchEvent(new dom.window.Event('change'));button.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
-  root.querySelector('[name=classId]').value='10';root.querySelector('[name=classId]').dispatchEvent(new dom.window.Event('change'));await tick();const fresh=[...detailWith(root,'Zentral').querySelectorAll('button')].find(b=>b.textContent==='Freigeben');pm.curriculum_publish=false;fresh.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
+  const button=[...detailWith(root,'Zentral').querySelectorAll('button')].find(b=>b.textContent==='Freigeben');const context=root.querySelector('[name=teachingContext]');context.value='1';context.dispatchEvent(new dom.window.Event('change'));button.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
+  context.value='0';context.dispatchEvent(new dom.window.Event('change'));await tick();const fresh=[...detailWith(root,'Zentral').querySelectorAll('button')].find(b=>b.textContent==='Freigeben');pm.curriculum_publish=false;fresh.click();await tick();assert.equal(requests.filter(r=>r.url==='/set-curriculum-release').length,0);
  }finally{dom.window.close();}
 });
 
