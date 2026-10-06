@@ -60,6 +60,12 @@
         return await response.json();
     }
 
+    async function fetchAdminClasses() {
+        const response = await fetch("/classes");
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
+    }
+
     function populateGraduationLevels(student) {
         const select = document.getElementById("adminStudentLevel");
         const currentLevel = Number(student.graduationLevel ?? 0);
@@ -77,7 +83,7 @@
     async function populateClasses(student) {
         const select = document.getElementById("adminStudentClass");
         const currentClassId = studentClassId(student);
-        const classes = await fetchClasses();
+        const classes = await fetchAdminClasses();
         const activeClasses = (Array.isArray(classes) ? classes : [])
             .filter(cls => Number(cls.id ?? cls.classId) !== 0 && cls.active !== false);
         select.replaceChildren();

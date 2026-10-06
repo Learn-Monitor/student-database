@@ -60,8 +60,11 @@ async function setup(options={}) {
   const testOptions=options;
   dom.window.fetch=async(_url, fetchOptions={})=>{
     const body=JSON.parse(fetchOptions.body || '{}');
-    calls.fetchStudentData.push(body.studentId);
     if (testOptions.fetchReject) throw new Error('hidden backend failure');
+    if (_url === '/classes') return {ok:true,json:async()=>testOptions.classes || [
+      {id:11,label:'6a'}, {id:12,label:'7b'}, {id:13,label:'Altklasse',active:false}, {id:0,label:'Serverklasse 0'}
+    ]};
+    calls.fetchStudentData.push(body.studentId);
     return {ok:true,json:async()=>testOptions.student === undefined ? student : testOptions.student};
   };
   dom.window.fetchClasses=async()=>{
