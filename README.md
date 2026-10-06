@@ -92,7 +92,7 @@ You can run different commands afterwards, the command "help" prints a list of a
 There are a few command line arguments you can give the program:
 
 - `--suppress-cmd [true|false]`
-    Does not use the command line input, but the command line arguments instead. Also does not enable commands. Useful for background tasks.
+    Disables interactive command-line input and command registration. It does not hide operating-system process arguments. Useful for background tasks.
     Default value: `false` if not specified, `true` if specified, but no value is given
 - `--web-server [true|false]`
     Determines if the web server should be started. Useful for only modifying the database.
@@ -104,6 +104,8 @@ There are a few command line arguments you can give the program:
     Specifies the path to the keystore
 - `--keystore-password (keystore pass)`
     The password you entered when generating the keystore.
+- `--keystore-password-file (password file path)`
+    Reads the keystore password from a file. One trailing newline is removed.
 - `--keystore-type (keystore type)`
     Specifies the keystore type used by the web server, for example `JKS` or `PKCS12`.
     Default value: `JKS`

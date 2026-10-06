@@ -27,14 +27,24 @@ public class Arguments {
     }
 
     public String get(String key) {
-        try {
-            return Arrays.stream(args)
-            .filter((arg) -> arg.key().equals(key))
-            .findAny().get()
-            .value();
-        } catch (NullPointerException e) {
-            return null;
+        for (Argument argument : args) {
+            if (argument.key().equals(key)) {
+                return argument.value() == null ? "true" : argument.value();
+            }
         }
+        return null;
+    }
+
+    /**
+     * Returns whether the option was followed by an explicit value.
+     * Boolean-style flags continue to be represented by {@link #get(String)}
+     * as {@code "true"}, while callers that require a value can distinguish
+     * them from an option with a missing value.
+     */
+    public boolean hasValue(String key) {
+        return Arrays.stream(args)
+                .filter((arg) -> arg.key().equals(key))
+                .anyMatch((arg) -> arg.value() != null);
     }
     public boolean hasKey(String key) {
         return Arrays.stream(args).anyMatch((arg) -> arg.key().equals(key));
