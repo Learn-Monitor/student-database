@@ -57,6 +57,13 @@ async function setup(options={}) {
     if (options.fetchReject) throw new Error('hidden backend failure');
     return options.student === undefined ? student : options.student;
   };
+  const testOptions=options;
+  dom.window.fetch=async(_url, fetchOptions={})=>{
+    const body=JSON.parse(fetchOptions.body || '{}');
+    calls.fetchStudentData.push(body.studentId);
+    if (testOptions.fetchReject) throw new Error('hidden backend failure');
+    return {ok:true,json:async()=>testOptions.student === undefined ? student : testOptions.student};
+  };
   dom.window.fetchClasses=async()=>{
     calls.fetchClasses.push(true);
     return options.classes || [
@@ -169,6 +176,7 @@ test('form asks for German confirmation before submit',async()=>{
   try {
     const event=new dom.window.Event('submit',{bubbles:true,cancelable:true});
     dom.window.document.getElementById('adminStudentForm').dispatchEvent(event);
+    await tick();
     assert.equal(calls.confirms[0],'Änderungen an diesem Schüler speichern?');
     assert.equal(event.defaultPrevented,true);
   } finally {

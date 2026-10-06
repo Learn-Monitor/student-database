@@ -50,6 +50,16 @@
         select.appendChild(option);
     }
 
+    async function fetchAdminStudentData(id) {
+        const response = await fetch("/admin-student-data", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({studentId: id})
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
+    }
+
     function populateGraduationLevels(student) {
         const select = document.getElementById("adminStudentLevel");
         const currentLevel = Number(student.graduationLevel ?? 0);
@@ -131,7 +141,7 @@
         }
 
         try {
-            const student = await fetchStudentData(id, "/admin-student-data");
+            const student = await fetchAdminStudentData(id);
             if (!student || typeof student !== "object") {
                 showMessage("Der Schüler konnte nicht geladen werden.");
                 return;
