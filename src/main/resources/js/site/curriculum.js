@@ -180,6 +180,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             ['FAILED_TWICE','2× nicht bestanden'], ['LOCKED','Gesperrt']
         ];
         const assessmentWrites = new Set();
+        function captureDetailViewState(control) {
+            const tableScroll = detailArea.querySelector('.teacher-table-scroll');
+            return {
+                pageScrollY: Number(window.scrollY) || 0,
+                dialogScrollTop: Number(detailDialog.scrollTop) || 0,
+                bodyScrollTop: Number(dialogBody.scrollTop) || 0,
+                tableScrollTop: tableScroll ? Number(tableScroll.scrollTop) || 0 : 0,
+                stageType: control?.dataset.stageType || '',
+                stageId: control?.dataset.stageId || '',
+                restoreFocus: document.activeElement === control
+            };
+        }
+        function restoreDetailViewState(viewState) {
+            if (!viewState) return;
+            if (typeof window.scrollTo === 'function') {
+                try { window.scrollTo(0, viewState.pageScrollY); } catch (_) { /* browser may disallow scripted scrolling */ }
+            }
+            detailDialog.scrollTop = viewState.dialogScrollTop;
+            dialogBody.scrollTop = viewState.bodyScrollTop;
+            const tableScroll = detailArea.querySelector('.teacher-table-scroll');
+            if (tableScroll) tableScroll.scrollTop = viewState.tableScrollTop;
+            if (viewState.restoreFocus) {
+                const control = [...detailArea.querySelectorAll('.assessment-control')]
+                    .find(node => node.dataset.stageType === viewState.stageType && node.dataset.stageId === viewState.stageId);
+                if (control) control.focus();
+            }
+        }
         function renderDetail(detail, canAssess) {
             dialogTitle.textContent = detail.studentName || 'Schülerdetails';
             detailArea.replaceChildren();
@@ -205,6 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const key=`${stage.type}:${stage.stageId}`;
                         if(assessmentWrites.has(key)||!control.value)return;
                         const nextValue = control.value;
+                        const viewState = captureDetailViewState(control);
                         assessmentWrites.add(key);control.disabled=true;detailStatus.style.color='';detailStatus.textContent='Wird gespeichert …';
                         try {
                             if(!await allowed('curriculum_assess_students'))throw Error(permissionDenied);
@@ -217,9 +245,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                             detailStatus.textContent='Gespeichert';
                             previousValue = nextValue;
                             await loadRoster();
+                            restoreDetailViewState(viewState);
                         } catch(error) {
                             control.value=previousValue;
                             detailStatus.textContent='Speichern fehlgeschlagen';detailStatus.style.color='darkred';
+                            restoreDetailViewState(viewState);
                         } finally {
                             assessmentWrites.delete(key);control.disabled=false;
                         }

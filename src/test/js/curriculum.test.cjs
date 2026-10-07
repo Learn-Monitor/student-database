@@ -10,6 +10,7 @@ async function setup(admin, options={}){
   ? '<section id="schuljahr"><select data-global-semester></select><div id="admin-enrollment"></div></section><section id="curriculum-admin"><div id="admin-central-curriculum"></div></section>'
   : (options.overview?'<section id="overview"></section>':'')+(admin?'<select data-global-semester></select>':'')+'<section id="curriculum"></section>'+(options.progress?'<section id="student-progress"></section>':'');
  const dom=new JSDOM(markup,{url:'https://school.example.invalid/',runScripts:'outside-only'});
+ dom.window.scrollTo=()=>{};
  await new Promise(resolve=>dom.window.document.addEventListener('DOMContentLoaded',resolve,{once:true}));
  if(options.pm) {
   dom.window.hasPermission=async name=>{if(options.checkFails)throw Error('internal failure');return options.pm[name]===true;};
@@ -410,6 +411,27 @@ test('successful assessment reloads roster and selected detail while preserving 
   assert.doesNotMatch([...progress.querySelectorAll('table')][0].textContent,/Central · Zentral/);
   assert.match(progress.textContent,/Bestanden/);assert.match(progress.textContent,/Ja/);
   const locked=[...progress.querySelectorAll('tr')].find(row=>row.textContent.includes('Locked flexible'));assert.match(locked.textContent,/Gesperrt/);assert.match(locked.textContent,/Ja/);
+ }finally{dom.window.close();}
+});
+test('assessment autosave restores modal and page scroll position and focus',async()=>{
+ const pm={...grants(),curriculum_assess_students:true};const{dom}=await setup(false,{progress:true,pm});
+ try{
+  let restoredPageY=null;dom.window.scrollTo=(_x,y)=>{restoredPageY=y;};
+  const progress=dom.window.document.querySelector('#student-progress');
+  [...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
+  const dialog=progress.querySelector('.teacher-progress-dialog');
+  const body=progress.querySelector('.teacher-progress-dialog-body');
+  const tableScroll=progress.querySelector('.teacher-progress-dialog .teacher-table-scroll');
+  const control=progress.querySelector('.assessment-control');
+  dialog.scrollTop=137;body.scrollTop=241;tableScroll.scrollTop=89;
+  control.focus();control.value='PASSED';control.dispatchEvent(new dom.window.Event('change'));await tick();await tick();
+  assert.equal(dialog.hidden,false);
+  assert.equal(restoredPageY,0);
+  assert.equal(dialog.scrollTop,137);
+  assert.equal(body.scrollTop,241);
+  assert.equal(progress.querySelector('.teacher-progress-dialog .teacher-table-scroll').scrollTop,89);
+  const replacement=progress.querySelector('.assessment-control');
+  assert.equal(dom.window.document.activeElement,replacement);
  }finally{dom.window.close();}
 });
 test('assessment double click sends once and unsafe server errors stay text only',async()=>{
