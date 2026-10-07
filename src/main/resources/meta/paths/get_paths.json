@@ -230,6 +230,13 @@
         "context": "js",
         "access_level": "public"
     },
+    "/login.css": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["site"],
+        "context": "css",
+        "access_level": "public"
+    },
     "/class-info.js": {
         "type": "GET",
         "handler_type": "FileRequestHandler",
