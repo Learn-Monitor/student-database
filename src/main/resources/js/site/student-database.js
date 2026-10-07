@@ -234,11 +234,41 @@ function studentDashboardLoadEvent() {
     document.dispatchEvent(event);
 }
 
+function appendTextCell(row, className, value) {
+    const cell = document.createElement('td');
+    cell.className = className;
+    cell.textContent = value == null ? '' : String(value);
+    row.appendChild(cell);
+}
+function appendViewStudentCell(row, studentId) {
+    const cell = document.createElement('td');
+    cell.className = 'student-action';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Bearbeiten';
+    button.addEventListener('click', () => viewStudent(studentId));
+    cell.appendChild(button);
+    row.appendChild(cell);
+}
+function buildStudentRow(row, student, includeProgress) {
+    appendTextCell(row, 'student-name', student.name);
+    if (includeProgress) {
+        appendTextCell(row, 'student-current-task', student.currentTask || '–');
+        appendTextCell(row, 'student-help', student.help ? 'Ja' : 'Nein');
+        appendTextCell(row, 'student-experiment', student.experiment ? 'Ja' : 'Nein');
+        appendTextCell(row, 'student-partner', student.partner ? 'Ja' : 'Nein');
+        appendTextCell(row, 'student-test', student.test ? 'Ja' : 'Nein');
+    } else {
+        appendTextCell(row, 'student-graduation-level', graduationLevels[student.graduationLevel]);
+    }
+    appendViewStudentCell(row, student.id);
+}
+
 // Populating functions
 async function populateTable(url, tableId, rowBuilder) {
     const data = await fetchJson(url);
     const tableBody = document.getElementById(tableId).getElementsByTagName('tbody')[0];
-    tableBody.innerHTML = '';
+    tableBody.replaceChildren();
     data.forEach(item => {
         const newRow = tableBody.insertRow();
         rowBuilder(newRow, item);
@@ -247,7 +277,7 @@ async function populateTable(url, tableId, rowBuilder) {
 async function populateStudentTable(classId, tableId, rowBuilder) {
     const students = await getStudents(classId);
     const tableBody = document.getElementById(tableId).getElementsByTagName('tbody')[0];
-    tableBody.innerHTML = '';
+    tableBody.replaceChildren();
     students.forEach(item => {
         const newRow = tableBody.insertRow();
         rowBuilder(newRow, item);
@@ -259,32 +289,24 @@ async function populateSubjectStudentList(subjectSelectId, classSelectId, studen
   const selectedClassId = classSelect.value;
 
   if (!selectedClassId) {
-    subjectSelect.innerHTML = ""; // clear previous options if no class is selected
+    subjectSelect.replaceChildren(); // clear previous options if no class is selected
     return;
   }
 
   const students = await getStudentsBySubject(Number(selectedClassId), Number(subjectSelect.value));
 
   const studentTable = document.getElementById(studentTableId).getElementsByTagName('tbody')[0];
-  studentTable.innerHTML = ""; // clear previous rows
+  studentTable.replaceChildren(); // clear previous rows
   students.forEach(student => {
       const row = document.createElement('tr');
-      row.innerHTML = `
-          <td class="student-name">${student.name}</td>
-          <td class="student-current-task">${student.currentTask || "–"}</td>
-          <td class="student-help">${student.help ? "Ja" : "Nein"}</td>
-          <td class="student-experiment">${student.experiment ? "Ja" : "Nein"}</td>
-          <td class="student-partner">${student.partner ? "Ja" : "Nein"}</td>
-          <td class="student-test">${student.test ? "Ja" : "Nein"}</td>
-          <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
-      `;
+      buildStudentRow(row, student, true);
       studentTable.appendChild(row);
   });
 }
 async function populatePartnerSubjectStudentList(subjectId) {
     const studentTable = document.getElementById("studentTableBody");
     if (!studentTable) return;
-    studentTable.innerHTML = ""; // clear previous rows
+    studentTable.replaceChildren(); // clear previous rows
     const status = document.getElementById('partnerSearchStatus');
     if (status) status.textContent = 'Partner werden gesucht …';
     let students;
@@ -314,21 +336,19 @@ async function populatePartnerSubjectStudentList(subjectId) {
 }
 async function populateTopicTable(tableId, subjectId, grade) {
     const table = document.getElementById(tableId).getElementsByTagName("tbody")[0];
-    table.innerHTML = '';
+    table.replaceChildren();
     const topics = await getJsonWithPost('/topic-list', { subjectId, grade});
     topics.forEach(topic => {
         const row = document.createElement('tr');
-        row.innerHTML = `
-            <td class="topic-name">${topic.name}</td>
-            <td class="topic-ratio">${topic.ratio}</td>
-            <td class="topic-number">${topic.number}</td>
-            <td class="topic-tasks">${topic.tasks.length}</td>
-        `
+        appendTextCell(row, 'topic-name', topic.name);
+        appendTextCell(row, 'topic-ratio', topic.ratio);
+        appendTextCell(row, 'topic-number', topic.number);
+        appendTextCell(row, 'topic-tasks', topic.tasks.length);
         table.appendChild(row)
     })
 }
 function populateClassSelect(classSelect, classes) {
-    classSelect.innerHTML = ""; // clear previous options if any
+    classSelect.replaceChildren(); // clear previous options if any
     classes.forEach(cls => {
         const option = document.createElement('option');
         option.value = cls.classId || cls.id;
@@ -338,7 +358,7 @@ function populateClassSelect(classSelect, classes) {
 }
 async function populateSubjectSelect(subjectSelectId, subjects) {
     const subjectSelect = document.getElementById(subjectSelectId);
-    subjectSelect.innerHTML = ''; // Clear existing options
+    subjectSelect.replaceChildren(); // Clear existing options
     subjects.forEach(function(subject) {
         const option = document.createElement('option');
         option.value = subject.id;
@@ -348,7 +368,7 @@ async function populateSubjectSelect(subjectSelectId, subjects) {
 }
 async function populateTopicSelect(topicSelect, subjectId, grade, currentTopic) {
     const topics = await fetchTopicList(subjectId, grade);
-    topicSelect.innerHTML = ''; // Clear existing options
+    topicSelect.replaceChildren(); // Clear existing options
     topics.forEach(t => {
       const option = document.createElement('option');
       option.value = t.id;
@@ -359,7 +379,7 @@ async function populateTopicSelect(topicSelect, subjectId, grade, currentTopic) 
 }
 async function populateGradeSelect(gradeSelectId, subjectId) {
     const gradeSelect = document.getElementById(gradeSelectId);
-    gradeSelect.innerHTML = '';
+    gradeSelect.replaceChildren();
     const grades = await getJsonWithPost('/grade-list', { subjectId });
     grades.forEach(grade => {
         const option = document.createElement('option');
@@ -377,7 +397,7 @@ async function populateSubjectList(subjectListId, classId) {
             'Content-Type': 'application/json'
         }
     });
-    subjectList.innerHTML = ''; // Clear existing items
+    subjectList.replaceChildren(); // Clear existing items
     subjects.forEach(function(subject) {
         const listItem = document.createElement('li');
         listItem.textContent = subject.name;
@@ -386,7 +406,7 @@ async function populateSubjectList(subjectListId, classId) {
 }
 async function populateGradeList(listId, subjectId) {
     const list = document.getElementById(listId);
-    list.innerHTML = '';
+    list.replaceChildren();
     const grades = await getJsonWithPost('/grade-list', { subjectId });
     grades.forEach(grade => {
         const li = document.createElement("li");
@@ -455,11 +475,7 @@ function createTaskList(tasks, titleText, onClick) {
 async function buildTeacherDashboard(classes, subjects) {
     async function onClassChange(event) {
         populateStudentTable(Number(event.target.value), "studentTable", (row, student) => {
-            row.innerHTML = `
-                <td class="student-name">${student.name}</td>
-                <td class="student-graduation-level">${graduationLevels[student.graduationLevel]}</td>
-                <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
-            `;
+            buildStudentRow(row, student, false);
             populateTeacherClassRowEvent(row, student);
         });
     }
@@ -561,7 +577,7 @@ function createPanel(header, bodyContent, loadCallback) {
     panel.appendChild(body);
 
     function refreshPanel() {
-        bodyContent.innerHTML = '';
+        bodyContent.replaceChildren();
         headerElem.click(); // Re-trigger the header click to close the panel
         panel.classList.remove('loaded'); // Reset loaded state
         headerElem.click(); // Re-trigger the header click to load tasks
@@ -593,7 +609,7 @@ function createLegacySubjectPanel(subject, studentData, teacherPerms) {
     const studentId = studentData.id;
 
     const panel = createPanel(subject.name, body, async (header, body) => {
-        body.innerHTML = ''; // Clear previous content
+        body.replaceChildren(); // Clear previous content
         // Request buttons
         createRequestButtons(body);
         // Load current topic for this subject
@@ -607,7 +623,10 @@ function createLegacySubjectPanel(subject, studentData, teacherPerms) {
 
         const topicTitle = document.createElement('p');
         if (teacherPerms) {
-            topicTitle.innerHTML = `<label for="topicSelect">Aktuelles Thema:</label>`;
+            const topicLabel = document.createElement('label');
+            topicLabel.htmlFor = 'topicSelect';
+            topicLabel.textContent = 'Aktuelles Thema:';
+            topicTitle.appendChild(topicLabel);
             const topicSelect = document.createElement('select');
             topicSelect.id = "topicSelect";
             populateTopicSelect(topicSelect, subject.id, studentData.schoolClass.grade, topic);
@@ -805,7 +824,7 @@ function createSubjectPanel(subject, studentData, teacherPerms, managedSubjectId
     if (managed || managedLookupFailed) {
         const body = document.createElement('div');
         const panel = createPanel(subject.name, body, async (header, body) => {
-            body.innerHTML = '';
+            body.replaceChildren();
             if (managedLookupFailed) {
                 const error = document.createElement('p');
                 error.textContent = 'Der verwaltete Curriculum-Kontext konnte nicht geladen werden.';
@@ -854,37 +873,56 @@ function loadPluginSection(pluginKey) {
     return createPanel(pluginKey, document.createElement("div"), async (header, body) => {
         const plugin = await fetchPlugin(pluginKey);
         header.textContent = plugin.name;
-        body.innerHTML = `
-            <p>${plugin.description.replace(/\n/g, "</p><p>")}</p>
-            <table>
-                <thead>
-                    <th>Key</th>
-                    <th>Value</th>
-                    <th/>
-                </thead>
-                <tbody>
-                    <tr><td>ID</td><td>${plugin.id}</td><td/></tr>
-                    <tr><td>Name</td><td>${plugin.name}</td><td/></tr>
-                    <tr><td>Enabled</td><td>${plugin.enabled}</td><td><button onclick="togglePlugin('${plugin.id}');plugin_panels['${plugin.id}'].refresh()">Toggle</button></td></tr>
-                </tbody>
-            </table>
-        `;
-        const tbody = body.getElementsByTagName("tbody")[0]
+        body.replaceChildren();
+        for (const paragraph of String(plugin.description || '').split('\n')) {
+            const p = document.createElement('p');
+            p.textContent = paragraph;
+            body.appendChild(p);
+        }
+        const table = document.createElement('table');
+        const head = table.createTHead().insertRow();
+        ['Key', 'Value', ''].forEach(value => appendTextCell(head, '', value));
+        const tbody = table.createTBody();
+        const addPluginRow = (name, value, action) => {
+            const row = tbody.insertRow();
+            appendTextCell(row, '', name);
+            appendTextCell(row, '', value);
+            const cell = row.insertCell();
+            if (action) cell.appendChild(action);
+        };
+        const refresh = () => plugin_panels[plugin.id].refresh();
+        const toggle = document.createElement('button');
+        toggle.type = 'button'; toggle.textContent = 'Toggle';
+        toggle.addEventListener('click', async () => { await togglePlugin(plugin.id); refresh(); });
+        addPluginRow('ID', plugin.id, null);
+        addPluginRow('Name', plugin.name, null);
+        addPluginRow('Enabled', plugin.enabled, toggle);
+        table.appendChild(tbody);
+        body.appendChild(table);
         const settings = plugin.config.settings;
         settings.bools.forEach((b) => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `<td>${b.name}</td><td>${b.value}</td><td><button onclick="togglePluginSetting('${plugin.id}', '${b.key}');plugin_panels['${plugin.id}'].refresh()">Toggle</button></td>`;
-            tbody.appendChild(tr);
+            const button = document.createElement('button');
+            button.type = 'button'; button.textContent = 'Toggle';
+            button.addEventListener('click', async () => { await togglePluginSetting(plugin.id, b.key); refresh(); });
+            addPluginRow(b.name, b.value, button);
         });
         settings.ints.forEach((i) => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `<td>${i.name}</td><td>${i.value}</td><td><input type="number" value="${i.value}" id="${plugin.id}-${i.key}-input"/><button onclick="setPluginSetting('${plugin.id}', '${i.key}', Number(document.getElementById('${plugin.id}-${i.key}-input').value));plugin_panels['${plugin.id}'].refresh()">Set</button></td>`;
-            tbody.appendChild(tr);
+            const input = document.createElement('input');
+            input.type = 'number'; input.value = i.value;
+            const button = document.createElement('button');
+            button.type = 'button'; button.textContent = 'Set';
+            button.addEventListener('click', async () => { await setPluginSetting(plugin.id, i.key, Number(input.value)); refresh(); });
+            const action = document.createDocumentFragment(); action.append(input, button);
+            addPluginRow(i.name, i.value, action);
         })
         settings.shortAnswers.forEach((s) => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `<td>${s.name}</td><td>${s.value}</td><td><input type="text" value="${s.value}" id="${plugin.id}-${s.key}-input"/><button onclick="setPluginSetting('${plugin.id}', '${s.key}', document.getElementById('${plugin.id}-${s.key}-input').value);plugin_panels['${plugin.id}'].refresh()">Set</button></td>`;
-            tbody.appendChild(tr);
+            const input = document.createElement('input');
+            input.type = 'text'; input.value = s.value;
+            const button = document.createElement('button');
+            button.type = 'button'; button.textContent = 'Set';
+            button.addEventListener('click', async () => { await setPluginSetting(plugin.id, s.key, input.value); refresh(); });
+            const action = document.createDocumentFragment(); action.append(input, button);
+            addPluginRow(s.name, s.value, action);
         })
     })
 }
@@ -915,11 +953,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const studentList = document.getElementById('studentTableBody');
         if (studentList) {
             populateStudentTable(currentClass.id, 'studentTable', (row, student) => {
-                row.innerHTML = `
-                    <td class="student-name">${student.name}</td>
-                    <td class="student-graduation-level">${graduationLevels[student.graduationLevel]}</td>
-                    <td class="student-action"><button onclick="viewStudent(${student.id})">Bearbeiten</button></td>
-                `;
+                buildStudentRow(row, student, false);
                 populateStudentRowEvent(row, student);
             })
         }

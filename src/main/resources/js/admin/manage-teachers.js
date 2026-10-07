@@ -63,7 +63,7 @@
     const error = document.getElementById('teacher-password-error');
     document.getElementById('teacher-password-target').textContent = `${firstName(teacher)} ${lastName(teacher)} (${login(teacher)})`;
     password.value = ''; confirmation.value = ''; error.textContent = '';
-    form.onsubmit = async event => {
+    form.addEventListener('submit', async event => {
       event.preventDefault(); error.textContent = '';
       if (!form.reportValidity()) return;
       if (password.value !== confirmation.value) { error.textContent = 'Die Passwörter stimmen nicht überein.'; return; }
@@ -71,8 +71,8 @@
       const response = await fetch('/admin-reset-password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({targetType:'teacher', targetId:teacher.id, password:password.value, passwordConfirmation:confirmation.value})});
       if (!response.ok) { error.textContent = 'Das Passwort konnte nicht gespeichert werden.'; return; }
       closePasswordDialog(); document.getElementById('teacher-list-status').textContent = 'Passwort wurde neu gesetzt.';
-    };
-    document.getElementById('teacher-password-cancel').onclick = closePasswordDialog;
+    });
+    document.getElementById('teacher-password-cancel').addEventListener('click', closePasswordDialog);
     if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
     password.focus();
   }

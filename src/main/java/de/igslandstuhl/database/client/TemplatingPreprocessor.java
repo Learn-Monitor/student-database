@@ -20,6 +20,10 @@ public class TemplatingPreprocessor {
     }
 
     public String executeTemplating(String content) throws IOException {
+        return executeTemplating(content, null);
+    }
+
+    public String executeTemplating(String content, String cspNonce) throws IOException {
         if (content == null || content.isEmpty()) return content;
 
         StringBuilder out = new StringBuilder();
@@ -47,6 +51,7 @@ public class TemplatingPreprocessor {
             String[] parts = inside.split(";");
             String templateName = parts[0].trim();
             Map<String, String> args = new HashMap<>();
+            if (cspNonce != null) args.put("cspNonce", cspNonce);
             boolean usesFollows = false;
             String followsKey = null;
 
@@ -63,7 +68,7 @@ public class TemplatingPreprocessor {
                     break;
                 } else {
                     // expand templates inside argument values
-                    String expandedVal = executeTemplating(val);
+                    String expandedVal = executeTemplating(val, cspNonce);
                     args.put(key, expandedVal);
                 }
             }
@@ -72,13 +77,13 @@ public class TemplatingPreprocessor {
                 // the value is the rest of the content after the closing ']'
                 String rest = content.substring(end + 1);
                 // allow templates inside the follows value
-                String expandedRest = executeTemplating(rest);
+                String expandedRest = executeTemplating(rest, cspNonce);
                 args.put(followsKey, expandedRemapNull(expandedRest));
                 // build template and finish (rest is consumed by this template)
                 HTMLTemplate template = getTemplate(templateName);
                 String filled = template.fill(args);
                 // expand any templates produced by the filled template
-                String finalFilled = executeTemplating(filled);
+                String finalFilled = executeTemplating(filled, cspNonce);
                 out.append(finalFilled);
                 // consumed entire remaining content
                 idx = content.length();
@@ -88,7 +93,7 @@ public class TemplatingPreprocessor {
                 HTMLTemplate template = getTemplate(templateName);
                 String filled = template.fill(args);
                 // expand templates that might be present inside the filled template
-                String finalFilled = executeTemplating(filled);
+                String finalFilled = executeTemplating(filled, cspNonce);
                 out.append(finalFilled);
                 idx = end + 1;
             }

@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', async (_) => {
     const subjectSelect = document.getElementById('subjectSelect');
     const studentTable = document.getElementById('studentTableBody');
     if (subjects.length === 0) {
-        studentTable.innerHTML = '';
+        studentTable.replaceChildren();
         return;
     }
     subjectSelect.addEventListener('change', async (e) => populatePartnerSubjectStudentList(Number(e.target.value)));

@@ -199,7 +199,7 @@
         const error = document.getElementById('student-password-error');
         document.getElementById('student-password-target').textContent = `${studentFirstName(student)} ${studentLastName(student)} (${studentLogin(student)})`;
         password.value = ''; confirmation.value = ''; error.textContent = '';
-        form.onsubmit = async event => {
+        form.addEventListener('submit', async event => {
             event.preventDefault();
             error.textContent = '';
             if (!form.reportValidity()) return;
@@ -208,8 +208,8 @@
             const response = await post('/admin-reset-password', {targetType: 'student', targetId: student.id, password: password.value, passwordConfirmation: confirmation.value});
             if (!response.ok) { error.textContent = 'Das Passwort konnte nicht gespeichert werden.'; return; }
             closePasswordDialog(); setAdminStatus('Passwort wurde neu gesetzt.', 'success');
-        };
-        document.getElementById('student-password-cancel').onclick = closePasswordDialog;
+        });
+        document.getElementById('student-password-cancel').addEventListener('click', closePasswordDialog);
         if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
         password.focus();
     }
