@@ -7,6 +7,7 @@ const {JSDOM}=require('jsdom');
 const root=path.join(__dirname,'../../main/resources');
 const html=fs.readFileSync(path.join(root,'html/teacher/dashboard.html'),'utf8');
 const script=fs.readFileSync(path.join(root,'js/teacher/build_dashboard.js'),'utf8');
+const navigationScript=fs.readFileSync(path.join(root,'js/site/teacher-dashboard-navigation.js'),'utf8');
 const navigation=JSON.parse(fs.readFileSync(path.join(root,'meta/navigation/navigation_elements.json'),'utf8'));
 
 function dashboard(hash='') {
@@ -16,7 +17,9 @@ function dashboard(hash='') {
     .replace('%[teacher_dashboard_nav]',nav)
     .replace('<script src="build_dashboard.js"></script>','')
     .replace('<script src="/curriculum.js" defer></script>','');
-  return new JSDOM(markup,{url:`https://school.example.invalid/dashboard${hash}`,runScripts:'dangerously'});
+  const dom=new JSDOM(markup,{url:`https://school.example.invalid/dashboard${hash}`,runScripts:'dangerously'});
+  dom.window.eval(navigationScript);
+  return dom;
 }
 
 const visiblePages=document=>[...document.querySelectorAll('.teacher-function-page')].filter(page=>!page.hidden).map(page=>page.id);

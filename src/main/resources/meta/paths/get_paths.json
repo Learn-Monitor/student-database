@@ -223,6 +223,34 @@
         "context": "js",
         "access_level": "public"
     },
+    "/login.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["site"],
+        "context": "js",
+        "access_level": "public"
+    },
+    "/class-info.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["site"],
+        "context": "js",
+        "access_level": "public"
+    },
+    "/file-import.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["site"],
+        "context": "js",
+        "access_level": "admin"
+    },
+    "/teacher-dashboard-navigation.js": {
+        "type": "GET",
+        "handler_type": "FileRequestHandler",
+        "namespaces": ["site"],
+        "context": "js",
+        "access_level": "teacher"
+    },
 
     "/build_dashboard.js": {
         "type": "GET",

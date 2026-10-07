@@ -81,26 +81,6 @@
         <button type="submit">Login</button>
     </form>
 </div>
-<script> 
-     const queryNext = new URLSearchParams(window.location.search).get("next");
-     if (queryNext) document.getElementById("next").value = queryNext;
-     document.getElementById("loginForm").addEventListener("submit", async (e) => { 
-         e.preventDefault(); 
-          
-         let formData = new FormData(e.target); 
-         let response = await fetch("/login", { 
-             method: "POST", 
-             body: new URLSearchParams(formData), 
-             credentials: "include" 
-         }); 
-  
-         if (response.ok) { 
-             const next = document.getElementById("next").value;
-             window.location.href = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-         } else { 
-             alert("Falsches Passwort!"); 
-         } 
-     }); 
- </script> 
+<script src="/login.js" defer></script>
 </body>
 </html>

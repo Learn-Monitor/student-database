@@ -122,6 +122,7 @@ public class GetResponse implements HttpResponse {
 
     private final boolean isTemplating;
     private final boolean isMerging;
+    private final CspNonce cspNonce = CspNonce.create();
 
     /**
      * Creates a new GetResponse with the given parameters.
@@ -195,7 +196,9 @@ public class GetResponse implements HttpResponse {
                     }
                 }
                 if (isTemplating) {
-                    resource = TemplatingPreprocessor.getInstance().executeTemplating(resource);
+                    resource = TemplatingPreprocessor.getInstance().executeTemplating(resource, cspNonce.value());
+                } else {
+                    resource = cspNonce.apply(resource);
                 }
                 body = (resource + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
             } else {
@@ -253,5 +256,10 @@ public class GetResponse implements HttpResponse {
     @Override
     public HttpRequest getHttpRequest() {
         return request;
+    }
+
+    /** Exposes the response-scoped nonce for rendering and tests; it is never persisted. */
+    public String getCspNonce() {
+        return cspNonce.value();
     }
 }
