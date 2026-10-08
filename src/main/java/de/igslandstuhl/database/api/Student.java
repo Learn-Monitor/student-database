@@ -62,9 +62,11 @@ public class Student extends User {
     private final SchoolClass schoolClass;
 
     /**
-     * The graduation level of the student.
+     * The graduation level of the student. It may be changed by a tutor
+     * service transaction while this cached instance is still used by another
+     * request.
      */
-    private final GraduationLevel graduationLevel;
+    private volatile GraduationLevel graduationLevel;
 
     /**
      * Whether the student appears in active operational lists and login lookup.
@@ -378,6 +380,16 @@ public class Student extends User {
      * @return the graduation level
      */
     public GraduationLevel getGraduationLevel() { return graduationLevel; }
+
+    /**
+     * Synchronizes this cached instance after the corresponding database
+     * transaction has committed. This method never writes to the database.
+     *
+     * @param level the committed graduation level
+     */
+    public void applyGraduationLevelCache(GraduationLevel level) {
+        this.graduationLevel = Objects.requireNonNull(level, "level");
+    }
 
     /**
      * Returns whether the student is active.

@@ -31,6 +31,7 @@ class CurriculumTest {
         // Synthetic records only, in the test server's database; unique IDs avoid shared-cache collisions.
         db.writeTransaction(c->{
             exec(c,"CREATE TABLE IF NOT EXISTS curriculum_class_tutors (semester INTEGER NOT NULL REFERENCES semesters(id), class INTEGER NOT NULL REFERENCES classes(id), teacher INTEGER NOT NULL REFERENCES teachers(id), tutor_slot INTEGER NOT NULL CHECK(tutor_slot IN (1,2)), PRIMARY KEY (semester,class,tutor_slot), UNIQUE (semester,class,teacher))");
+            exec(c,"CREATE TABLE IF NOT EXISTS student_graduation_history (id INTEGER PRIMARY KEY, student INTEGER NOT NULL REFERENCES students(id), old_graduation_level INTEGER NOT NULL, new_graduation_level INTEGER NOT NULL, changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, teacher INTEGER NOT NULL REFERENCES teachers(id), semester INTEGER NOT NULL REFERENCES semesters(id))");
             exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",id,"Subject-"+id);
             exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",id+1,"Other-"+id);
             exec(c,"INSERT INTO school_years(id,label,week_count,current_week) VALUES(?,?,39,1)",id,"Year-"+id);
@@ -93,13 +94,21 @@ class CurriculumTest {
             exec(c,"INSERT INTO curriculum_class_tutors(semester,class,teacher,tutor_slot) VALUES(?,?,?,1)",id,id,id);
             return null;
         });
+        assertEquals(1,Student.get(id).getGraduationLevel().getLevel());
+        assertEquals(1,((Student)User.getUser("student"+id+"@example.invalid")).getGraduationLevel().getLevel());
         var changed=service.changeTutorGraduation(teacher,id,id,0);
         assertEquals(0,changed.get("graduationLevel"));
         // The fixture starts at level 1; the tutor change must be visible in the canonical store.
         assertEquals(0,scalar("SELECT graduation_level FROM students WHERE id=?",id));
+        assertEquals(0,Student.get(id).getGraduationLevel().getLevel());
+        assertEquals(0,((Student)User.getUser("student"+id+"@example.invalid")).getGraduationLevel().getLevel());
         changed=service.changeTutorGraduation(teacher,id,id,2);
         assertEquals(2,scalar("SELECT graduation_level FROM students WHERE id=?",id));
         assertEquals(2,scalar("SELECT new_graduation_level FROM student_graduation_history WHERE student=? ORDER BY id DESC LIMIT 1",id));
+        assertEquals(2,Student.get(id).getGraduationLevel().getLevel());
+        assertEquals(2,((Student)User.getUser("student"+id+"@example.invalid")).getGraduationLevel().getLevel());
+        assertThrows(CurriculumException.class,()->service.changeTutorGraduation(teacher,id,id+1,0));
+        assertEquals(2,Student.get(id).getGraduationLevel().getLevel());
         var overview=service.weeklyConversationOverview(teacher,id,id);
         assertEquals(2,((Map<?,?>)((List<?>)overview.get("students")).get(0)).get("graduationLevel"));
     }

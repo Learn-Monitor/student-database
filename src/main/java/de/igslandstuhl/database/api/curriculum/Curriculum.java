@@ -1342,7 +1342,7 @@ public final class Curriculum {
     public Map<String,Object> changeTutorGraduation(Actor actor,int studentId,int semester,int newLevel) throws SQLException {
         if(actor==null || actor.admin() || actor.teacherId()<1) throw error(403,"forbidden","Teacher tutor session required.");
         if(newLevel<0 || newLevel>2) throw error(400,"invalid_input","Graduation level must be Neustarter, Starter or Durchstarter.");
-        return transaction(c -> {
+        Map<String,Object> changeResult=transaction(c -> {
             var student=require(c,"SELECT id,class,graduation_level FROM students WHERE id=? AND COALESCE(active,1)=1",studentId);
             int classId=integer(student,"class"); require(c,"SELECT s.id FROM semesters s JOIN school_years y ON y.id=s.school_year WHERE s.id=? AND y.current_semester=s.id",semester);
             if(number(c,"SELECT COUNT(*) FROM curriculum_class_tutors WHERE semester=? AND class=? AND teacher=?",semester,classId,actor.teacherId())==0)
@@ -1351,6 +1351,10 @@ public final class Curriculum {
             if(old!=newLevel) { write(c,"UPDATE students SET graduation_level=? WHERE id=?",newLevel,studentId); write(c,"INSERT INTO student_graduation_history(student,old_graduation_level,new_graduation_level,teacher,semester) VALUES(?,?,?,?,?)",studentId,old,newLevel,actor.teacherId(),semester); }
             Map<String,Object> result=new LinkedHashMap<>(); result.put("studentId",studentId); result.put("graduationLevel",newLevel); result.put("graduationLabel",graduationLabel(newLevel)); result.put("changed",old!=newLevel); result.put("history",graduationHistory(c,studentId)); return result;
         });
+        // The transaction has committed; only now may the cached object be synchronized.
+        Student cachedStudent=Student.get(studentId);
+        if(cachedStudent!=null) cachedStudent.applyGraduationLevelCache(GraduationLevel.of(newLevel));
+        return changeResult;
     }
     /** Assigned total for staff; both their scope access and the student's explicit assignment apply. */
     public Map<String,Object> progress(Actor actor, int studentId, Scope scope) throws SQLException {
