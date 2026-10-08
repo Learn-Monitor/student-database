@@ -37,11 +37,9 @@ is maintained separately in the project Wiki.
 
 ## Presentation
 
-- [Presentation for teachers](presentation_april.pdf)
 
 ## Test server
 
-You can create a test server on your local computer using [this download](sandbox.zip).
 You need to unpack the zip folder and run one of the scripts in it (depending on your system configuration).
 They require a jvm to be installed and added to the command line path.
 You might have to permit your java application to bind port 442 using:
