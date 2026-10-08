@@ -31,14 +31,21 @@ public class SessionManager {
      */
     private final int sessionExpireDuration;
     private final int maximumInactivityDuration;
-    private final int maxRequests;
+    private final int anonymousMaxRequests;
+    private final int authenticatedMaxRequests;
 
 
 
     public SessionManager(int sessionExpireDuration, int maximumInactivityDuration, int maxRequests) {
+        this(sessionExpireDuration, maximumInactivityDuration, maxRequests, maxRequests);
+    }
+
+    public SessionManager(int sessionExpireDuration, int maximumInactivityDuration,
+                          int anonymousMaxRequests, int authenticatedMaxRequests) {
         this.sessionExpireDuration = sessionExpireDuration;
         this.maximumInactivityDuration = maximumInactivityDuration;
-        this.maxRequests = maxRequests;
+        this.anonymousMaxRequests = anonymousMaxRequests;
+        this.authenticatedMaxRequests = authenticatedMaxRequests;
         LOGGER.debug("Starting session cleanup job...");
         new Thread(this::cleanSecondsJob, "Session Expiring").start();
     }
@@ -77,14 +84,17 @@ public class SessionManager {
     }
 
     public SessionValidationResult validateSession(HttpRequest request) {
-        lastActivity.set(request, Instant.now());
+        Session session=getSession(request);
+        lastActivity.set(session, Instant.now());
 
-        Integer requests = requestCount.get(request);
+        Integer requests = requestCount.get(session);
         int count = requests == null ? 0 : requests;
         count++;
-        requestCount.set(request, count);
-        if (count > maxRequests && !getSessionUser(request).isAdmin()) {
-            LOGGER.warn("Needed to put {} under rate limit: {} requests of maximum {} allowed", getSessionUser(request).getUsername(), count, maxRequests);
+        requestCount.set(session, count);
+        User user = getSessionUser(request);
+        int maxRequests = user == User.ANONYMOUS ? anonymousMaxRequests : authenticatedMaxRequests;
+        if (count > maxRequests && !user.isAdmin()) {
+            LOGGER.warn("Needed to put {} under rate limit: {} requests of maximum {} allowed", user.getUsername(), count, maxRequests);
             return SessionValidationResult.RATE_LIMITED;
         }
 

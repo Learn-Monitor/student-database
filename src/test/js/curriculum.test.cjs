@@ -387,7 +387,7 @@ test('assessment controls are permission gated and revocation blocks mutation',a
   assert.equal(env.requests.some(r=>r.url==='/set-curriculum-stage-assessment'),false);assert.match(progress.textContent,/Speichern fehlgeschlagen/);
  }finally{env.dom.window.close();}
 });
-test('assessment controls send exact payloads for all four explicit states',async()=>{
+test('assessment controls send exact payloads for all four explicit states and neutral reset',async()=>{
  for(const status of ['PASSED','FAILED_ONCE','FAILED_TWICE','LOCKED']){
   const detail={studentId:50,studentName:'Ada Alpha',subjectId:1,semesterId:20,stages:[{type:status==='LOCKED'?'FLEXIBLE':'CENTRAL',stageId:77,topicId:null,topicName:null,name:'Stage',tokens:5,status:null,earned:false,inProgress:true}]};
   const env=await setup(false,{progress:true,detail,pm:{...grants(),curriculum_assess_students:true}});
@@ -399,6 +399,13 @@ test('assessment controls send exact payloads for all four explicit states',asyn
    assert.equal(Object.hasOwn(request.data,'teacherId'),false);assert.equal(Object.hasOwn(request.data,'earned'),false);assert.equal(Object.hasOwn(request.data,'tokens'),false);
   }finally{env.dom.window.close();}
  }
+ const env=await setup(false,{progress:true,detail:{studentId:50,studentName:'Ada Alpha',subjectId:1,semesterId:20,stages:[{type:'CENTRAL',stageId:77,topicId:null,topicName:null,name:'Stage',tokens:5,status:'PASSED',earned:true,inProgress:false}]},pm:{...grants(),curriculum_assess_students:true}});
+ try{
+  const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
+  const control=progress.querySelector('.assessment-control');assert.equal(control.querySelector('option').disabled,false);assert.equal(control.value,'PASSED');
+  control.value='UNASSESSED';control.dispatchEvent(new env.dom.window.Event('change'));await tick();await tick();
+  const request=env.requests.find(r=>r.url==='/set-curriculum-stage-assessment');assert.equal(request.data.status,'UNASSESSED');
+ }finally{env.dom.window.close();}
 });
 test('successful assessment reloads roster and selected detail while preserving earned separately',async()=>{
  const pm={...grants(),curriculum_assess_students:true};const{dom,requests}=await setup(false,{progress:true,pm});

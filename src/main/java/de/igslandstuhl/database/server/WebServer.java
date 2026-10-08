@@ -43,12 +43,14 @@ import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
 public class WebServer implements Runnable {
     public static final int SESSION_DURATION = 21600; // six hours
     public static final int MAXIMUM_INACTIVITY_DURATION = 3600; // An hour
-    public static final int RATELIMIT = 180; // Preserve the canonical Arcanum runtime limit.
+    public static final int ANONYMOUS_RATELIMIT = 180;
+    public static final int AUTHENTICATED_RATELIMIT = 600;
     public static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
     private volatile boolean running;
     private final SSLServerSocket serverSocket;
-    private final SessionManager userManager = new SessionManager(SESSION_DURATION, MAXIMUM_INACTIVITY_DURATION, RATELIMIT);
+    private final SessionManager userManager = new SessionManager(SESSION_DURATION, MAXIMUM_INACTIVITY_DURATION,
+            ANONYMOUS_RATELIMIT, AUTHENTICATED_RATELIMIT);
     private final ExecutorService clientPool = Executors.newCachedThreadPool();
     private final boolean secure = true;
 

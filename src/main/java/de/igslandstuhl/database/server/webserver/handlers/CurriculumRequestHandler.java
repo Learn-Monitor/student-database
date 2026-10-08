@@ -130,7 +130,10 @@ public final class CurriculumRequestHandler {
                 Curriculum.StageAssessment assessment=service.setStageAssessment(actor,integer(rq,"studentId"),scope(rq,actor),
                         Curriculum.ActiveStageType.valueOf(string(rq,"stageType")),integer(rq,"stageId"),
                         Curriculum.AssessmentStatus.valueOf(string(rq,"status")));
-                return PostResponse.json(Map.of("status",assessment.status().name(),"earned",assessment.earned()),rq);
+                Map<String,Object> assessmentResponse=new LinkedHashMap<>();
+                assessmentResponse.put("status",assessment.status()==null?null:assessment.status().name());
+                assessmentResponse.put("earned",assessment.earned());
+                return PostResponse.jsonWithNulls(assessmentResponse,rq);
             }
             if(rq.getPath().equals("/curriculum-student-progress-detail")) {
                 Set<String> allowed=Set.of("studentId","subjectId","classId","semesterId");

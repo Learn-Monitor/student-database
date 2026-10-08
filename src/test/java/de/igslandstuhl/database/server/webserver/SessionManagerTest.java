@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import de.igslandstuhl.database.api.PreConditions;
+import de.igslandstuhl.database.api.Teacher;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
 import de.igslandstuhl.database.server.webserver.sessions.Session;
 import de.igslandstuhl.database.server.webserver.sessions.SessionManager;
@@ -70,6 +71,33 @@ public class SessionManagerTest {
 
         PostRequest changedIp = new PostRequest("POST /dashboard HTTP/1.1\r\nCookie: " + cookie, null, "127.0.0.1", true);
         assertEquals(SessionValidationResult.INVALID_SESSION, sessionManager.validateSession(changedIp));
+    }
+
+    @Test
+    void anonymousAndAuthenticatedSessionsUseSeparateLimitsAnd429KeepsSession() throws Exception {
+        PreConditions.setupDatabase();
+        String login = "rate-limit-" + UUID.randomUUID() + "@example.test";
+        Teacher teacher = Teacher.registerTeacher("Rate", "Limited", login, "password");
+        SessionManager limited = new SessionManager(Integer.MAX_VALUE, Integer.MAX_VALUE, 2, 3);
+
+        PostRequest anonymous = new PostRequest("POST /login HTTP/1.1", null, LOCALHOST, true);
+        Session anonymousSession = limited.getSession(anonymous);
+        String anonymousCookie = anonymousSession.createSessionCookie().toString();
+        PostRequest anonymousRequest = new PostRequest("POST /login HTTP/1.1\r\nCookie: " + anonymousCookie, null, LOCALHOST, true);
+        assertEquals(SessionValidationResult.OK, limited.validateSession(anonymousRequest));
+        assertEquals(SessionValidationResult.OK, limited.validateSession(anonymousRequest));
+        assertEquals(SessionValidationResult.RATE_LIMITED, limited.validateSession(anonymousRequest));
+
+        PostRequest authenticated = new PostRequest("POST /login HTTP/1.1", null, LOCALHOST, true);
+        Session authenticatedSession = limited.getSession(authenticated);
+        limited.addSessionUser(authenticatedSession, teacher.getUsername());
+        String authenticatedCookie = authenticatedSession.createSessionCookie().toString();
+        PostRequest authenticatedRequest = new PostRequest("POST /cockpit HTTP/1.1\r\nCookie: " + authenticatedCookie, null, LOCALHOST, true);
+        assertEquals(SessionValidationResult.OK, limited.validateSession(authenticatedRequest));
+        assertEquals(SessionValidationResult.OK, limited.validateSession(authenticatedRequest));
+        assertEquals(SessionValidationResult.OK, limited.validateSession(authenticatedRequest));
+        assertEquals(SessionValidationResult.RATE_LIMITED, limited.validateSession(authenticatedRequest));
+        assertEquals(teacher.getUsername(), limited.getSessionUser(authenticatedRequest).getUsername());
     }
 
     @Test

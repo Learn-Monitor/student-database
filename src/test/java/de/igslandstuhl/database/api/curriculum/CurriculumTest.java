@@ -1,6 +1,7 @@
 package de.igslandstuhl.database.api.curriculum;
 
 import de.igslandstuhl.database.api.*;
+import de.igslandstuhl.database.holidays.Holiday;
 import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLiteConnection;
 import org.junit.jupiter.api.*;
@@ -8,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import java.sql.*;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import de.igslandstuhl.database.server.webserver.Status;
@@ -85,6 +87,22 @@ class CurriculumTest {
         assertEquals(2,Curriculum.noteForTokens(75));
         assertEquals(1,Curriculum.noteForTokens(90));
     }
+    @Test void tutorGraduationWritesCanonicalStudentValueAndHistoryUsedByOverview() throws Exception {
+        db.writeTransaction(c->{
+            exec(c,"UPDATE school_years SET current_semester=? WHERE id=?",id,id);
+            exec(c,"INSERT INTO curriculum_class_tutors(semester,class,teacher,tutor_slot) VALUES(?,?,?,1)",id,id,id);
+            return null;
+        });
+        var changed=service.changeTutorGraduation(teacher,id,id,0);
+        assertEquals(0,changed.get("graduationLevel"));
+        // The fixture starts at level 1; the tutor change must be visible in the canonical store.
+        assertEquals(0,scalar("SELECT graduation_level FROM students WHERE id=?",id));
+        changed=service.changeTutorGraduation(teacher,id,id,2);
+        assertEquals(2,scalar("SELECT graduation_level FROM students WHERE id=?",id));
+        assertEquals(2,scalar("SELECT new_graduation_level FROM student_graduation_history WHERE student=? ORDER BY id DESC LIMIT 1",id));
+        var overview=service.weeklyConversationOverview(teacher,id,id);
+        assertEquals(2,((Map<?,?>)((List<?>)overview.get("students")).get(0)).get("graduationLevel"));
+    }
     @Test void forecastWithholdsEarlyAndLowEvidenceAndUsesCanonicalThresholds() {
         var stages=List.of(new Curriculum.ForecastStage("C:1",5),new Curriculum.ForecastStage("C:2",6),
                 new Curriculum.ForecastStage("C:3",20),new Curriculum.ForecastStage("C:4",40));
@@ -131,7 +149,8 @@ class CurriculumTest {
         stages.add(new Curriculum.ForecastStage("C:3",40)); stages.add(new Curriculum.ForecastStage("F:1",25));
         var result=Curriculum.calculateForecast(LocalDate.of(2026,10,1),LocalDate.of(2026,9,1),LocalDate.of(2026,12,31),20,stages, new HashSet<>(Set.of("C:1","C:2")));
         assertTrue((Boolean)result.get("available"));
-        assertEquals(0.67,((Number)result.get("paceCoinsPerDay")).doubleValue(),0.001);
+        assertEquals(0.91,((Number)result.get("paceCoinsPerLearningDay")).doubleValue(),0.001);
+        assertEquals(22L,result.get("elapsedLearningDays"));
         assertEquals(2L,result.get("completedStages"));
         assertEquals(2L,result.get("remainingStages"));
         assertEquals(65L,result.get("remainingCoinPotential"));
@@ -147,7 +166,7 @@ class CurriculumTest {
         assertTrue((Boolean)result.get("available"));
         assertEquals("semester_ended",result.get("reason"));
         assertEquals(11L,result.get("forecastCoins"));
-        assertEquals(0.07,((Number)result.get("paceCoinsPerDay")).doubleValue(),0.001);
+        assertEquals(0.1,((Number)result.get("paceCoinsPerLearningDay")).doubleValue(),0.001);
         assertEquals(6,result.get("forecastGrade"));
         assertEquals(1L,result.get("completedStages"));
         assertEquals(1L,result.get("remainingStages"));
@@ -155,6 +174,15 @@ class CurriculumTest {
         var invalid=Curriculum.calculateForecast(LocalDate.of(2026,10,1),null,LocalDate.of(2027,1,31),11,stages,Set.of());
         assertFalse((Boolean)invalid.get("available"));
         assertEquals("semester_dates_unavailable",invalid.get("reason"));
+    }
+    @Test void forecastCountsWeekdaysAndKnownSchoolVacationsOnly() {
+        Holiday vacation=new Holiday(1,"Herbstferien",LocalDate.of(2026,9,7).atStartOfDay(ZoneOffset.UTC).toInstant(),
+                LocalDate.of(2026,9,11).atTime(23,59,59).toInstant(ZoneOffset.UTC),1,false,true);
+        var stages=List.of(new Curriculum.ForecastStage("C:1",10),new Curriculum.ForecastStage("C:2",10));
+        var result=Curriculum.calculateForecast(LocalDate.of(2026,9,14),LocalDate.of(2026,9,1),LocalDate.of(2026,9,21),10,stages,Set.of("C:1"),new Holiday[]{vacation});
+        assertEquals(4L,result.get("elapsedLearningDays"));
+        assertEquals(9L,result.get("totalLearningDays"));
+        assertEquals("too_early",result.get("reason"));
     }
     @Test void schoolwideStageOverviewLimitsTeacherRowsToAuthorizedContexts() throws Exception {
         makeCurrentSemester(id);
@@ -342,6 +370,10 @@ class CurriculumTest {
             assertEquals(status,result.status());assertTrue(result.earned());
             assertEquals(1,scalar("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=? AND status=2",id,task));
         }
+        var reset=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,task,Curriculum.AssessmentStatus.UNASSESSED);
+        assertNull(reset.status());assertFalse(reset.earned());
+        assertEquals(0,scalar("SELECT COUNT(*) FROM taskstats WHERE student=? AND task=? AND status=2",id,task));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_stage_assessments WHERE student=? AND stage_id=?",id,task));
     }
     @Test void flexibleAssessmentTransitionsPreserveCompletionAndActiveStageSemantics() throws Exception {
         db.writeTransaction(c->{
@@ -365,6 +397,10 @@ class CurriculumTest {
         var locked=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id(),Curriculum.AssessmentStatus.LOCKED);
         assertEquals(Curriculum.AssessmentStatus.LOCKED,locked.status());assertTrue(locked.earned());
         assertEquals(1,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,task.id()));
+        var reset=service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,task.id(),Curriculum.AssessmentStatus.UNASSESSED);
+        assertNull(reset.status());assertFalse(reset.earned());
+        assertEquals(0,scalar("SELECT COUNT(*) FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",id,task.id()));
+        assertEquals(0,scalar("SELECT COUNT(*) FROM student_curriculum_stage_assessments WHERE student=? AND stage_id=?",id,task.id()));
     }
     @Test void passedCannotReactivateTransferredFlexibleSourceCompletion() throws Exception {
         db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});

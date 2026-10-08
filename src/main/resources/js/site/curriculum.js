@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch { throw Error('Die Anfrage konnte nicht gesendet werden. Bitte erneut versuchen.'); }
         if (response.status === 401) throw Error('Bitte erneut anmelden.');
         if (response.status === 403) throw Error(permissionDenied);
+        if (response.status === 429) throw Error('Zu viele Anfragen. Bitte kurz warten und erneut versuchen.');
         let body;
         try { body = JSON.parse(await response.text()); } catch { /* Non-JSON errors never reach the UI. */ }
         if (!response.ok) {
@@ -224,13 +225,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const assessmentCell=tr.insertCell();assessmentCell.append(el('span',assessmentText(stage.status)));
                 if(canAssess && (stage.type==='CENTRAL'||stage.type==='FLEXIBLE')) {
                     const control=el('select');control.className='assessment-control';control.dataset.stageType=stage.type;control.dataset.stageId=stage.stageId;
-                    const placeholder=el('option','Bewertung wählen');placeholder.value='';placeholder.disabled=true;control.append(placeholder);
+                    const placeholder=el('option','Bewertung wählen');placeholder.value='UNASSESSED';control.append(placeholder);
                     for(const [value,label] of assessmentOptions){const option=el('option',label);option.value=value;control.append(option);}
-                    control.value=stage.status||'';
-                    let previousValue = stage.status || '';
+                    control.value=stage.status||'UNASSESSED';
+                    let previousValue = stage.status || 'UNASSESSED';
                     const saveAssessment = async () => {
                         const key=`${stage.type}:${stage.stageId}`;
-                        if(assessmentWrites.has(key)||!control.value)return;
+                        if(assessmentWrites.has(key))return;
                         const nextValue = control.value;
                         const viewState = captureDetailViewState(control);
                         assessmentWrites.add(key);control.disabled=true;detailStatus.style.color='';detailStatus.textContent='Wird gespeichert …';

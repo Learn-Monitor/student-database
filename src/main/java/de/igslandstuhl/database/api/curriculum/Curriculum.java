@@ -6,7 +6,6 @@ import de.igslandstuhl.database.server.Server;
 import de.igslandstuhl.database.server.sql.SQLiteConnection;
 import java.sql.*;
 import java.time.*;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /** Transactional curriculum operations. Budgets are read from SQL, never from caches. */
@@ -45,7 +44,8 @@ public final class Curriculum {
         Scope scope() { return new Scope(ownerTeacher, subjectId, classId, semesterId); }
     }
     public enum ActiveStageType { CENTRAL, FLEXIBLE }
-    public enum AssessmentStatus { PASSED, FAILED_ONCE, FAILED_TWICE, LOCKED }
+    /** UNASSESSED is an API operation only; it is never written to the assessment table. */
+    public enum AssessmentStatus { UNASSESSED, PASSED, FAILED_ONCE, FAILED_TWICE, LOCKED }
     public record ActiveStage(ActiveStageType type, int taskId, int subjectId, int semesterId, String name, Integer niveau) {
         public ActiveStage(ActiveStageType type, int taskId, int subjectId, int semesterId, String name) { this(type, taskId, subjectId, semesterId, name, null); }
     }
@@ -181,7 +181,7 @@ public final class Curriculum {
             return result;
         });
     }
-    private static final int MIN_FORECAST_DAYS = 14;
+    private static final int MIN_FORECAST_LEARNING_DAYS = 7;
     private static final int MIN_FORECAST_STAGES = 2;
     private static final ZoneId FORECAST_ZONE = ZoneId.of("Europe/Berlin");
     static record ForecastStage(String key, int tokens) {}
@@ -193,6 +193,11 @@ public final class Curriculum {
     static Map<String,Object> calculateForecast(LocalDate today, LocalDate start, LocalDate end,
                                                  long earnedCoins, List<ForecastStage> stages,
                                                  Set<String> completedKeys) {
+        return calculateForecast(today,start,end,earnedCoins,stages,completedKeys,new Holiday[0]);
+    }
+    static Map<String,Object> calculateForecast(LocalDate today, LocalDate start, LocalDate end,
+                                                 long earnedCoins, List<ForecastStage> stages,
+                                                 Set<String> completedKeys, Holiday[] holidays) {
         Map<String,Object> result = new LinkedHashMap<>();
         result.put("available", false);
         result.put("message", "Noch keine belastbare Prognose. Es liegen bisher zu wenige bestätigte Leistungen vor.");
@@ -206,11 +211,24 @@ public final class Curriculum {
             result.put("reason", "semester_dates_unavailable");
             return result;
         }
-        long totalDays = ChronoUnit.DAYS.between(start, end);
-        long elapsedDays = Math.max(0, Math.min(totalDays, ChronoUnit.DAYS.between(start, today)));
+        if (holidays == null) {
+            result.put("paceCoinsPerLearningDay", null);
+            result.put("elapsedDays", null); result.put("remainingDays", null);
+            result.put("elapsedLearningDays", null); result.put("remainingLearningDays", null);
+            result.put("totalLearningDays", null);
+            result.put("completedStages", 0); result.put("remainingStages", 0); result.put("remainingCoinPotential", 0);
+            result.put("reason", "holiday_data_unavailable");
+            return result;
+        }
+        long totalDays = learningDays(start, end, holidays);
+        long elapsedDays = learningDays(start, today, holidays);
+        elapsedDays = Math.min(totalDays, elapsedDays);
         long remainingDays = Math.max(0, totalDays - elapsedDays);
         double paceCoinsPerDay = elapsedDays == 0 ? 0.0 : Math.max(0L, earnedCoins) / (double) elapsedDays;
+        result.put("paceCoinsPerLearningDay", Math.round(paceCoinsPerDay * 100.0) / 100.0);
         result.put("paceCoinsPerDay", Math.round(paceCoinsPerDay * 100.0) / 100.0);
+        result.put("elapsedLearningDays", elapsedDays); result.put("remainingLearningDays", remainingDays);
+        result.put("totalLearningDays", totalDays);
         Map<String,Integer> valid = new LinkedHashMap<>();
         for (ForecastStage stage : stages == null ? List.<ForecastStage>of() : stages) {
             if (stage != null && stage.key() != null && !stage.key().isBlank() && stage.tokens() >= 0)
@@ -226,9 +244,9 @@ public final class Curriculum {
         result.put("completedStages", completedStages); result.put("remainingStages", remainingStages);
         result.put("remainingCoinPotential", remainingPotential);
         boolean semesterEnded = today.compareTo(end) >= 0;
-        boolean enoughData = elapsedDays >= MIN_FORECAST_DAYS && completedStages >= MIN_FORECAST_STAGES;
+        boolean enoughData = elapsedDays >= MIN_FORECAST_LEARNING_DAYS && completedStages >= MIN_FORECAST_STAGES;
         if (!semesterEnded && !enoughData) {
-            result.put("reason", elapsedDays < MIN_FORECAST_DAYS ? "too_early" : "too_few_confirmed_stages");
+            result.put("reason", elapsedDays < MIN_FORECAST_LEARNING_DAYS ? "too_early" : "too_few_confirmed_stages");
             return result;
         }
         long forecastCoins;
@@ -245,8 +263,20 @@ public final class Curriculum {
         result.put("forecastGrade", noteForTokens(forecastCoins));
         result.put("forecastGradeLabel", gradeLabel(noteForTokens(forecastCoins)));
         result.put("message", semesterEnded ? "Das Halbjahr ist beendet; die Prognose entspricht dem tatsächlichen Endstand."
-                : "");
+                : "Wenn dein bisheriges Arbeitstempo so weitergeht, erreichst du voraussichtlich diesen Stand.");
         return result;
+    }
+
+    private static long learningDays(LocalDate from, LocalDate to, Holiday[] knownHolidays) {
+        if (from == null || to == null || !to.isAfter(from)) return 0;
+        Holiday[] holidays = knownHolidays == null ? new Holiday[0] : knownHolidays;
+        return from.datesUntil(to).filter(date -> {
+            var day = date.getDayOfWeek();
+            if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) return false;
+            return Arrays.stream(holidays).noneMatch(h -> h.isSchoolVacation()
+                    && !date.isBefore(h.getStart().atZone(ZoneOffset.UTC).toLocalDate())
+                    && !date.isAfter(h.getEnd().atZone(ZoneOffset.UTC).toLocalDate()));
+        }).count();
     }
 
     private static String gradeLabel(int grade) {
@@ -903,6 +933,9 @@ public final class Curriculum {
                                               AssessmentStatus status) throws SQLException {
         if(actor==null || actor.admin()) throw error(403,"forbidden","Teacher required for student assessment.");
         if(status==null) throw error(400,"invalid_input","Assessment status is required.");
+        if(status==AssessmentStatus.UNASSESSED) {
+            return resetStageAssessment(actor,studentId,scope,stageType,stageId);
+        }
         boolean[] requestsCleared={false};
         transaction(c -> {
             if(stageType==ActiveStageType.FLEXIBLE && status==AssessmentStatus.PASSED) {
@@ -940,6 +973,27 @@ public final class Curriculum {
             if(student!=null && task!=null) student.applyTaskStatusCache(task,Task.STATUS_COMPLETED);
         }
         return stageAssessment(actor,studentId,scope,stageType,stageId);
+    }
+    private StageAssessment resetStageAssessment(Actor actor, int studentId, Scope scope,
+                                                  ActiveStageType stageType, int stageId) throws SQLException {
+        if(actor==null || actor.admin()) throw error(403,"forbidden","Teacher required for student assessment.");
+        StageAssessment result=transaction(c -> {
+            int grade=validateAssessmentStage(c,actor,studentId,scope,stageType,stageId);
+            if(stageType==ActiveStageType.FLEXIBLE && number(c,"SELECT COUNT(*) FROM curriculum_completion_transfers WHERE student=? AND source_task=?",studentId,stageId)>0)
+                throw error(409,"context_conflict","Transferred flexible completion cannot be reset safely.");
+            write(c,"DELETE FROM student_curriculum_stage_assessments WHERE student=? AND subject=? AND semester=? AND stage_type=? AND stage_id=?",
+                    studentId,scope.subjectId(),scope.semesterId(),stageType.name(),stageId);
+            if(stageType==ActiveStageType.CENTRAL)
+                write(c,"DELETE FROM taskstats WHERE student=? AND task=? AND status=?",studentId,stageId,Task.STATUS_COMPLETED);
+            else
+                write(c,"DELETE FROM completed_flexible_tasks WHERE student=? AND flexible_task=?",studentId,stageId);
+            return new StageAssessment(null,false);
+        });
+        if(stageType==ActiveStageType.CENTRAL) {
+            Student student=Student.get(studentId); Task task=Task.get(stageId);
+            if(student!=null && task!=null) student.applyTaskStatusCache(task,Task.STATUS_NOT_STARTED);
+        }
+        return result;
     }
     private static void putActiveCentral(Connection c,int studentId,CentralTask task) throws SQLException {
         write(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task,last_updated) VALUES(?,?,?,?,NULL,CURRENT_TIMESTAMP) "
@@ -1421,8 +1475,15 @@ public final class Curriculum {
                 String key="FLEXIBLE:"+integer(task,"id"); forecastStages.add(new ForecastStage(key,integer(task,"tokens")));
                 if(flexibleDone.contains(integer(task,"id"))) completedKeys.add(key);
             }
+            Holiday[] forecastHolidays=null;
+            if(startDate!=null && endDate!=null) {
+                try {
+                    forecastHolidays=Holiday.holidaysInterval(startDate.atStartOfDay(ZoneOffset.UTC).toInstant(),
+                            endDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant());
+                } catch (RuntimeException ignored) { /* No forecast without authoritative holiday data. */ }
+            }
             Map<String,Object> forecast=calculateForecast(LocalDate.now(FORECAST_ZONE),startDate,endDate,
-                    ((Number)earned.get("totalTokens")).longValue(),forecastStages,completedKeys);
+                    ((Number)earned.get("totalTokens")).longValue(),forecastStages,completedKeys,forecastHolidays);
             Map<String,Object> out=new LinkedHashMap<>();
             out.put("semesterId",semester);
             Map<String,Object> activeJson=null;
