@@ -69,7 +69,7 @@ public final class Curriculum {
             int semester = currentSemester(c);
             Map<String,Map<String,Object>> entries = new LinkedHashMap<>();
             for (var row : rows(c,
-                    "SELECT s.id AS studentId,s.first_name AS firstName,s.last_name AS lastName,cl.label AS className,"
+                    "SELECT s.id AS studentId,s.first_name AS firstName,s.last_name AS lastName,cl.label AS className,cl.grade AS grade,"
                     + "ctx.subject,COALESCE(a.central_task,a.flexible_task) AS stageId,"
                     + "CASE WHEN a.central_task IS NOT NULL THEN 'CENTRAL' ELSE 'FLEXIBLE' END AS stageType,"
                     + "COALESCE(ct.name,ft.name) AS stageName "
@@ -82,6 +82,8 @@ public final class Curriculum {
                     + "WHERE r.semester=? AND r.request_type='EXAM' AND COALESCE(s.active,1)=1 AND cl.active=1 AND cl.id<>0 "
                     + "AND (?=1 OR EXISTS (SELECT 1 FROM curriculum_class_teachers cct WHERE cct.semester=r.semester AND cct.class=s.class AND cct.subject=r.subject AND cct.teacher=?) OR ctx.teacher=?)",
                     semester, actor.admin() ? 1 : 0, actor.teacherId(), actor.teacherId())) {
+                if (SolSubjectPolicy.isManagedGrade(integer(row,"grade"))
+                        && !SolSubjectPolicy.isAllowed(c,integer(row,"grade"),integer(row,"subject"))) continue;
                 String key = row.get("studentId")+":"+row.get("subject")+":"+row.get("stageType")+":"+row.get("stageId");
                 Map<String,Object> entry = new LinkedHashMap<>();
                 entry.put("studentId", integer(row,"studentId")); entry.put("firstName", row.get("firstName"));
@@ -90,7 +92,7 @@ public final class Curriculum {
                 entries.put(key, entry);
             }
             for (var row : rows(c,
-                    "SELECT s.id AS studentId,s.first_name AS firstName,s.last_name AS lastName,cl.label AS className,"
+                    "SELECT s.id AS studentId,s.first_name AS firstName,s.last_name AS lastName,cl.label AS className,cl.grade AS grade,"
                     + "a.subject,a.stage_type AS stageType,a.stage_id AS stageId,"
                     + "CASE WHEN a.stage_type='CENTRAL' THEN ct.name ELSE ft.name END AS stageName,a.status "
                     + "FROM student_curriculum_stage_assessments a "
@@ -102,6 +104,8 @@ public final class Curriculum {
                     + "AND COALESCE(s.active,1)=1 AND cl.active=1 AND cl.id<>0 "
                     + "AND (?=1 OR EXISTS (SELECT 1 FROM curriculum_class_teachers cct WHERE cct.semester=a.semester AND cct.class=s.class AND cct.subject=a.subject AND cct.teacher=?) OR ctx.teacher=?)",
                     semester, actor.admin() ? 1 : 0, actor.teacherId(), actor.teacherId())) {
+                if (SolSubjectPolicy.isManagedGrade(integer(row,"grade"))
+                        && !SolSubjectPolicy.isAllowed(c,integer(row,"grade"),integer(row,"subject"))) continue;
                 String key = row.get("studentId")+":"+row.get("subject")+":"+row.get("stageType")+":"+row.get("stageId");
                 String status = switch (String.valueOf(row.get("status"))) {
                     case "FAILED_ONCE" -> "1x nicht bestanden";
@@ -359,6 +363,7 @@ public final class Curriculum {
         int grade=integer(classRow,"grade");
         if(creating && (s.classId()==SchoolClass.UNASSIGNED_CLASS_ID || grade==0 || integer(classRow,"active")==0))
             throw error(409,"context_unassigned","This class is not available for a current curriculum context.");
+        if (creating) SolSubjectPolicy.requireAllowed(c, grade, s.subjectId());
         if(!actor.admin() && !managedTeacher(c,s,grade) && !legacyTeacher(c,s))
             throw error(403,"forbidden","Teacher must be assigned to this managed or legacy curriculum context.");
         var previous=rows(c,"SELECT grade FROM flexible_tasks WHERE owner_teacher=? AND subject=? AND class=? AND semester=? UNION SELECT grade FROM student_curriculum_contexts WHERE teacher=? AND subject=? AND class=? AND semester=? UNION SELECT grade FROM flexible_topics WHERE owner_teacher=? AND subject=? AND class=? AND semester=?",
@@ -750,6 +755,7 @@ public final class Curriculum {
         int assignedClass=integer(found.get(0),"class");
         if(currentClass==SchoolClass.UNASSIGNED_CLASS_ID || currentClass!=assignedClass)
             throw error(409,"context_unassigned","No current curriculum context is assigned for this subject and semester.");
+        SolSubjectPolicy.requireCurrentAllowed(c,integer(found.get(0),"grade"),subject,semester);
         return found.get(0);
     }
     private static int requireAssignment(Connection c,int studentId,Scope scope) throws SQLException {
@@ -779,10 +785,15 @@ public final class Curriculum {
     public List<StudentSubject> studentCurrentSubjects(int studentId) throws SQLException {
         return transaction(c -> {
             int semester = currentSemester(c);
-            return rows(c,"SELECT DISTINCT s.id,s.name FROM student_curriculum_contexts x "
+            List<StudentSubject> result=new ArrayList<>();
+            for (var row : rows(c,"SELECT DISTINCT s.id,s.name,x.grade FROM student_curriculum_contexts x "
                     + "JOIN subjects s ON s.id=x.subject WHERE x.student=? AND x.semester=? "
-                    + "ORDER BY s.name,s.id",studentId,semester).stream()
-                    .map(r -> new StudentSubject(integer(r,"id"),(String) r.get("name"))).toList();
+                    + "ORDER BY s.name,s.id",studentId,semester)) {
+                if (!SolSubjectPolicy.isManagedGrade(integer(row,"grade"))
+                        || SolSubjectPolicy.isAllowed(c,integer(row,"grade"),integer(row,"id")))
+                    result.add(new StudentSubject(integer(row,"id"),(String) row.get("name")));
+            }
+            return result;
         });
     }
 
@@ -1301,6 +1312,11 @@ public final class Curriculum {
                     + "WHERE gs.semester=? AND gs.grade=? "
                     + "UNION SELECT DISTINCT s.id,s.name,sc.teacher AS teacherId FROM student_curriculum_contexts sc JOIN subjects s ON s.id=sc.subject "
                     + "WHERE sc.semester=? AND sc.class=? ORDER BY name",classId,semester,grade,semester,classId);
+            List<Map<String,Object>> allowedSubjects=new ArrayList<>();
+            for (var row : subjects)
+                if (!SolSubjectPolicy.isManagedGrade(grade) || SolSubjectPolicy.isAllowed(c,grade,integer(row,"id")))
+                    allowedSubjects.add(row);
+            subjects=allowedSubjects;
             List<Map<String,Object>> students=rows(c,"SELECT id,first_name AS firstName,last_name AS lastName FROM students WHERE class=? AND COALESCE(active,1)=1 ORDER BY last_name,first_name,id",classId);
             List<Map<String,Object>> output=new ArrayList<>();
             for (var student:students) {
@@ -1512,6 +1528,7 @@ public final class Curriculum {
             out.put("semesters",rows(c,"SELECT s.id,s.label,s.school_year AS schoolYearId,y.label AS schoolYearLabel,"
                     + "COALESCE(s.archived,0) AS archived,CASE WHEN y.current_semester=s.id THEN 1 ELSE 0 END AS active "
                     + "FROM semesters s JOIN school_years y ON y.id=s.school_year ORDER BY s.school_year,s.position"));
+            out.put("activeSubjectIdsByGrade",Map.of("5",SolSubjectPolicy.activeSubjectIds(c,5),"6",SolSubjectPolicy.activeSubjectIds(c,6)));
             if(!actor.admin()) out.put("contexts",teacherContexts(c,actor.teacherId()));
             if(actor.admin()) out.put("teachers",rows(c,"SELECT id,first_name,last_name FROM teachers ORDER BY id"));
             return out;});
@@ -1536,8 +1553,15 @@ public final class Curriculum {
                         + "LEFT JOIN curriculum_subject_types t ON t.subject=sc.subject "
                         + "WHERE sc.teacher=? AND cl.id<>0 AND cl.grade<>0 AND cl.active=1 AND COALESCE(t.mode,'REGULAR')='INDIVIDUAL' "
                         + "ORDER BY semesterId,grade,classLabel,subjectName",teacher,teacher);
-        contexts.forEach(row -> row.put("activeSemester",integer(row,"activeSemester")==1));
-        return contexts;
+        List<Map<String,Object>> visible=new ArrayList<>();
+        for (var row : contexts) {
+            boolean active=integer(row,"activeSemester")==1;
+            row.put("activeSemester",active);
+            if (active && SolSubjectPolicy.isManagedGrade(integer(row,"grade"))
+                    && !SolSubjectPolicy.isAllowed(c,integer(row,"grade"),integer(row,"subjectId"))) continue;
+            visible.add(row);
+        }
+        return visible;
     }
     public Map<String,Object> centralStructure(Actor actor,int subject,int grade,int semester) throws SQLException {
         return transaction(c->{

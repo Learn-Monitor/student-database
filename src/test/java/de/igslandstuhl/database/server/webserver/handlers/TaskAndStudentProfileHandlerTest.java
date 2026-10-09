@@ -67,7 +67,7 @@ class TaskAndStudentProfileHandlerTest {
         id = SEQUENCE.getAndAdd(20);
         topic = id;
         db.writeTransaction(c -> {
-            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", id, "Subject-" + id);
+            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", id, "Mathematik-" + id);
             exec(c, "INSERT INTO school_years(id,label,week_count,current_week,start_date,end_date,current_semester) VALUES(?,?,39,1,'2020-01-01','2099-12-31',?)", id, "Year-" + id, id);
             exec(c, "INSERT INTO semesters(id,label,position,school_year) VALUES(?,?,1,?)", id, "Semester-" + id, id);
             exec(c, "INSERT INTO semesters(id,label,position,school_year) VALUES(?,?,2,?)", id + 1, "Semester-" + (id + 1), id);
@@ -338,9 +338,9 @@ class TaskAndStudentProfileHandlerTest {
         int first = id + 2, second = id + 3, old = id + 4;
         db.writeTransaction(c -> {
             exec(c, "DELETE FROM student_curriculum_contexts WHERE student=?", id);
-            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", first, "Alpha");
-            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", second, "Zulu");
-            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", old, "Old");
+            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", first, "Deutsch-" + id);
+            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", second, "Englisch-" + id);
+            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", old, "Sport-" + id);
             exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, first, id, id, id);
             exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, second, id, id, id);
             exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, old, id + 1, id, id);
@@ -351,7 +351,7 @@ class TaskAndStudentProfileHandlerTest {
         var json = com.google.gson.JsonParser.parseString(responseBody(response).split("\\r\\n\\r\\n", 2)[1]).getAsJsonArray();
         assertEquals(2, json.size());
         assertEquals(first, json.get(0).getAsJsonObject().get("id").getAsInt());
-        assertEquals("Alpha", json.get(0).getAsJsonObject().get("name").getAsString());
+        assertEquals("Deutsch-" + id, json.get(0).getAsJsonObject().get("name").getAsString());
         assertEquals(Set.of("id", "name"), json.get(0).getAsJsonObject().keySet());
         assertEquals(Set.of("id", "name"), json.get(1).getAsJsonObject().keySet());
         for (String field : List.of("studentId", "teacherId", "classId", "subjectId", "semesterId", "grade"))
