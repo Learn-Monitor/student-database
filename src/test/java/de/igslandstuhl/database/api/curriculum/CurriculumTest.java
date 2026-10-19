@@ -736,6 +736,27 @@ class CurriculumTest {
         assertEquals(false,signals.get("partner"));
     }
     @SuppressWarnings("unchecked")
+    @Test void teacherRosterSummarizesReleasedAndEarnedStages() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        releaseAllCentral();
+        var before=(Map<String,Object>)byId(service.teacherRoster(teacher,scope),id).get("progress");
+        int done=centralNamed("Roster done",3);
+        centralNamed("Roster open",5);
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,done,Curriculum.AssessmentStatus.PASSED);
+        var variable=service.create(teacher,scope,"Roster variable",4,true);
+        new CurriculumEnrollment(service).release(teacher,scope,null,null,null,variable.id(),true);
+        db.writeTransaction(c->{exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?,NULL,?)",id,id,id,variable.id());return null;});
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,variable.id(),Curriculum.AssessmentStatus.PASSED,2);
+        service.create(teacher,scope,"Roster unreleased",6);
+
+        var after=(Map<String,Object>)byId(service.teacherRoster(teacher,scope),id).get("progress");
+        java.util.function.BiFunction<String,Map<String,Object>,Integer> value=(key,map)->((Number)map.get(key)).intValue();
+        assertEquals(3,value.apply("releasedStages",after)-value.apply("releasedStages",before));
+        assertEquals(2,value.apply("earnedStages",after)-value.apply("earnedStages",before));
+        assertEquals(12,value.apply("releasedTokens",after)-value.apply("releasedTokens",before));
+        assertEquals(5,value.apply("earnedTokens",after)-value.apply("earnedTokens",before));
+    }
+    @SuppressWarnings("unchecked")
     @Test void teacherRosterMapsExperimentAndExamTogether() throws Exception {
         db.writeTransaction(c->{
             exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);
