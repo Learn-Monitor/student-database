@@ -43,9 +43,9 @@ async function setup(admin, options={}){
   classes:admin?[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5}]:[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5},{id:12,label:'Legacy class',grade:8}],
   semesters:options.semesters ?? [{id:20,label:'H1'},{id:21,label:'H2'}],teachers:[{id:7,first_name:'Test',last_name:'Teacher'}],contexts:options.contexts ?? defaultContexts};
  const defaultRoster=[
-  {id:50,name:'Ada Alpha',firstName:'Ada',lastName:'Alpha',activeStage:{type:'CENTRAL',taskId:3,name:'Central',niveau:1},signals:{help:true,partner:true,experiment:false,exam:false}},
-  {id:51,name:'Ben Beta',firstName:'Ben',lastName:'Beta',activeStage:{type:'FLEXIBLE',taskId:100,name:'Own task'},signals:{help:false,partner:false,experiment:true,exam:true}},
-  {id:52,name:'Cara Gamma',firstName:'Cara',lastName:'Gamma',activeStage:null,signals:{help:false,partner:false,experiment:false,exam:false}}
+  {id:50,name:'Ada Alpha',firstName:'Ada',lastName:'Alpha',activeStage:{type:'CENTRAL',taskId:3,name:'Central',niveau:1},signals:{help:true,partner:true,experiment:false,exam:false},progress:{releasedTokens:30,earnedTokens:12,lastAssessedAt:new Date().toISOString().slice(0,19).replace('T',' ')}},
+  {id:51,name:'Ben Beta',firstName:'Ben',lastName:'Beta',activeStage:{type:'FLEXIBLE',taskId:100,name:'Own task'},signals:{help:false,partner:false,experiment:true,exam:true},progress:{releasedTokens:20,earnedTokens:0,lastAssessedAt:'2026-03-04 10:00:00'}},
+  {id:52,name:'Cara Gamma',firstName:'Cara',lastName:'Gamma',activeStage:null,signals:{help:false,partner:false,experiment:false,exam:false},progress:{releasedTokens:0,earnedTokens:0,lastAssessedAt:null}}
  ];
  const defaultProgressDetail={studentId:50,studentName:'Ada Alpha',subjectId:1,semesterId:20,stages:[
   {type:'CENTRAL',stageId:3,topicId:2,topicName:'Topic',name:'Passed central',niveau:1,tokens:5,status:'PASSED',earned:true,inProgress:true},
@@ -288,9 +288,14 @@ test('student progress renders active stages and signals read only',async()=>{
   assert.match(progress.textContent,/Own task · Flexibel/);
   assert.match(progress.textContent,/Keine Etappe in Bearbeitung/);
   const rows=[...progress.querySelectorAll('table tr')].slice(1).map(row=>[...row.cells].map(cell=>cell.textContent));
-  assert.deepEqual(rows[0],['Details','Ada Alpha','Central · Wanderer · Zentral','Ja','Ja','—','—']);
-  assert.deepEqual(rows[1],['Details','Ben Beta','Own task · Flexibel','—','—','Ja','Ja']);
-  assert.deepEqual(rows[2],['Details','Cara Gamma','Keine Etappe in Bearbeitung','—','—','—','—']);
+  assert.deepEqual(rows[0],['Details','Ada Alpha','12 von 30 Münzen','Heute','Central · Wanderer · Zentral','Ja','Ja','—','—']);
+  assert.deepEqual(rows[1],['Details','Ben Beta','0 von 20 Münzen',"04.03.'26",'Own task · Flexibel','—','—','Ja','Ja']);
+  assert.deepEqual(rows[2],['Details','Cara Gamma','Noch keine Etappe freigegeben','—','Keine Etappe in Bearbeitung','—','—','—','—']);
+  const bar=progress.querySelector('.teacher-roster-progress progress');
+  assert.equal(bar.max,30);
+  assert.equal(bar.value,12);
+  assert.equal(progress.querySelectorAll('.teacher-roster-progress progress').length,2);
+  assert.equal(progress.querySelectorAll('.teacher-roster-last-assessed.is-today').length,1);
   assert.equal(progress.querySelectorAll('form').length,0);
   assert.equal(progress.querySelectorAll('input[type=checkbox]').length,0);
   assert.equal([...progress.querySelectorAll('button')].filter(button=>button.textContent==='Details').length,3);

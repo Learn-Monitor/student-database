@@ -1292,11 +1292,13 @@ public final class Curriculum {
                     + "WHERE "+filter+" AND x.subject=? AND x.semester=? AND x.grade=? AND s.active=1 "
                     + "ORDER BY s.last_name,s.first_name,s.id",
                     args);
+            List<RosterStage> stages=teacherRosterStages(c,scope,grade,individual && courseGroup==null);
             for(var student:roster) {
                 int studentId=integer(student,"id");
                 student.put("name",student.get("firstName")+" "+student.get("lastName"));
                 student.put("activeStage",teacherRosterActiveStage(c,studentId,scope));
                 student.put("signals",teacherRosterSignals(c,studentId,scope));
+                student.put("progress",teacherRosterProgress(c,studentId,scope,grade,stages));
             }
             return roster;
         });
@@ -1353,6 +1355,75 @@ public final class Curriculum {
         signals.put("experiment",requests.contains("EXPERIMENT"));
         signals.put("exam",requests.contains("EXAM"));
         return signals;
+    }
+    private record RosterStage(ActiveStageType type,int id,int tokens,boolean released) {}
+    /**
+     * Every central and flexible stage of the context (same selection as {@link #studentProgressDetail}) with its release state.
+     * An individual subject without course group has no releases and no flexible stages yet.
+     */
+    private static List<RosterStage> teacherRosterStages(Connection c,Scope scope,int grade,boolean ungrouped) throws SQLException {
+        List<RosterStage> stages=new ArrayList<>();
+        for(var row:rows(c,"SELECT t.id,t.tokens,p.id AS topicId FROM tasks t JOIN topics p ON p.id=t.topic "
+                + "WHERE p.subject=? AND p.grade=? AND p.semester=? ORDER BY p.number,t.stage_number,t.id",
+                scope.subjectId(),grade,scope.semesterId())) {
+            int stageId=integer(row,"id");
+            stages.add(new RosterStage(ActiveStageType.CENTRAL,stageId,integer(row,"tokens"),
+                    !ungrouped && CurriculumEnrollment.released(c,scope,stageId,integer(row,"topicId"))));
+        }
+        if(ungrouped) return stages;
+        boolean individual=individualSubject(c,scope.subjectId());
+        for(var row:rows(c,"SELECT t.id,t.tokens,p.id AS topicId "
+                + "FROM flexible_tasks t LEFT JOIN flexible_task_topics m ON m.flexible_task=t.id "
+                + "LEFT JOIN flexible_topics p ON p.id=m.flexible_topic AND p.owner_teacher=t.owner_teacher "
+                + "AND p.subject=t.subject AND p.class=t.class AND p.semester=t.semester AND p.grade=t.grade "
+                + (individual?"WHERE t.subject=? AND t.semester=? AND t.grade=? AND t.course_group=? ":"WHERE t.owner_teacher=? AND t.subject=? AND t.class=? AND t.semester=? AND t.grade=? ")
+                + "ORDER BY p.id IS NULL,p.id,t.id",individual?new Object[]{scope.subjectId(),scope.semesterId(),grade,resolveScope(c,scope).courseGroupId()}:new Object[]{scope.teacherId(),scope.subjectId(),scope.classId(),scope.semesterId(),grade})) {
+            int stageId=integer(row,"id");
+            Integer topicId=row.get("topicId")==null?null:integer(row,"topicId");
+            stages.add(new RosterStage(ActiveStageType.FLEXIBLE,stageId,integer(row,"tokens"),
+                    CurriculumEnrollment.flexibleReleased(c,scope,stageId,topicId)));
+        }
+        return stages;
+    }
+    /**
+     * Tokens of released stages plus stages already earned (even if released later withdrawn), the tokens earned,
+     * and when a teacher last recorded an assessment (passed, failed or locked) for one of these stages.
+     */
+    private static Map<String,Object> teacherRosterProgress(Connection c,int studentId,Scope scope,int grade,List<RosterStage> stages) throws SQLException {
+        int releasedTokens=0,earnedTokens=0;
+        for(RosterStage stage:stages) {
+            StageAssessment assessment=stageAssessment(c,studentId,scope,stage.type(),stage.id(),grade);
+            if(!stage.released() && !assessment.earned()) continue;
+            releasedTokens+=stage.tokens();
+            if(assessment.earned())
+                earnedTokens+=assessment.awardedTokens()!=null?assessment.awardedTokens():stage.tokens();
+        }
+        Map<String,Object> progress=new LinkedHashMap<>();
+        progress.put("releasedTokens",releasedTokens);
+        progress.put("earnedTokens",earnedTokens);
+        progress.put("lastAssessedAt",teacherRosterLastAssessed(c,studentId,scope,stages));
+        return progress;
+    }
+    /** Latest UTC timestamp of a teacher assessment: failed/locked overrides, confirmed central completions, flexible completions. */
+    private static String teacherRosterLastAssessed(Connection c,int studentId,Scope scope,List<RosterStage> stages) throws SQLException {
+        List<Object> args=new ArrayList<>(List.of(studentId,scope.subjectId(),scope.semesterId()));
+        StringBuilder sql=new StringBuilder("SELECT MAX(at) AS lastAssessedAt FROM (SELECT last_updated AS at FROM student_curriculum_stage_assessments WHERE student=? AND subject=? AND semester=?");
+        List<Integer> central=stages.stream().filter(s->s.type()==ActiveStageType.CENTRAL).map(RosterStage::id).toList();
+        List<Integer> flexible=stages.stream().filter(s->s.type()==ActiveStageType.FLEXIBLE).map(RosterStage::id).toList();
+        if(!central.isEmpty()) {
+            sql.append(" UNION ALL SELECT last_updated FROM taskstats WHERE student=? AND status=? AND task IN(").append(placeholders(central.size())).append(")");
+            args.add(studentId); args.add(Task.STATUS_COMPLETED); args.addAll(central);
+        }
+        if(!flexible.isEmpty()) {
+            sql.append(" UNION ALL SELECT x.last_updated FROM completed_flexible_tasks x WHERE x.student=? AND x.flexible_task IN(").append(placeholders(flexible.size())).append(") AND").append(ACTIVE_COMPLETION);
+            args.add(studentId); args.addAll(flexible);
+        }
+        sql.append(")");
+        Object at=rows(c,sql.toString(),args.toArray()).get(0).get("lastAssessedAt");
+        return at==null?null:String.valueOf(at);
+    }
+    private static String placeholders(int count) {
+        return String.join(",",java.util.Collections.nCopies(count,"?"));
     }
     /** Completes a flexible task using the shared server-authoritative award rule. */
     public void complete(Actor actor,int taskId,int studentId) throws SQLException {

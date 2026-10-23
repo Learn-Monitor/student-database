@@ -736,6 +736,52 @@ class CurriculumTest {
         assertEquals(false,signals.get("partner"));
     }
     @SuppressWarnings("unchecked")
+    @Test void teacherRosterSummarizesReleasedAndEarnedTokens() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        releaseAllCentral();
+        var before=(Map<String,Object>)byId(service.teacherRoster(teacher,scope),id).get("progress");
+        int done=centralNamed("Roster done",3);
+        centralNamed("Roster open",5);
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,done,Curriculum.AssessmentStatus.PASSED);
+        var variable=service.create(teacher,scope,"Roster variable",4,true);
+        new CurriculumEnrollment(service).release(teacher,scope,null,null,null,variable.id(),true);
+        db.writeTransaction(c->{exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?,NULL,?)",id,id,id,variable.id());return null;});
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,variable.id(),Curriculum.AssessmentStatus.PASSED,2);
+        service.create(teacher,scope,"Roster unreleased",6);
+
+        var after=(Map<String,Object>)byId(service.teacherRoster(teacher,scope),id).get("progress");
+        java.util.function.BiFunction<String,Map<String,Object>,Integer> value=(key,map)->((Number)map.get(key)).intValue();
+        assertEquals(12,value.apply("releasedTokens",after)-value.apply("releasedTokens",before));
+        assertEquals(5,value.apply("earnedTokens",after)-value.apply("earnedTokens",before));
+        assertNotNull(after.get("lastAssessedAt"));
+    }
+    @SuppressWarnings("unchecked")
+    @Test void teacherRosterReportsLatestTeacherAssessmentOnly() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        releaseAllCentral();
+        java.util.concurrent.Callable<Object> last=()->((Map<String,Object>)byId(service.teacherRoster(teacher,scope),id).get("progress")).get("lastAssessedAt");
+        int failed=centralNamed("Last failed",2);
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,failed,Curriculum.AssessmentStatus.FAILED_ONCE);
+        db.writeTransaction(c->{exec(c,"UPDATE student_curriculum_stage_assessments SET last_updated='2090-01-01 08:00:00' WHERE student=? AND stage_id=?",id,failed);return null;});
+        assertEquals("2090-01-01 08:00:00",last.call());
+
+        int working=centralNamed("Last working",2);
+        db.writeTransaction(c->{exec(c,"INSERT INTO taskstats(student,task,status,last_updated) VALUES(?,?,?,'2091-01-01 08:00:00')",id,working,Task.STATUS_IN_PROGRESS);return null;});
+        assertEquals("2090-01-01 08:00:00",last.call(),"student activity is not a teacher assessment");
+
+        int passed=centralNamed("Last passed",2);
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,passed,Curriculum.AssessmentStatus.PASSED);
+        db.writeTransaction(c->{exec(c,"UPDATE taskstats SET last_updated='2092-01-01 08:00:00' WHERE student=? AND task=?",id,passed);return null;});
+        assertEquals("2092-01-01 08:00:00",last.call());
+
+        var flexible=service.create(teacher,scope,"Last flexible",3);
+        new CurriculumEnrollment(service).release(teacher,scope,null,null,null,flexible.id(),true);
+        db.writeTransaction(c->{exec(c,"INSERT INTO student_active_curriculum_stages(student,subject,semester,central_task,flexible_task) VALUES(?,?,?,NULL,?)",id,id,id,flexible.id());return null;});
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,flexible.id(),Curriculum.AssessmentStatus.PASSED);
+        db.writeTransaction(c->{exec(c,"UPDATE completed_flexible_tasks SET last_updated='2093-01-01 08:00:00' WHERE student=? AND flexible_task=?",id,flexible.id());return null;});
+        assertEquals("2093-01-01 08:00:00",last.call());
+    }
+    @SuppressWarnings("unchecked")
     @Test void teacherRosterMapsExperimentAndExamTogether() throws Exception {
         db.writeTransaction(c->{
             exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);

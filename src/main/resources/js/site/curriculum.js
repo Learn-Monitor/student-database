@@ -152,6 +152,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             return stage.name || 'Unbekannte Etappe';
         }
         function signalText(value) { return value === true ? 'Ja' : '—'; }
+        function progressSummary(progress) {
+            const wrap = el('div'); wrap.className = 'teacher-roster-progress';
+            const count = value => Number.isSafeInteger(value) ? value : 0;
+            if (!progress || count(progress.releasedTokens) === 0) { wrap.textContent = 'Noch keine Etappe freigegeben'; return wrap; }
+            const earned = count(progress.earnedTokens), released = count(progress.releasedTokens);
+            const tokens = el('span', `${earned} von ${released} Münzen`); tokens.className = 'teacher-roster-progress-tokens';
+            const bar = document.createElement('progress'); bar.max = released; bar.value = earned;
+            bar.setAttribute('aria-hidden', 'true');
+            wrap.append(tokens, bar);
+            return wrap;
+        }
+        /** Server timestamps are SQLite CURRENT_TIMESTAMP values in UTC ("YYYY-MM-DD HH:MM:SS"). */
+        function lastAssessedCell(value, now = new Date()) {
+            const span = el('span'); span.className = 'teacher-roster-last-assessed';
+            const at = typeof value === 'string' ? new Date(value.replace(' ', 'T') + 'Z') : null;
+            if (!at || Number.isNaN(at.getTime())) { span.textContent = '—'; return span; }
+            const day = date => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+            const daysAgo = Math.round((day(now) - day(at)) / 86400000);
+            if (daysAgo === 0) { span.textContent = 'Heute'; span.classList.add('is-today'); }
+            else if (daysAgo === 1) span.textContent = 'Gestern';
+            else {
+                const pad = n => String(n).padStart(2, '0');
+                span.textContent = `${pad(at.getDate())}.${pad(at.getMonth() + 1)}.'${pad(at.getFullYear() % 100)}`;
+            }
+            span.title = at.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+            return span;
+        }
         const assessmentText = status => ({
             PASSED:'Bestanden', FAILED_ONCE:'1× nicht bestanden', FAILED_TWICE:'2× nicht bestanden', LOCKED:'Gesperrt'
         })[status] || 'Noch nicht bewertet';
@@ -337,7 +364,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             const table = document.createElement('table'), head = table.insertRow();
-            ['Details','Schüler','In Bearbeitung','Braucht Hilfe','Sucht Partner','Will experimentieren','Bereit für Gelingensnachweis']
+            ['Details','Schüler','Münzen','Zuletzt bewertet','In Bearbeitung','Braucht Hilfe','Sucht Partner','Will experimentieren','Bereit für Gelingensnachweis']
                 .forEach(text => head.append(el('th', text)));
             for (const row of rows) {
                 const tr = table.insertRow(), signals = row.signals || {};
@@ -345,6 +372,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 detailButton.addEventListener('click', () => { rememberDetailTrigger(detailButton); loadDetail(row.id); });
                 tr.insertCell().append(detailButton);
                 tr.insertCell().textContent = row.name || `${row.firstName || ''} ${row.lastName || ''}`.trim();
+                tr.insertCell().append(progressSummary(row.progress));
+                tr.insertCell().append(lastAssessedCell(row.progress && row.progress.lastAssessedAt));
                 tr.insertCell().textContent = stageText(row.activeStage);
                 tr.insertCell().textContent = signalText(signals.help);
                 tr.insertCell().textContent = signalText(signals.partner);
