@@ -331,7 +331,11 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
         this.url = "jdbc:sqlite:" + url + ".db";
         this.connectionSupplier = ThreadLocal.withInitial(() -> {
             try {
-                return DriverManager.getConnection(this.url);
+                Connection connection = DriverManager.getConnection(this.url);
+                try (Statement statement = connection.createStatement()) {
+                    statement.execute("PRAGMA busy_timeout=5000");
+                }
+                return connection;
             } catch (SQLException e) {
                 throw new IllegalStateException(e);
             }
