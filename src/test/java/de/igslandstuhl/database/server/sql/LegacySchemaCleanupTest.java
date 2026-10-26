@@ -88,6 +88,29 @@ class LegacySchemaCleanupTest {
         }
     }
 
+    @Test
+    void emptyFreshInstallDefersDataDependentMigrations(@TempDir Path directory) throws Exception {
+        try (SQLiteConnection db = new SQLiteConnection(directory.resolve("empty-fresh").toString())) {
+            db.createTables();
+            db.migrateTables();
+
+            assertEquals(0, scalar(db.getSQLConnection(), "SELECT COUNT(*) FROM subjects"));
+            assertEquals(0, scalar(db.getSQLConnection(), "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='subject_grade_activation'"));
+
+            db.writeTransaction(c -> {
+                exec(c, "INSERT INTO subjects(name) VALUES(?)", "Deutsch");
+                exec(c, "INSERT INTO subjects(name) VALUES(?)", "Englisch");
+                exec(c, "INSERT INTO subjects(name) VALUES(?)", "Mathematik");
+                exec(c, "INSERT INTO subjects(name) VALUES(?)", "Naturwissenschaften");
+                exec(c, "INSERT INTO subjects(name) VALUES(?)", "Gesellschaftslehre");
+                return null;
+            });
+            db.migrateTables();
+            assertEquals(1, scalar(db.getSQLConnection(), "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='subject_grade_activation'"));
+            assertEquals(5, scalar(db.getSQLConnection(), "SELECT COUNT(*) FROM subjects WHERE subject_code IS NOT NULL"));
+        }
+    }
+
     private static Connection database() throws SQLException {
         Connection c = DriverManager.getConnection("jdbc:sqlite::memory:");
         c.createStatement().execute("PRAGMA foreign_keys=ON");

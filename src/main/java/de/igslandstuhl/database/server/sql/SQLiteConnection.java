@@ -84,8 +84,14 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
             Pattern migrations=Pattern.compile(".*migrations.+\\.sql");
             for (var resource:Server.getInstance().getResourceManager().getResources(migrations)) {
                 if (legacyComplete && resource.resource().matches("0(?:0[1-9]|1[0-9]|20)_.*\\.sql")) continue;
-                if (resource.resource().startsWith("027_") && !hasTable("subjects")) continue;
-                if (resource.resource().startsWith("028_") && !hasTable("subjects")) continue;
+                // A brand-new installation has the subjects table from createTables(),
+                // but no subject rows yet. Migrations 027/028 are data-dependent and
+                // must wait until the canonical subject catalogue has been imported.
+                // A partially populated existing catalogue must still fail closed in
+                // the migration's own guard; only the genuinely empty fresh state is
+                // deferred here.
+                if ((resource.resource().startsWith("027_") || resource.resource().startsWith("028_"))
+                        && (!hasTable("subjects") || !hasRows("subjects"))) continue;
                 Connection connection=getSQLConnection();
                 boolean autoCommit=connection.getAutoCommit();
                 connection.setAutoCommit(false);
@@ -142,6 +148,14 @@ public class SQLiteConnection implements AutoCloseable, PreparedStatementSupplie
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1")) {
             statement.setString(1, table);
             try (ResultSet result = statement.executeQuery()) { return result.next(); }
+        }
+    }
+
+    private boolean hasRows(String table) throws SQLException {
+        try (PreparedStatement statement = getSQLConnection().prepareStatement(
+                "SELECT 1 FROM \"" + table + "\" LIMIT 1");
+                ResultSet result = statement.executeQuery()) {
+            return result.next();
         }
     }
     static List<String> splitSqlScript(String script) {
