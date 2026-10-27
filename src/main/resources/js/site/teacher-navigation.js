@@ -36,14 +36,45 @@
         item.append(link); progress.closest('li')?.after(item);
     }
 
-    function freistellungItem(navigation) {
-        if ([...navigation.querySelectorAll('a[href]')].some(link => link.getAttribute('href') === '/freistellung')) return;
+    function freistellungItem(navigation, href, label) {
         const progress = [...navigation.querySelectorAll('a[href]')]
             .find(link => link.getAttribute('href') === '/dashboard#student-progress');
         if (!progress) return;
         const item = document.createElement('li');
-        const link = document.createElement('a'); link.href = '/freistellung'; link.textContent = 'Freistellung';
+        const link = document.createElement('a'); link.href = href; link.textContent = label;
         item.append(link); progress.closest('li')?.after(item);
+    }
+
+    function removeFreistellungItems() {
+        document.querySelectorAll('a[data-freistellung-nav]').forEach(link => {
+            const item = link.closest('li');
+            if (item) item.remove(); else link.remove();
+        });
+    }
+
+    async function updateFreistellungVisibility(navigation) {
+        if (!navigation) return;
+        removeFreistellungItems();
+        try {
+            const response = await fetch('/freistellung-role-info', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+            });
+            if (!response.ok) return;
+            const rights = await response.json();
+            if (rights.apply) {
+                freistellungItem(navigation, '/freistellung', 'Freistellungen');
+                navigation.querySelector('a[href="/freistellung"]')?.setAttribute('data-freistellung-nav', 'apply');
+            }
+            if (rights.orga) {
+                freistellungItem(navigation, '/freistellung-bearbeitung', 'Freistellungen – Orga-Leitung');
+                navigation.querySelector('a[href="/freistellung-bearbeitung"]')?.setAttribute('data-freistellung-nav', 'orga');
+            }
+            if (rights.sl) {
+                freistellungItem(navigation, '/freistellung-bearbeitung', 'Freistellungen – Schulleitung');
+                const links = [...navigation.querySelectorAll('a[href="/freistellung-bearbeitung"]')];
+                links.at(-1)?.setAttribute('data-freistellung-nav', 'sl');
+            }
+        } catch { /* fehlendes Freistellungsmodul darf das Dashboard nicht brechen */ }
     }
 
     function removeTutorAreaItem() {
@@ -141,7 +172,7 @@
         }
 
         const navigation = document.querySelector('.teacher-main-menu');
-        if (navigation) { integrateTeacherLogout(navigation); schoolwideOverviewItem(navigation); freistellungItem(navigation); }
+        if (navigation) { integrateTeacherLogout(navigation); schoolwideOverviewItem(navigation); updateFreistellungVisibility(navigation); }
 
         markActive();
 
