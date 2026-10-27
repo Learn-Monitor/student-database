@@ -19,7 +19,7 @@ repositories {
 
 dependencies {
     implementation("org.xerial:sqlite-jdbc:3.53.2.1")
-    implementation("com.google.code.gson:gson:2.14.0")
+    implementation("com.google.code.gson:gson:2.15.0")
     implementation("commons-codec:commons-codec:1.22.1")
     implementation("com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20260313.1")
     implementation("org.jline:jline:4.3.1") // for better console input handling
