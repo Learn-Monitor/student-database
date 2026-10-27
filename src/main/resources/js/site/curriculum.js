@@ -185,6 +185,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             ['FAILED_TWICE','2× nicht bestanden'], ['LOCKED','Gesperrt']
         ];
         const assessmentWrites = new Set();
+        const revokeQuestion = status => `Diese Etappe wurde bereits bestanden, die Münzen sind gutgeschrieben.\n\n`
+            + `OK: Münzen zurücknehmen und als „${assessmentText(status)}“ speichern.\n`
+            + `Abbrechen: Münzen behalten und nur die Bewertung ändern.`;
         function captureDetailViewState(control) {
             const tableScroll = detailArea.querySelector('.teacher-table-scroll');
             return {
@@ -262,7 +265,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (variableTokens && stage.status === 'PASSED' && earnedTokens != null) {
                         const hint = el('span', ' Zum Ändern zuerst „Noch nicht bewertet“ wählen.'); hint.className = 'teacher-variable-award-hint'; assessmentCell.append(hint);
                     }
-                    const saveAssessment = async (awardedTokens, saveButton = null) => {
+                    const saveAssessment = async (awardedTokens, saveButton = null, revokeFirst = false) => {
                         const key=`${stage.type}:${stage.stageId}`;
                         if(assessmentWrites.has(key))return;
                         const nextValue = control.value;
@@ -277,6 +280,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 stageType:stage.type,stageId:stage.stageId,status:control.value
                             };
                             if (variableTokens && control.value === 'PASSED') payload.awardedTokens = awardedTokens;
+                            // Only UNASSESSED deletes the completion; failed/locked keep earned tokens on the server.
+                            if (revokeFirst) {
+                                await post('/set-curriculum-stage-assessment', {...payload, status:'UNASSESSED'});
+                                previousValue = 'UNASSESSED';
+                            }
                             await post('/set-curriculum-stage-assessment', payload);
                             detailStatus.textContent='Gespeichert';
                             previousValue = nextValue;
@@ -294,7 +302,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     control.addEventListener('change', () => {
                         if (variableTokens && control.value === 'PASSED' && stage.status !== 'PASSED') { showAwardEditor(); return; }
                         clearAwardEditor();
-                        saveAssessment().catch(() => {});
+                        const revoke = stage.earned === true && control.value !== 'PASSED' && control.value !== 'UNASSESSED'
+                            && window.confirm(revokeQuestion(control.value));
+                        saveAssessment(undefined, null, revoke).catch(() => {});
                     });
                     assessmentCell.append(document.createElement('br'),control);
                 }

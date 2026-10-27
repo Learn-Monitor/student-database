@@ -406,6 +406,28 @@ test('assessment controls send exact payloads for all four explicit states and n
   const request=env.requests.find(r=>r.url==='/set-curriculum-stage-assessment');assert.equal(request.data.status,'UNASSESSED');
  }finally{env.dom.window.close();}
 });
+test('downgrading an earned stage asks whether to revoke tokens before saving',async()=>{
+ const earnedDetail=()=>({studentId:50,studentName:'Ada Alpha',subjectId:1,semesterId:20,stages:[{type:'CENTRAL',stageId:77,topicId:null,topicName:null,name:'Stage',tokens:5,status:'PASSED',earned:true,inProgress:false}]});
+ for(const answer of [true,false]){
+  const env=await setup(false,{progress:true,detail:earnedDetail(),pm:{...grants(),curriculum_assess_students:true}});
+  try{
+   const questions=[];env.dom.window.confirm=text=>{questions.push(text);return answer;};
+   const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
+   const control=progress.querySelector('.assessment-control');control.value='FAILED_ONCE';control.dispatchEvent(new env.dom.window.Event('change'));await tick();await tick();await tick();
+   assert.equal(questions.length,1);assert.match(questions[0],/Münzen zurücknehmen und als „1× nicht bestanden“ speichern/);
+   const statuses=env.requests.filter(r=>r.url==='/set-curriculum-stage-assessment').map(r=>r.data.status);
+   assert.deepEqual(statuses,answer?['UNASSESSED','FAILED_ONCE']:['FAILED_ONCE']);
+   assert.doesNotMatch(progress.textContent,/Speichern fehlgeschlagen/);assert.match(progress.textContent,/1× nicht bestanden/);
+  }finally{env.dom.window.close();}
+ }
+ const env=await setup(false,{progress:true,detail:earnedDetail(),pm:{...grants(),curriculum_assess_students:true}});
+ try{
+  let asked=false;env.dom.window.confirm=()=>{asked=true;return true;};
+  const progress=env.dom.window.document.querySelector('#student-progress');[...progress.querySelectorAll('button')].find(b=>b.textContent==='Details').click();await tick();
+  const control=progress.querySelector('.assessment-control');control.value='UNASSESSED';control.dispatchEvent(new env.dom.window.Event('change'));await tick();await tick();
+  assert.equal(asked,false);
+ }finally{env.dom.window.close();}
+});
 test('successful assessment reloads roster and selected detail while preserving earned separately',async()=>{
  const pm={...grants(),curriculum_assess_students:true};const{dom,requests}=await setup(false,{progress:true,pm});
  try{
