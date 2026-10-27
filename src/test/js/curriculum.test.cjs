@@ -43,7 +43,7 @@ async function setup(admin, options={}){
   classes:admin?[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5}]:[{id:10,label:'5a',grade:5},{id:11,label:'5b',grade:5},{id:12,label:'Legacy class',grade:8}],
   semesters:options.semesters ?? [{id:20,label:'H1'},{id:21,label:'H2'}],teachers:[{id:7,first_name:'Test',last_name:'Teacher'}],contexts:options.contexts ?? defaultContexts};
  const defaultRoster=[
-  {id:50,name:'Ada Alpha',firstName:'Ada',lastName:'Alpha',activeStage:{type:'CENTRAL',taskId:3,name:'Central',niveau:1},progress:{releasedTokens:30,earnedTokens:12,lastAssessedAt:'2026-10-26 10:00:00'},signals:{help:true,partner:true,experiment:false,exam:false}},
+  {id:50,name:'Ada Alpha',firstName:'Ada',lastName:'Alpha',activeStage:{type:'CENTRAL',taskId:3,name:'Central',niveau:1},progress:{releasedTokens:30,earnedTokens:12,lastAssessedAt:`${new Date().toISOString().slice(0,10)} 10:00:00`},signals:{help:true,partner:true,experiment:false,exam:false}},
   {id:51,name:'Ben Beta',firstName:'Ben',lastName:'Beta',activeStage:{type:'FLEXIBLE',taskId:100,name:'Own task'},progress:{releasedTokens:20,earnedTokens:0,lastAssessedAt:'2026-03-04 10:00:00'},signals:{help:false,partner:false,experiment:true,exam:true}},
   {id:52,name:'Cara Gamma',firstName:'Cara',lastName:'Gamma',activeStage:null,progress:{releasedTokens:0,earnedTokens:0,lastAssessedAt:null},signals:{help:false,partner:false,experiment:false,exam:false}}
  ];
