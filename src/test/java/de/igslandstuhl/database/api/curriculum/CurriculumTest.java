@@ -1408,6 +1408,13 @@ class CurriculumTest {
         var weeklyVariable=((List<?>)((Map<?,?>)subject).get("stages")).stream().map(Map.class::cast)
                 .filter(row->((Number)row.get("id")).intValue()==variable.id()).findFirst().orElseThrow();
         assertEquals(2,weeklyVariable.get("awardedTokens"));
+        // Tutors see the same released/earned figures as the subject teacher's roster.
+        var rosterProgress=(Map<?,?>)service.teacherRoster(teacher,scope).stream().map(Map.class::cast)
+                .filter(row->((Number)row.get("id")).intValue()==id).findFirst().orElseThrow().get("progress");
+        var weeklyProgress=(Map<?,?>)((Map<?,?>)subject).get("progress");
+        assertEquals(rosterProgress.get("releasedTokens"),weeklyProgress.get("releasedTokens"));
+        assertEquals(rosterProgress.get("earnedTokens"),weeklyProgress.get("earnedTokens"));
+        assertTrue(((Number)weeklyProgress.get("releasedTokens")).intValue()>0);
     }
     @Test void completionHandlerAcceptsOptionalFixedAwardAndRequiresVariableAward() throws Exception {
         var fixed=service.create(teacher,scope,"Handler fixed",4);

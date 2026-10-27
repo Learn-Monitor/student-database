@@ -827,6 +827,9 @@ main.attendance .attendance-class-picker-panel:empty::before { content:'Keine Kl
   .teacher-weekly-conversations .teacher-weekly-table tr { display:table-row; }
   .teacher-weekly-conversations .teacher-weekly-table th { position:static; }
   .teacher-weekly-conversations tr { page-break-inside:avoid; page-break-after:auto; }
+  .teacher-weekly-conversations .teacher-roster-progress { min-width:0; }
+  .teacher-weekly-conversations .teacher-roster-progress-tokens { white-space:normal; }
+  .teacher-weekly-conversations .teacher-roster-progress progress { width:100%; }
 }
 
 .teacher-weekly-conversations .teacher-weekly-table .teacher-weekly-header th {

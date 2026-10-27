@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const td = row.insertCell();
                     if (cell.assigned === false || cell.totalTokens == null) td.append(el('div','—'));
                     else {
-                        td.append(el('div', `${cell.totalTokens} 🪙`));
+                        td.append(progressSummary(cell.progress, cell.totalTokens));
                         const gn = cell.lastGnDate ? formatGnDate(cell.lastGnDate) : 'noch kein GN';
                         td.append(el('small', gn === 'noch kein GN' ? gn : `letzter GN: ${gn}`));
                     }
@@ -100,6 +100,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         load.addEventListener('click', refresh); await refresh();
     } catch (error) { if (error?.status === 403) mount.append(el('p', 'Die Tutor-Funktion ist für dieses Konto nicht freigeschaltet.')); else if (error?.status) mount.append(el('p', 'Tutor-Klassen konnten nicht geladen werden.')); }
 });
+
+// Same wording as the subject teacher's roster ("X von Y Münzen").
+function progressSummary(progress, totalTokens) {
+    const wrap = document.createElement('div'); wrap.className = 'teacher-roster-progress';
+    const count = value => Number.isSafeInteger(value) ? value : 0;
+    if (!progress) { wrap.textContent = `${count(totalTokens)} Münzen`; return wrap; }
+    if (count(progress.releasedTokens) === 0) { wrap.textContent = 'Noch keine Etappe freigegeben'; return wrap; }
+    const earned = count(progress.earnedTokens), released = count(progress.releasedTokens);
+    const tokens = document.createElement('span'); tokens.className = 'teacher-roster-progress-tokens'; tokens.textContent = `${earned} von ${released} Münzen`;
+    const bar = document.createElement('progress'); bar.max = released; bar.value = earned; bar.setAttribute('aria-hidden', 'true');
+    wrap.append(tokens, bar); return wrap;
+}
 
 function formatGnDate(value) {
     const text = String(value || '').slice(0, 10);

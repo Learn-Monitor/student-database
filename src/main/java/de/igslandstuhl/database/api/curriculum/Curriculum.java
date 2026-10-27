@@ -1710,6 +1710,8 @@ public final class Curriculum {
             subjects=allowedSubjects;
             List<Map<String,Object>> students=rows(c,"SELECT id,first_name AS firstName,last_name AS lastName FROM students WHERE class=? AND COALESCE(active,1)=1 ORDER BY last_name,first_name,id",classId);
             List<Map<String,Object>> output=new ArrayList<>();
+            // Released stages depend only on the teaching context, not on the student.
+            Map<Scope,List<RosterStage>> rosterStages=new HashMap<>();
             for (var student:students) {
                 int studentId=integer(student,"id");
                 Map<String,Object> row=new LinkedHashMap<>(); row.put("id",studentId); row.put("name",student.get("firstName")+" "+student.get("lastName"));
@@ -1734,6 +1736,10 @@ public final class Curriculum {
                         long total=((Number)totals.get("totalTokens")).longValue(); cell.put("totalTokens",total); cell.put("note",noteForTokens(total));
                         cell.put("assigned",true); cell.put("actualSubjectId",subjectId);
                         cell.put("lastGnDate", lastGnDate(c, studentId, new Scope(teacherId, subjectId, classId, semester)));
+                        Scope cellScope=new Scope(teacherId,subjectId,classId,semester); int contextGrade=integer(assignedContext,"grade");
+                        List<RosterStage> released=rosterStages.get(cellScope);
+                        if (released == null) { released=teacherRosterStages(c,cellScope,contextGrade); rosterStages.put(cellScope,released); }
+                        cell.put("progress",teacherRosterProgress(c,studentId,cellScope,contextGrade,released));
                         List<Map<String,Object>> stages=new ArrayList<>();
                         @SuppressWarnings("unchecked") List<CompletedCentralTask> central=(List<CompletedCentralTask>)totals.get("completedCentralTasks");
                         for (var stage:central) { Map<String,Object> done=new LinkedHashMap<>(); done.put("id",stage.id()); done.put("name",stage.name()); done.put("niveau",stage.niveau()); done.put("tokens",stage.tokens()); stages.add(done); }

@@ -60,9 +60,26 @@ test('tutor view renders offered WPF subjects as separate compact columns',async
   const table=instance.window.document.querySelector('.teacher-weekly-table');
   assert.equal(table.querySelector('.teacher-weekly-groups'),null);
   assert.deepEqual([...table.querySelectorAll('.teacher-weekly-header th')].map(th=>th.textContent),['Schüler','Mathe','WPF Technik','WPF Soziales']);
-  assert.match(table.querySelector('tbody tr').textContent,/0 🪙/);
+  assert.match(table.querySelector('tbody tr').textContent,/0 Münzen/);
   assert.match(table.querySelector('tbody tr').textContent,/noch kein GN/);
   assert.match(table.querySelectorAll('tbody tr')[1].textContent,/—/);
+  instance.window.close();
+});
+
+test('tutor view shows earned of released tokens like the subject teacher roster',async()=>{
+  const instance=dom({
+    classes:[{semesterId:4,classId:7,label:'7a',grade:7}],
+    overview:{semesterLabel:'2026/27 HJ1',classLabel:'7a',subjects:[{id:3,name:'Mathe'},{id:4,name:'Deutsch'}],students:[{name:'Test Schüler',subjects:[
+      {subjectId:3,assigned:true,totalTokens:12,lastGnDate:'2026-10-20',stages:[],progress:{earnedTokens:12,releasedTokens:30}},
+      {subjectId:4,assigned:true,totalTokens:0,lastGnDate:null,stages:[],progress:{earnedTokens:0,releasedTokens:0}}
+    ]}]}
+  });
+  await new Promise(resolve=>setTimeout(resolve,30));
+  const cells=instance.window.document.querySelectorAll('.teacher-weekly-table tbody td');
+  assert.equal(cells[1].querySelector('.teacher-roster-progress-tokens').textContent,'12 von 30 Münzen');
+  const bar=cells[1].querySelector('progress');assert.equal(bar.max,30);assert.equal(bar.value,12);
+  assert.match(cells[2].textContent,/Noch keine Etappe freigegeben/);
+  assert.doesNotMatch(instance.window.document.querySelector('.teacher-weekly-table').textContent,/🪙/);
   instance.window.close();
 });
 
