@@ -63,12 +63,32 @@ public class SessionManagerTest {
         String cookie = session.createSessionCookie().toString();
         PostRequest authenticated = new PostRequest("POST /dashboard HTTP/1.1\r\nCookie: " + cookie, null, LOCALHOST, true);
 
-        assertEquals("teacher", modes.getActiveMode(authenticated));
+        assertEquals("pending", modes.getActiveMode(authenticated));
+        assertTrue(modes.setActiveMode(authenticated, "teacher"));
         assertTrue(modes.setActiveMode(authenticated, "admin"));
         assertEquals("admin", modes.getActiveMode(authenticated));
         assertTrue(modes.setActiveMode(authenticated, "teacher"));
         assertEquals("teacher", modes.getActiveMode(authenticated));
         assertTrue(!modes.setActiveMode(authenticated, "student"));
+    }
+
+    @Test
+    void malformedSessionCookieDoesNotThrowAndDualModeStartsPending() throws Exception {
+        PreConditions.setupDatabase();
+        String login = "pending-mode-" + UUID.randomUUID() + "@example.test";
+        Teacher teacher = Teacher.registerTeacher("Pending", "Mode", login, "password");
+        Admin.createWithPasswordHash(login, teacher.getPasswordHash());
+        SessionManager modes = new SessionManager(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        PostRequest initial = new PostRequest("POST /login HTTP/1.1", null, LOCALHOST, true);
+        Session session = modes.getSession(initial);
+        modes.addSessionUser(session, login);
+        String cookie = session.createSessionCookie().toString();
+        PostRequest authenticated = new PostRequest("GET /select-mode HTTP/1.1\r\nCookie: " + cookie, null, LOCALHOST, true);
+        assertEquals("pending", modes.getActiveMode(authenticated));
+        assertTrue(modes.setActiveMode(authenticated, "teacher"));
+        PostRequest malformed = new PostRequest("GET /dashboard HTTP/1.1\r\nCookie: session=not-a-uuid", null, LOCALHOST, true);
+        assertNotNull(modes.getSession(malformed));
+        assertEquals("student", modes.getActiveMode(malformed));
     }
     @Test
     void testGetSession() {

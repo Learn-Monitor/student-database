@@ -117,12 +117,29 @@ public class WebServer implements Runnable {
                     rawOut.close();
                 } catch (SocketException e) {
                     Thread.currentThread().interrupt();
+                } catch (Throwable e) {
+                    // A request bug must still produce a valid HTTP response. Without
+                    // this boundary the socket was closed silently, which made the
+                    // teacher/admin mode failure appear as a network failure.
+                    LOGGER.error("Failed to handle HTTP request from {}", clientIp, e);
+                    writeInternalServerError(out);
+                    out.flush();
+                    rawOut.close();
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to handle client {}", clientIp, e);
             } finally {
                 try { clientSocket.close(); } catch (IOException ignored) {}
             }
+        }
+
+        private void writeInternalServerError(PrintStream out) {
+            byte[] body = "Interner Serverfehler".getBytes(StandardCharsets.UTF_8);
+            out.print("HTTP/1.1 500 Internal Server Error\r\n");
+            out.print("Connection: close\r\n");
+            out.print("Content-Type: text/plain; charset=UTF-8\r\n");
+            out.print("Content-Length: " + body.length + "\r\n\r\n");
+            out.write(body, 0, body.length);
         }
 
         String readHeadersAsString(InputStream in) throws IOException {

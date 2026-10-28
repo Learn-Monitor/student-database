@@ -467,6 +467,11 @@ public class PostRequestHandler {
                 return PostResponse.forbidden("Dieser Modus ist für das Konto nicht verfügbar.", rq);
             return PostResponse.redirect("/dashboard", rq);
         });
+        HttpHandler.registerPostRequestHandler("/switch-mode", AccessLevel.USER, rq -> {
+            if (!Server.getInstance().getWebServer().getSessionManager().resetToModeSelection(rq))
+                return PostResponse.forbidden("Für dieses Konto gibt es keine Modusauswahl.", rq);
+            return PostResponse.redirect("/select-mode", rq);
+        });
         HttpHandler.registerPostRequestHandler("/editor", AccessLevel.ADMIN, (rq) -> {
             return PostResponse.redirect("/editor", rq);
         });

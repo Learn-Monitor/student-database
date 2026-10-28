@@ -34,7 +34,14 @@ public class HttpHandler<Rq extends HttpRequest> {
             return HttpResponse.error(request, Status.BAD_REQUEST);
         }
         UserAccess access = new UserAccess(sessionManager.getSessionUser(request), request);
-        if (!access.allowed()) {
+        boolean allowed;
+        try {
+            allowed = access.allowed();
+        } catch (Throwable t) {
+            LOGGER.error("Failed to evaluate HTTP access for {}", path, t);
+            allowed = false;
+        }
+        if (!allowed) {
             var user = sessionManager.getSessionUser(request);
             return HttpResponse.error(request, user == null || user == de.igslandstuhl.database.api.User.ANONYMOUS
                     ? Status.UNAUTHORIZED : Status.FORBIDDEN);

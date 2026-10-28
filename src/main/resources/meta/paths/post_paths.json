@@ -17,6 +17,12 @@
         "namespaces": [],
         "access_level": "user"
     },
+    "/switch-mode": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "user"
+    },
     "/editor": {
         "type": "POST",
         "handler_type": "PostRequestHandler",

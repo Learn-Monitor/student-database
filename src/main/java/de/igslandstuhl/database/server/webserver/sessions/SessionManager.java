@@ -210,7 +210,13 @@ public class SessionManager {
         for (Cookie cookie : request.getCookies()) {
             if (cookie.getName().equals("session")) {
                 synchronized (sessionStore) {
-                    Session session = sessionStore.get(UUID.fromString(cookie.getValue()));
+                    Session session;
+                    try {
+                        session = sessionStore.get(UUID.fromString(cookie.getValue()));
+                    } catch (IllegalArgumentException malformedSessionCookie) {
+                        // A stale or malformed cookie must never abort the request thread.
+                        continue;
+                    }
                     // Check if the session exists
                     if (session != null) {
                         return session;
@@ -249,10 +255,12 @@ public class SessionManager {
         }
         sessionUsers.set(session, username);
         User user = User.getUser(username);
-        activeModes.set(session, user != null && user.isTeacher() && user.isAdmin() ? "teacher" : "admin");
+        activeModes.set(session, user != null && user.isTeacher() && user.isAdmin()
+                ? "pending" : user != null && user.isTeacher() ? "teacher"
+                : user != null && user.isAdmin() ? "admin" : "student");
     }
 
-    /** Returns the effective session mode; dual teacher/admin accounts default safely to teacher mode. */
+    /** Returns the effective session mode; dual teacher/admin accounts remain pending until selected. */
     public String getActiveMode(HttpRequest request) {
         Session session = getSession(request);
         String mode = activeModes.get(session);
@@ -263,7 +271,8 @@ public class SessionManager {
 
     /** Changes mode only for a logged-in account that genuinely has both identities. */
     public boolean setActiveMode(HttpRequest request, String mode) {
-        if (!"teacher".equals(mode) && !"admin".equals(mode) && !"student".equals(mode)) return false;
+        if (!"teacher".equals(mode) && !"admin".equals(mode) && !"student".equals(mode)
+                && !"pending".equals(mode)) return false;
         Session session = getSession(request);
         User user = getSessionUser(session);
         if (user == null || user == User.ANONYMOUS) return false;
@@ -276,5 +285,10 @@ public class SessionManager {
         if (!expected.equals(mode)) return false;
         activeModes.set(session, mode);
         return true;
+    }
+
+    /** Returns a dual-role session to the explicit mode chooser. */
+    public boolean resetToModeSelection(HttpRequest request) {
+        return setActiveMode(request, "pending");
     }
 }
