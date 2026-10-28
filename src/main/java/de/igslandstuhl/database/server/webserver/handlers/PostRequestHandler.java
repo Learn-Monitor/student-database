@@ -165,6 +165,7 @@ public class PostRequestHandler {
         return prepare(webInput, true);
     }
     private static String prepare(String webInput, boolean sanitize) {
+        if (webInput == null) throw new IllegalArgumentException("Missing required POST parameter");
         try {
             webInput = URLDecoder.decode(webInput, StandardCharsets.UTF_8.name());
         } catch (UnsupportedEncodingException e) {

@@ -51,6 +51,9 @@ public class HttpHandler<Rq extends HttpRequest> {
         } else {
             try {
                 return handler.apply(request);
+            } catch (IllegalArgumentException e) {
+                LOGGER.warn("Invalid HTTP request for {}: {}", path, e.getMessage());
+                return HttpResponse.error(request, Status.BAD_REQUEST);
             } catch (Throwable t) {
                 LOGGER.error("Failed to apply HTTP handler", t);
                 return HttpResponse.error(request, Status.INTERNAL_SERVER_ERROR);

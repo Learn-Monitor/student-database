@@ -264,9 +264,20 @@ public class SessionManager {
     public String getActiveMode(HttpRequest request) {
         Session session = getSession(request);
         String mode = activeModes.get(session);
-        if (mode != null) return mode;
         User user = getSessionUser(session);
-        return user != null && user.isTeacher() ? "teacher" : user != null && user.isAdmin() ? "admin" : "student";
+        if (user == null || user == User.ANONYMOUS) return "student";
+        boolean teacher = user.isTeacher();
+        boolean admin = user.isAdmin();
+        if (teacher && admin) {
+            if (mode != null) return mode;
+            return "pending";
+        }
+        // A role change can invalidate the mode stored in an existing session.
+        // Normalize it immediately instead of leaving the user in an unusable
+        // admin/pending state or forcing a new login.
+        String expected = teacher ? "teacher" : admin ? "admin" : "student";
+        if (!expected.equals(mode)) activeModes.set(session, expected);
+        return expected;
     }
 
     /** Changes mode only for a logged-in account that genuinely has both identities. */

@@ -73,6 +73,25 @@ public class SessionManagerTest {
     }
 
     @Test
+    void removingAdminRoleNormalizesExistingAdminModeToTeacher() throws Exception {
+        PreConditions.setupDatabase();
+        String login = "role-removal-" + UUID.randomUUID() + "@example.test";
+        Teacher teacher = Teacher.registerTeacher("Role", "Removal", login, "password");
+        Admin admin = Admin.createWithPasswordHash(login, teacher.getPasswordHash());
+        SessionManager modes = new SessionManager(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        PostRequest initial = new PostRequest("POST /login HTTP/1.1", null, LOCALHOST, true);
+        Session session = modes.getSession(initial);
+        modes.addSessionUser(session, login);
+        String cookie = session.createSessionCookie().toString();
+        PostRequest authenticated = new PostRequest("GET /dashboard HTTP/1.1\r\nCookie: " + cookie, null, LOCALHOST, true);
+
+        assertTrue(modes.setActiveMode(authenticated, "admin"));
+        assertEquals("admin", modes.getActiveMode(authenticated));
+        admin.delete();
+        assertEquals("teacher", modes.getActiveMode(authenticated));
+    }
+
+    @Test
     void malformedSessionCookieDoesNotThrowAndDualModeStartsPending() throws Exception {
         PreConditions.setupDatabase();
         String login = "pending-mode-" + UUID.randomUUID() + "@example.test";
