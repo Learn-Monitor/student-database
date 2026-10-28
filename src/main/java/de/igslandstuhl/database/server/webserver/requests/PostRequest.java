@@ -214,7 +214,9 @@ public class PostRequest implements HttpRequest {
      * @return a ResourceLocation object representing the path of the POST request
      */
     public ResourceLocation toResourceLocation(String username) {
-        return de.igslandstuhl.database.server.webserver.handlers.WebResourceHandler.locationFromPath(path, User.getUser(username));
+        User resolved = User.getUser(username);
+        return de.igslandstuhl.database.server.webserver.handlers.WebResourceHandler.locationFromPath(path, resolved,
+                de.igslandstuhl.database.server.Server.getInstance().getWebServer().getSessionManager().getActiveMode(this).equals("admin"));
     }
     @Override
     public RequestType getRequestType() {

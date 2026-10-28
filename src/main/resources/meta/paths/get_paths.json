@@ -77,6 +77,13 @@
         "context": "html",
         "access_level": "public"
     },
+    "/select-mode": {
+        "type": "GET",
+        "handler_type": "TemplatingFileRequestHandler",
+        "namespaces": ["site"],
+        "context": "html",
+        "access_level": "user"
+    },
     "/logout": {
         "type": "GET",
         "handler_type": "FileRequestHandler",

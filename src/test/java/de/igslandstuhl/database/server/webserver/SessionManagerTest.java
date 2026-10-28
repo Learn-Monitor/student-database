@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import de.igslandstuhl.database.api.PreConditions;
+import de.igslandstuhl.database.api.Admin;
 import de.igslandstuhl.database.api.Teacher;
 import de.igslandstuhl.database.server.webserver.requests.PostRequest;
 import de.igslandstuhl.database.server.webserver.sessions.Session;
@@ -46,6 +47,28 @@ public class SessionManagerTest {
         assertNotNull(sessionManager.getSessionUser(sessionRequest));
         assertEquals("adminUser", sessionManager.getSessionUser(session).getUsername());
         assertTrue(sessionManager.getSessionUser(session).isAdmin());
+    }
+
+    @Test
+    void dualTeacherAdminSessionStartsInTeacherModeAndCanSwitchExplicitly() throws Exception {
+        PreConditions.setupDatabase();
+        String login = "dual-mode-" + UUID.randomUUID() + "@example.test";
+        Teacher teacher = Teacher.registerTeacher("Dual", "Mode", login, "password");
+        Admin.createWithPasswordHash(login, teacher.getPasswordHash());
+
+        SessionManager modes = new SessionManager(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        PostRequest initial = new PostRequest("POST /login HTTP/1.1", null, LOCALHOST, true);
+        Session session = modes.getSession(initial);
+        modes.addSessionUser(session, login);
+        String cookie = session.createSessionCookie().toString();
+        PostRequest authenticated = new PostRequest("POST /dashboard HTTP/1.1\r\nCookie: " + cookie, null, LOCALHOST, true);
+
+        assertEquals("teacher", modes.getActiveMode(authenticated));
+        assertTrue(modes.setActiveMode(authenticated, "admin"));
+        assertEquals("admin", modes.getActiveMode(authenticated));
+        assertTrue(modes.setActiveMode(authenticated, "teacher"));
+        assertEquals("teacher", modes.getActiveMode(authenticated));
+        assertTrue(!modes.setActiveMode(authenticated, "student"));
     }
     @Test
     void testGetSession() {

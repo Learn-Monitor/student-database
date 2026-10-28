@@ -11,6 +11,12 @@
         "namespaces": [],
         "access_level": "user"
     },
+    "/select-mode": {
+        "type": "POST",
+        "handler_type": "PostRequestHandler",
+        "namespaces": [],
+        "access_level": "user"
+    },
     "/editor": {
         "type": "POST",
         "handler_type": "PostRequestHandler",

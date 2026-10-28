@@ -1,0 +1,9 @@
+%[site;title=Modus auswählen;content=!FOLLOWS]
+<main class="content mode-select">
+    <h1>Wie möchtest du fortfahren?</h1>
+    <p>Dieses Konto ist Lehrkraft und Administrator. Der gewählte Modus bestimmt auch die serverseitigen Zugriffsrechte.</p>
+    <form action="/select-mode" method="post">
+        <button name="mode" value="teacher" type="submit">Als Lehrkraft fortfahren</button>
+        <button name="mode" value="admin" type="submit">Als Administrator fortfahren</button>
+    </form>
+</main>

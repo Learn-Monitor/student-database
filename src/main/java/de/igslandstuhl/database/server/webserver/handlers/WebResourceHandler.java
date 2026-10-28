@@ -40,6 +40,11 @@ public final class WebResourceHandler {
     }
 
     public static ResourceLocation locationFromPath(String path, User user) {
+        return locationFromPath(path, user, user != null && user.isAdmin());
+    }
+
+    /** Selects the visual dashboard namespace from the authenticated active mode. */
+    public static ResourceLocation locationFromPath(String path, User user, boolean adminMode) {
         if (path.isEmpty()) path = "/";
         WebPath webPath = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, RequestType.GET));
         if (path == null || webPath == null) {
@@ -54,9 +59,9 @@ public final class WebResourceHandler {
         if (user == null) user = User.ANONYMOUS;
 
         String namespace;        
-        if (inAdminOnlySpace(path) && (user == User.ANONYMOUS || user.isAdmin())) {
+        if (inAdminOnlySpace(path) && (user == User.ANONYMOUS || (user.isAdmin() && adminMode))) {
             namespace = "admin";
-        } else if (inTeacherOnlySpace(path) && (user == User.ANONYMOUS || user.isTeacher() || user.isAdmin())) {
+        } else if (inTeacherOnlySpace(path) && (user == User.ANONYMOUS || (user.isTeacher() && !adminMode) || (user.isAdmin() && adminMode))) {
             namespace = "teacher";
         } else if (inUserOnlySpace(path)) {
             namespace = "user";

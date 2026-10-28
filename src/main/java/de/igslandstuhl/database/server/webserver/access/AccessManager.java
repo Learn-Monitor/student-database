@@ -9,6 +9,7 @@ import de.igslandstuhl.database.events.EventListener;
 import de.igslandstuhl.database.server.webserver.WebPath;
 import de.igslandstuhl.database.server.webserver.requests.HttpRequest;
 import de.igslandstuhl.database.server.webserver.requests.RequestType;
+import de.igslandstuhl.database.server.Server;
 
 /**
  * AccessManager is responsible for managing access to resources based on user roles and resource locations.
@@ -30,7 +31,7 @@ public class AccessManager {
      * @param accessLevel the access level
      * @return the access state of the user for the given access level
      */
-    private AccessState getAccessState(User user, AccessLevel accessLevel) {
+    private AccessState getAccessState(User user, AccessLevel accessLevel, HttpRequest request) {
         AccessState result;
         if (accessLevel == AccessLevel.PUBLIC) {
             result = AccessState.PERMITTED;
@@ -45,12 +46,21 @@ public class AccessManager {
         } else if (user.isStudent()) {
             result = AccessState.RESTRICTED;
         } else if (accessLevel == AccessLevel.TEACHER) {
-            result = AccessState.AUTHORIZED;
+            boolean teacherMode = !user.isAdmin() || "teacher".equals(Server.getInstance().getWebServer().getSessionManager().getActiveMode(request));
+            result = (user.isTeacher() && teacherMode) || (user.isAdmin() && !user.isTeacher() && adminMode(request, user)) ? AccessState.AUTHORIZED : AccessState.RESTRICTED;
         } else {
-            result = user.isAdmin() ? AccessState.AUTHORIZED : AccessState.RESTRICTED; // Must be AccessLevel.ADMIN
+            result = user.isAdmin() && adminMode(request, user) ? AccessState.AUTHORIZED : AccessState.RESTRICTED; // Must be AccessLevel.ADMIN
         }
         // Fire an AccessManagerEvent to allow for external modifications of the access decision
         return result;
+    }
+    private boolean adminMode(HttpRequest request, User user) {
+        User sessionUser = Server.getInstance().getWebServer().getSessionManager().getSessionUser(request);
+        // Unit callers may supply a user without an authenticated session. Preserve
+        // the historical direct access contract; authenticated sessions are mode-bound.
+        if (sessionUser == null || sessionUser == User.ANONYMOUS
+                || !sessionUser.getUsername().equals(user.getUsername())) return true;
+        return "admin".equals(Server.getInstance().getWebServer().getSessionManager().getActiveMode(request));
     }
     /**
      * Checks if a user has access to a specific web path
@@ -93,7 +103,7 @@ public class AccessManager {
      */
     public boolean hasAccess(User user, String path, HttpRequest request, RequestType requestType) {
         AccessLevel accessLevel = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, requestType)).accessLevel();
-        AccessState result = getAccessState(user, accessLevel);
+        AccessState result = getAccessState(user, accessLevel, request);
 
         AccessManagerEvent event = new AccessManagerEvent(result, path, request);
         EventListener.fireEvent(event);

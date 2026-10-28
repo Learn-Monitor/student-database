@@ -454,10 +454,18 @@ public class PostRequestHandler {
                 SessionManager manager = Server.getInstance().getWebServer().getSessionManager();
                 Session session = manager.getSession(rq);
                 manager.addSessionUser(session, username);
-                return PostResponse.redirect(next, rq, session.createSessionCookie());
+                User loggedIn = User.getUser(username);
+                String target = loggedIn != null && loggedIn.isTeacher() && loggedIn.isAdmin() ? "/select-mode" : next;
+                return PostResponse.redirect(target, rq, session.createSessionCookie());
             } else {
                 return PostResponse.unauthorized("Wrong credentials!", rq);
             }
+        });
+        HttpHandler.registerPostRequestHandler("/select-mode", AccessLevel.USER, rq -> {
+            String mode = rq.getString("mode");
+            if (!Server.getInstance().getWebServer().getSessionManager().setActiveMode(rq, mode))
+                return PostResponse.forbidden("Dieser Modus ist für das Konto nicht verfügbar.", rq);
+            return PostResponse.redirect("/dashboard", rq);
         });
         HttpHandler.registerPostRequestHandler("/editor", AccessLevel.ADMIN, (rq) -> {
             return PostResponse.redirect("/editor", rq);

@@ -24,6 +24,7 @@ public class SessionManager {
      * This is a simple in-memory session store.
      */
     private SessionStorage<String> sessionUsers = new SessionStorage<>();
+    private SessionStorage<String> activeModes = new SessionStorage<>();
     private SessionStorage<Instant> lastActivity = new SessionStorage<>();
     /** Legacy diagnostic counter; it mirrors accepted requests in the current window. */
     private SessionStorage<Integer> requestCount = new SessionStorage<>();
@@ -84,6 +85,7 @@ public class SessionManager {
         synchronized (sessionUsers) {
             sessionUsers.remove(session);
         }
+        activeModes.remove(session);
         lastActivity.remove(session);
         requestCount.remove(session);
         synchronized (rateLock) {
@@ -246,5 +248,33 @@ public class SessionManager {
             sessionUsers.remove(username);
         }
         sessionUsers.set(session, username);
+        User user = User.getUser(username);
+        activeModes.set(session, user != null && user.isTeacher() && user.isAdmin() ? "teacher" : "admin");
+    }
+
+    /** Returns the effective session mode; dual teacher/admin accounts default safely to teacher mode. */
+    public String getActiveMode(HttpRequest request) {
+        Session session = getSession(request);
+        String mode = activeModes.get(session);
+        if (mode != null) return mode;
+        User user = getSessionUser(session);
+        return user != null && user.isTeacher() ? "teacher" : user != null && user.isAdmin() ? "admin" : "student";
+    }
+
+    /** Changes mode only for a logged-in account that genuinely has both identities. */
+    public boolean setActiveMode(HttpRequest request, String mode) {
+        if (!"teacher".equals(mode) && !"admin".equals(mode) && !"student".equals(mode)) return false;
+        Session session = getSession(request);
+        User user = getSessionUser(session);
+        if (user == null || user == User.ANONYMOUS) return false;
+        if (user.isTeacher() && user.isAdmin()) {
+            if ("student".equals(mode)) return false;
+            activeModes.set(session, mode);
+            return true;
+        }
+        String expected = user.isAdmin() ? "admin" : user.isTeacher() ? "teacher" : "student";
+        if (!expected.equals(mode)) return false;
+        activeModes.set(session, mode);
+        return true;
     }
 }

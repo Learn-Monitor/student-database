@@ -36,6 +36,12 @@ public class Admin extends User {
         return new Admin(username, passwordHash);
     }
 
+    /** Creates the administrator view of an existing account without changing its password. */
+    public static Admin createWithPasswordHash(String username, String passwordHash) throws SQLException {
+        Server.getInstance().getConnection().executeVoidProcessSecure(SQLHelper.getAddObjectProcess("admin", username, passwordHash));
+        return new Admin(username, passwordHash);
+    }
+
     /**
      * Deletes this Admin user from the database.
      * @throws SQLException if there's an underlying sql error during the deletion process

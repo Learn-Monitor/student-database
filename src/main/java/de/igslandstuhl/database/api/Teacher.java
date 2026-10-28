@@ -134,8 +134,12 @@ public class Teacher extends User {
     public boolean isTeacher() { return true; }
     @Override
     public boolean isStudent() { return false; }
+    /** A teacher may also have an administrator account; the active session mode decides which side is usable. */
     @Override
-    public boolean isAdmin() { return false; }
+    public boolean isAdmin() {
+        try { return Admin.get(email) != null; }
+        catch (RuntimeException ignored) { return false; }
+    }
 
     @Override
     public String toJSON() {

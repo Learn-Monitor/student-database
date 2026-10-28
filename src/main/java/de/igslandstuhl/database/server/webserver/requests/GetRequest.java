@@ -94,7 +94,9 @@ public class GetRequest implements HttpRequest {
      * @see de.igslandstuhl.database.server.resources.ResourceLocation
      */
     public ResourceLocation toResourceLocation(String user) {
-        return WebResourceHandler.locationFromPath(path, User.getUser(user));
+        User resolved = User.getUser(user);
+        return WebResourceHandler.locationFromPath(path, resolved,
+                de.igslandstuhl.database.server.Server.getInstance().getWebServer().getSessionManager().getActiveMode(this).equals("admin"));
     }
 
     @Override
