@@ -1534,7 +1534,12 @@ public final class Curriculum {
                 scope.subjectId(),grade,scope.semesterId())==0;
         Set<Integer> earnedCentral=earnedRosterCentralStages(c,studentId,scope,grade,stages);
         Map<Integer,Integer> earnedFlexible=earnedRosterFlexibleStages(c,studentId,scope,grade,stages,individual);
-        int possible=0,earned=0;
+        // Open failed attempts only: passing a stage deletes its assessment row.
+        Map<String,String> failures=new HashMap<>();
+        for(var row:rows(c,"SELECT stage_type,stage_id,status FROM student_curriculum_stage_assessments WHERE student=? AND subject=? AND semester=? AND status IN(?,?,?)",
+                studentId,scope.subjectId(),scope.semesterId(),AssessmentStatus.FAILED_ONCE.name(),AssessmentStatus.FAILED_TWICE.name(),AssessmentStatus.LOCKED.name()))
+            failures.put(row.get("stage_type")+":"+integer(row,"stage_id"),String.valueOf(row.get("status")));
+        int possible=0,earned=0,failedOnceTokens=0,failedOnceStages=0,failedTwiceOrLockedTokens=0,failedTwiceOrLockedStages=0;
         for(RosterStage stage:stages) {
             boolean stageEarned=stage.type()==ActiveStageType.CENTRAL
                     ?earnedCentral.contains(stage.id()):earnedFlexible.containsKey(stage.id());
@@ -1542,6 +1547,11 @@ public final class Curriculum {
             possible+=stage.tokens();
             if(stageEarned) earned+=stage.type()==ActiveStageType.FLEXIBLE
                     ?earnedFlexible.get(stage.id()):stage.tokens();
+            else {
+                String failure=failures.get(stage.type().name()+":"+stage.id());
+                if(AssessmentStatus.FAILED_ONCE.name().equals(failure)) { failedOnceTokens+=stage.tokens(); failedOnceStages++; }
+                else if(failure!=null) { failedTwiceOrLockedTokens+=stage.tokens(); failedTwiceOrLockedStages++; }
+            }
         }
         boolean hasNansteine=!ungrouped && number(c,"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='curriculum_nansteine'")>0
                 && number(c,"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='curriculum_nanstein_assignments'")>0
@@ -1559,6 +1569,8 @@ public final class Curriculum {
             }
         }
         Map<String,Object> progress=new LinkedHashMap<>(); progress.put("releasedTokens",possible); progress.put("earnedTokens",earned);
+        progress.put("failedOnceTokens",failedOnceTokens); progress.put("failedOnceStages",failedOnceStages);
+        progress.put("failedTwiceOrLockedTokens",failedTwiceOrLockedTokens); progress.put("failedTwiceOrLockedStages",failedTwiceOrLockedStages);
         progress.put("lastAssessedAt",teacherRosterLastAssessed(c,studentId,scope,grade,stages)); return progress;
     }
     private static Set<Integer> earnedRosterCentralStages(Connection c,int studentId,Scope scope,int grade,List<RosterStage> stages) throws SQLException {
@@ -1710,6 +1722,8 @@ public final class Curriculum {
             subjects=allowedSubjects;
             List<Map<String,Object>> students=rows(c,"SELECT id,first_name AS firstName,last_name AS lastName FROM students WHERE class=? AND COALESCE(active,1)=1 ORDER BY last_name,first_name,id",classId);
             List<Map<String,Object>> output=new ArrayList<>();
+            // Released stages depend only on the teaching context, not on the student.
+            Map<Scope,List<RosterStage>> rosterStages=new HashMap<>();
             for (var student:students) {
                 int studentId=integer(student,"id");
                 Map<String,Object> row=new LinkedHashMap<>(); row.put("id",studentId); row.put("name",student.get("firstName")+" "+student.get("lastName"));
@@ -1734,6 +1748,10 @@ public final class Curriculum {
                         long total=((Number)totals.get("totalTokens")).longValue(); cell.put("totalTokens",total); cell.put("note",noteForTokens(total));
                         cell.put("assigned",true); cell.put("actualSubjectId",subjectId);
                         cell.put("lastGnDate", lastGnDate(c, studentId, new Scope(teacherId, subjectId, classId, semester)));
+                        Scope cellScope=new Scope(teacherId,subjectId,classId,semester); int contextGrade=integer(assignedContext,"grade");
+                        List<RosterStage> released=rosterStages.get(cellScope);
+                        if (released == null) { released=teacherRosterStages(c,cellScope,contextGrade); rosterStages.put(cellScope,released); }
+                        cell.put("progress",teacherRosterProgress(c,studentId,cellScope,contextGrade,released));
                         List<Map<String,Object>> stages=new ArrayList<>();
                         @SuppressWarnings("unchecked") List<CompletedCentralTask> central=(List<CompletedCentralTask>)totals.get("completedCentralTasks");
                         for (var stage:central) { Map<String,Object> done=new LinkedHashMap<>(); done.put("id",stage.id()); done.put("name",stage.name()); done.put("niveau",stage.niveau()); done.put("tokens",stage.tokens()); stages.add(done); }

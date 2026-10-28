@@ -877,6 +877,33 @@ class CurriculumTest {
         assertNotNull(progress.get("lastAssessedAt"));
         assertEquals(1,service.teacherRoster(teacher,scope).stream().filter(r->((Number)r.get("id")).intValue()==id).count());
     }
+    @Test void teacherRosterProgressReportsOpenFailedAttemptsOfReleasedStages() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        var enrollment=new CurriculumEnrollment(service);
+        var once=service.create(teacher,scope,"Failed once",4);
+        var twice=service.create(teacher,scope,"Failed twice",5);
+        var locked=service.create(teacher,scope,"Locked",6);
+        var passedLater=service.create(teacher,scope,"Passed despite failure",7);
+        var unreleased=service.create(teacher,scope,"Unreleased failure",8);
+        for(var task:List.of(once,twice,locked,passedLater)) enrollment.release(teacher,scope,null,null,null,task.id(),true);
+        service.complete(teacher,passedLater.id(),id);
+        db.writeTransaction(c->{
+            String sql="INSERT INTO student_curriculum_stage_assessments(student,subject,semester,stage_type,stage_id,status,failed_attempts) VALUES(?,?,?,'FLEXIBLE',?,?,?)";
+            exec(c,sql,id,id,id,once.id(),"FAILED_ONCE",1);
+            exec(c,sql,id,id,id,twice.id(),"FAILED_TWICE",2);
+            exec(c,sql,id,id,id,locked.id(),"LOCKED",2);
+            exec(c,sql,id,id,id,passedLater.id(),"FAILED_ONCE",1);
+            exec(c,sql,id,id,id,unreleased.id(),"FAILED_TWICE",2);
+            return null;
+        });
+        var progress=(Map<String,Object>)byId(service.teacherRoster(teacher,scope),id).get("progress");
+        assertEquals(22,progress.get("releasedTokens"));
+        assertEquals(7,progress.get("earnedTokens"));
+        assertEquals(4,progress.get("failedOnceTokens"));
+        assertEquals(1,progress.get("failedOnceStages"));
+        assertEquals(11,progress.get("failedTwiceOrLockedTokens"));
+        assertEquals(2,progress.get("failedTwiceOrLockedStages"));
+    }
     @Test void teacherRosterSupportsIndividualContexts() throws Exception {
         int visible=id+2,alsoVisible=id+3,hidden=id+4;
         db.writeTransaction(c->{
@@ -1408,6 +1435,13 @@ class CurriculumTest {
         var weeklyVariable=((List<?>)((Map<?,?>)subject).get("stages")).stream().map(Map.class::cast)
                 .filter(row->((Number)row.get("id")).intValue()==variable.id()).findFirst().orElseThrow();
         assertEquals(2,weeklyVariable.get("awardedTokens"));
+        // Tutors see the same released/earned figures as the subject teacher's roster.
+        var rosterProgress=(Map<?,?>)service.teacherRoster(teacher,scope).stream().map(Map.class::cast)
+                .filter(row->((Number)row.get("id")).intValue()==id).findFirst().orElseThrow().get("progress");
+        var weeklyProgress=(Map<?,?>)((Map<?,?>)subject).get("progress");
+        assertEquals(rosterProgress.get("releasedTokens"),weeklyProgress.get("releasedTokens"));
+        assertEquals(rosterProgress.get("earnedTokens"),weeklyProgress.get("earnedTokens"));
+        assertTrue(((Number)weeklyProgress.get("releasedTokens")).intValue()>0);
     }
     @Test void completionHandlerAcceptsOptionalFixedAwardAndRequiresVariableAward() throws Exception {
         var fixed=service.create(teacher,scope,"Handler fixed",4);

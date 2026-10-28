@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         const render = data => {
             output.replaceChildren();
-            const heading = el('h4', `${data.classLabel || 'Klasse'} · ${data.semesterLabel || 'Halbjahr'}`); output.append(heading);
+            const heading = el('h4', `${data.classLabel || 'Klasse'} · ${data.semesterLabel || 'Halbjahr'}`); output.append(heading, progressLegend());
             const wrap = el('div'); wrap.className = 'teacher-table-scroll teacher-weekly-scroll'; const table = document.createElement('table'); table.className='teacher-weekly-table';
             const subjects = data.subjects || [];
             const thead = document.createElement('thead');
@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const td = row.insertCell();
                     if (cell.assigned === false || cell.totalTokens == null) td.append(el('div','—'));
                     else {
-                        td.append(el('div', `${cell.totalTokens} 🪙`));
+                        td.append(progressSummary(cell.progress, cell.totalTokens));
                         const gn = cell.lastGnDate ? formatGnDate(cell.lastGnDate) : 'noch kein GN';
                         td.append(el('small', gn === 'noch kein GN' ? gn : `letzter GN: ${gn}`));
                     }
@@ -100,6 +100,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         load.addEventListener('click', refresh); await refresh();
     } catch (error) { if (error?.status === 403) mount.append(el('p', 'Die Tutor-Funktion ist für dieses Konto nicht freigeschaltet.')); else if (error?.status) mount.append(el('p', 'Tutor-Klassen konnten nicht geladen werden.')); }
 });
+
+// Same wording as the subject teacher's roster ("X von Y Münzen").
+function progressSummary(progress, totalTokens) {
+    const wrap = document.createElement('div'); wrap.className = 'teacher-roster-progress';
+    const count = value => Number.isSafeInteger(value) ? value : 0;
+    if (!progress) { wrap.textContent = `${count(totalTokens)} Münzen`; return wrap; }
+    if (count(progress.releasedTokens) === 0) { wrap.textContent = 'Noch keine Etappe freigegeben'; return wrap; }
+    const earned = count(progress.earnedTokens), released = count(progress.releasedTokens);
+    const tokens = document.createElement('span'); tokens.className = 'teacher-roster-progress-tokens'; tokens.textContent = `${earned} von ${released} Münzen`;
+    // Segmented bar: earned coins, then stages with open failed GN attempts (orange 1×, red 2×/gesperrt).
+    const bar = document.createElement('div'); bar.className = 'teacher-progress-bar'; bar.setAttribute('aria-hidden', 'true');
+    const segment = (className, value) => { if (value <= 0) return; const part = document.createElement('span'); part.className = className; part.style.flexBasis = `${Math.min(100, value / released * 100)}%`; bar.append(part); };
+    segment('teacher-progress-earned', earned);
+    segment('teacher-progress-failed-once', count(progress.failedOnceTokens));
+    segment('teacher-progress-failed-twice', count(progress.failedTwiceOrLockedTokens));
+    wrap.append(tokens, bar);
+    const failures = [];
+    if (count(progress.failedOnceStages) > 0) failures.push(`${stagesLabel(progress.failedOnceStages)} 1× nicht bestanden`);
+    if (count(progress.failedTwiceOrLockedStages) > 0) failures.push(`${stagesLabel(progress.failedTwiceOrLockedStages)} 2× nicht bestanden oder gesperrt`);
+    if (failures.length) { wrap.title = failures.join(', '); const hint = document.createElement('span'); hint.className = 'teacher-visually-hidden'; hint.textContent = failures.join(', '); wrap.append(hint); }
+    return wrap;
+}
+
+function stagesLabel(count) { return count === 1 ? '1 Etappe' : `${count} Etappen`; }
+
+function progressLegend() {
+    const legend = document.createElement('p'); legend.className = 'teacher-progress-legend';
+    for (const [className, text] of [['teacher-progress-earned','Münzen erreicht'],['teacher-progress-failed-once','GN 1× nicht bestanden'],['teacher-progress-failed-twice','GN 2× nicht bestanden / gesperrt']]) {
+        const item = document.createElement('span'); const swatch = document.createElement('span'); swatch.className = className; item.append(swatch, ` ${text}`); legend.append(item);
+    }
+    return legend;
+}
 
 function formatGnDate(value) {
     const text = String(value || '').slice(0, 10);
