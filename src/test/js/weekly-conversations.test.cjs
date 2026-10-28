@@ -77,9 +77,32 @@ test('tutor view shows earned of released tokens like the subject teacher roster
   await new Promise(resolve=>setTimeout(resolve,30));
   const cells=instance.window.document.querySelectorAll('.teacher-weekly-table tbody td');
   assert.equal(cells[1].querySelector('.teacher-roster-progress-tokens').textContent,'12 von 30 Münzen');
-  const bar=cells[1].querySelector('progress');assert.equal(bar.max,30);assert.equal(bar.value,12);
+  const segments=[...cells[1].querySelectorAll('.teacher-progress-bar > span')];
+  assert.deepEqual(segments.map(part=>part.className),['teacher-progress-earned']);
+  assert.equal(segments[0].style.flexBasis,'40%');
+  assert.equal(cells[1].querySelector('.teacher-roster-progress').title,'');
   assert.match(cells[2].textContent,/Noch keine Etappe freigegeben/);
   assert.doesNotMatch(instance.window.document.querySelector('.teacher-weekly-table').textContent,/🪙/);
+  instance.window.close();
+});
+
+test('tutor view colours open failed GN attempts in the progress bar and explains them',async()=>{
+  const instance=dom({
+    classes:[{semesterId:4,classId:7,label:'7a',grade:7}],
+    overview:{semesterLabel:'2026/27 HJ1',classLabel:'7a',subjects:[{id:3,name:'Mathe'}],students:[{name:'Test Schüler',subjects:[
+      {subjectId:3,assigned:true,totalTokens:10,lastGnDate:'2026-10-20',stages:[],progress:{earnedTokens:10,releasedTokens:40,failedOnceTokens:5,failedOnceStages:1,failedTwiceOrLockedTokens:10,failedTwiceOrLockedStages:2}}
+    ]}]}
+  });
+  await new Promise(resolve=>setTimeout(resolve,30));
+  const document=instance.window.document;
+  assert.equal(document.querySelectorAll('.teacher-progress-legend > span').length,3);
+  const cell=document.querySelectorAll('.teacher-weekly-table tbody td')[1];
+  const segments=[...cell.querySelectorAll('.teacher-progress-bar > span')];
+  assert.deepEqual(segments.map(part=>part.className),['teacher-progress-earned','teacher-progress-failed-once','teacher-progress-failed-twice']);
+  assert.deepEqual(segments.map(part=>part.style.flexBasis),['25%','12.5%','25%']);
+  const summary='1 Etappe 1× nicht bestanden, 2 Etappen 2× nicht bestanden oder gesperrt';
+  assert.equal(cell.querySelector('.teacher-roster-progress').title,summary);
+  assert.equal(cell.querySelector('.teacher-visually-hidden').textContent,summary);
   instance.window.close();
 });
 

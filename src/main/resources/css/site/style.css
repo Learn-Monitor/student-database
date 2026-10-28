@@ -714,6 +714,15 @@ main.attendance.teacher-dashboard #manual:focus { background:#17324d; }
 .teacher-roster-progress { display:grid; gap:.2rem; min-width:8.5rem; }
 .teacher-roster-progress-tokens { font-weight:700; color:#17324d; white-space:nowrap; }
 .teacher-roster-progress progress { width:7rem; height:.45rem; accent-color:#2c668e; }
+.teacher-progress-bar { display:flex; width:7rem; height:.6rem; overflow:hidden; border-radius:.25rem; background:#dfe7ef; }
+.teacher-progress-bar > span { flex:0 0 auto; min-width:.3rem; }
+.teacher-progress-earned { background:#2c668e; }
+.teacher-progress-failed-once { background:#e08a00; }
+.teacher-progress-failed-twice { background:#c62828; }
+.teacher-progress-legend { display:flex; flex-wrap:wrap; gap:.25rem 1rem; margin:.25rem 0 .5rem; font-size:.85rem; color:#526b82; }
+.teacher-progress-legend > span > span { display:inline-block; width:.8rem; height:.45rem; border-radius:.2rem; vertical-align:middle; }
+.teacher-progress-bar, .teacher-progress-legend { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.teacher-visually-hidden { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 .teacher-roster-last-assessed { white-space:nowrap; color:#526b82; }
 .teacher-roster-last-assessed.is-today { font-weight:700; color:#1f6b3a; }
 .teacher-table-scroll { max-width:100%; overflow-x:auto; }
@@ -829,7 +838,8 @@ main.attendance .attendance-class-picker-panel:empty::before { content:'Keine Kl
   .teacher-weekly-conversations tr { page-break-inside:avoid; page-break-after:auto; }
   .teacher-weekly-conversations .teacher-roster-progress { min-width:0; }
   .teacher-weekly-conversations .teacher-roster-progress-tokens { white-space:normal; }
-  .teacher-weekly-conversations .teacher-roster-progress progress { width:100%; }
+  .teacher-weekly-conversations .teacher-roster-progress progress,
+  .teacher-weekly-conversations .teacher-progress-bar { width:100%; }
 }
 
 .teacher-weekly-conversations .teacher-weekly-table .teacher-weekly-header th {
