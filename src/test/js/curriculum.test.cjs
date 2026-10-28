@@ -301,6 +301,23 @@ test('student progress renders active stages and signals read only',async()=>{
   assert.equal(requests.some(r=>['/subject-request','/complete-task','/lock-task','/reopen-task','/complete-flexible-task'].includes(r.url)),false);
  }finally{dom.window.close();}
 });
+test('student progress colours open failed GN attempts in the roster bar',async()=>{
+ const roster=[{id:60,name:'Dora Delta',activeStage:null,signals:{},progress:{releasedTokens:40,earnedTokens:10,failedOnceTokens:5,failedOnceStages:1,failedTwiceOrLockedTokens:10,failedTwiceOrLockedStages:2,lastAssessedAt:null}},
+  {id:61,name:'Emil Epsilon',activeStage:null,signals:{},progress:{releasedTokens:20,earnedTokens:20,lastAssessedAt:null}}];
+ const{dom}=await setup(false,{progress:true,roster});
+ try{
+  const progress=dom.window.document.querySelector('#student-progress');
+  assert.equal(progress.querySelectorAll('.teacher-progress-legend > span').length,3);
+  const [dora,emil]=[...progress.querySelectorAll('.teacher-roster-progress')];
+  const segments=[...dora.querySelectorAll('.teacher-progress-bar > span')];
+  assert.deepEqual(segments.map(part=>part.className),['teacher-progress-earned','teacher-progress-failed-once','teacher-progress-failed-twice']);
+  assert.deepEqual(segments.map(part=>part.style.flexBasis),['25%','12.5%','25%']);
+  const summary='1 Etappe 1× nicht bestanden, 2 Etappen 2× nicht bestanden oder gesperrt';
+  assert.equal(dora.title,summary);assert.equal(dora.querySelector('.teacher-visually-hidden').textContent,summary);
+  assert.deepEqual([...emil.querySelectorAll('.teacher-progress-bar > span')].map(part=>part.style.flexBasis),['100%']);
+  assert.equal(emil.title,'');assert.equal(progress.querySelector('progress'),null);
+ }finally{dom.window.close();}
+});
 test('student progress details use an accessible modal and restore focus',async()=>{
  const{dom}=await setup(false,{progress:true,detail:{studentId:50,studentName:'Ada Alpha',stages:[]}});
  try{

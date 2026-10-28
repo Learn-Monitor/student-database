@@ -163,8 +163,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!progress || count(progress.releasedTokens) === 0) { wrap.textContent = 'Noch keine Etappe freigegeben'; return wrap; }
             const earned = count(progress.earnedTokens), released = count(progress.releasedTokens);
             const tokens = el('span', `${earned} von ${released} Münzen`); tokens.className = 'teacher-roster-progress-tokens';
-            const bar = document.createElement('progress'); bar.max = released; bar.value = earned; bar.setAttribute('aria-hidden', 'true');
-            wrap.append(tokens, bar); return wrap;
+            // Same segmented bar as the tutor overview: earned coins, then open failed GN attempts (orange 1×, red 2×/gesperrt).
+            const bar = el('div'); bar.className = 'teacher-progress-bar'; bar.setAttribute('aria-hidden', 'true');
+            const segment = (className, value) => { if (value <= 0) return; const part = el('span'); part.className = className; part.style.flexBasis = `${Math.min(100, value / released * 100)}%`; bar.append(part); };
+            segment('teacher-progress-earned', earned);
+            segment('teacher-progress-failed-once', count(progress.failedOnceTokens));
+            segment('teacher-progress-failed-twice', count(progress.failedTwiceOrLockedTokens));
+            wrap.append(tokens, bar);
+            const stages = n => n === 1 ? '1 Etappe' : `${n} Etappen`, failures = [];
+            if (count(progress.failedOnceStages) > 0) failures.push(`${stages(progress.failedOnceStages)} 1× nicht bestanden`);
+            if (count(progress.failedTwiceOrLockedStages) > 0) failures.push(`${stages(progress.failedTwiceOrLockedStages)} 2× nicht bestanden oder gesperrt`);
+            if (failures.length) { wrap.title = failures.join(', '); const hint = el('span', failures.join(', ')); hint.className = 'teacher-visually-hidden'; wrap.append(hint); }
+            return wrap;
+        }
+        function progressLegend() {
+            const legend = el('p'); legend.className = 'teacher-progress-legend';
+            for (const [className, text] of [['teacher-progress-earned','Münzen erreicht'],['teacher-progress-failed-once','GN 1× nicht bestanden'],['teacher-progress-failed-twice','GN 2× nicht bestanden / gesperrt']]) {
+                const item = el('span'), swatch = el('span'); swatch.className = className; item.append(swatch, ` ${text}`); legend.append(item);
+            }
+            return legend;
         }
         function lastAssessedCell(value, now = new Date()) {
             const span = el('span'); span.className = 'teacher-roster-last-assessed';
@@ -391,7 +408,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tr.insertCell().textContent = signalText(signals.exam);
             }
             const tableWrap = el('div'); tableWrap.className = 'teacher-table-scroll'; tableWrap.append(table);
-            rosterArea.append(tableWrap);
+            rosterArea.append(progressLegend(), tableWrap);
         }
         async function loadRoster() {
             const current = ++generation, context = selectedContext();
