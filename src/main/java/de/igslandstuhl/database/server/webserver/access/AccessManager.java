@@ -129,6 +129,11 @@ public class AccessManager {
 
         result = event.getChangedAccessState().orElse(result);
 
+        // An account without the persisted admin identity must never reach an
+        // admin route, even when a compatibility permission grants that path.
+        // This also makes an admin-role removal effective in the existing session.
+        if (accessLevel == AccessLevel.ADMIN && !user.isAdmin()) return false;
+
         // Permission listeners may grant fine-grained access, but they must not
         // override the account-level active mode of a dual teacher/admin session.
         if (dualRole) {

@@ -169,29 +169,29 @@ public class PostRequest implements HttpRequest {
     public int getInt(String key) {
         try {
             Map<String, Object> json = getJson();
-            return ((Number)json.get(key)).intValue();
+            if (json != null) return ((Number)json.get(key)).intValue();
         } catch (JsonSyntaxException e) {
-            Map<String, String> data = getFormData();
-            return Integer.parseInt(data.get(key));
         }
+        Map<String, String> data = getFormData();
+        return Integer.parseInt(data.get(key));
     }
     public String getString(String key) {
         try {
             Map<String, Object> json = getJson();
-            return (String)json.get(key);
+            if (json != null) return (String)json.get(key);
         } catch (JsonSyntaxException e) {
-            Map<String, String> data = getFormData();
-            return data.get(key);
         }
+        Map<String, String> data = getFormData();
+        return data.get(key);
     }
     public boolean getBoolean(String key) {
         try {
             Map<String, Object> json = getJson();
-            return json.containsKey(key) && (boolean) json.get(key);
+            if (json != null) return json.containsKey(key) && (boolean) json.get(key);
         } catch (JsonSyntaxException e) {
-            Map<String, String> data = getFormData();
-            return Boolean.parseBoolean(data.get(key));
         }
+        Map<String, String> data = getFormData();
+        return Boolean.parseBoolean(data.get(key));
     }
     public List<?> getList(String key) {
         return (List<?>) getJson().get(key);
@@ -199,14 +199,14 @@ public class PostRequest implements HttpRequest {
     public boolean containsKey(String key) {
         try {
             Map<String, Object> json = getJson();
-            return json.containsKey(key);
+            if (json != null) return json.containsKey(key);
         } catch (JsonSyntaxException e) {
-            try {
-                Map<String, String> data = getFormData();
-                return data.containsKey(key);
-            } catch (IllegalArgumentException e2) {
-                return false;
-            }
+        }
+        try {
+            Map<String, String> data = getFormData();
+            return data.containsKey(key);
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 

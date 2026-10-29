@@ -29,10 +29,6 @@ public class HttpHandler<Rq extends HttpRequest> {
 
     public HttpResponse handleHttpRequest(Rq request) {
         SessionManager sessionManager = Server.getInstance().getWebServer().getSessionManager();
-        int contentLength = request.getContentLength();
-        if (contentLength <= 0 && !(request instanceof GetRequest)) {
-            return HttpResponse.error(request, Status.BAD_REQUEST);
-        }
         UserAccess access = new UserAccess(sessionManager.getSessionUser(request), request);
         boolean allowed;
         try {
