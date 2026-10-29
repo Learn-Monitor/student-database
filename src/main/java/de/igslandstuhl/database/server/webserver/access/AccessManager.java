@@ -102,19 +102,27 @@ public class AccessManager {
      * @return true, if the user has access, otherwise false
      */
     public boolean hasAccess(User user, String path, HttpRequest request, RequestType requestType) {
-        AccessLevel accessLevel = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, requestType)).accessLevel();
         String plainPath = path.split("\\?", 2)[0];
-        if (user != null && user.isTeacher() && user.isAdmin()
-                && "pending".equals(Server.getInstance().getWebServer().getSessionManager().getActiveMode(request))
-                ) {
-            if (plainPath.equals("/select-mode") || plainPath.equals("/switch-mode") || plainPath.equals("/logout")) {
-                return true;
-            }
-            return false;
-        }
-        if (user != null && user.isTeacher() && user.isAdmin() && plainPath.equals("/switch-mode")) {
+        boolean dualRole = user != null && user.isTeacher() && user.isAdmin();
+        String activeMode = dualRole
+                ? Server.getInstance().getWebServer().getSessionManager().getActiveMode(request)
+                : null;
+
+        // Mode switching is a session transition, not an admin resource.  It
+        // must remain reachable from both valid modes, but only for a real
+        // teacher/admin dual-role account.
+        if (dualRole && plainPath.equals("/switch-mode")) return true;
+        if (dualRole && "pending".equals(activeMode)
+                && (plainPath.equals("/select-mode") || plainPath.equals("/logout"))) {
             return true;
         }
+        if (dualRole && "pending".equals(activeMode)) {
+            return false;
+        }
+
+        WebPath webPath = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, requestType));
+        if (webPath == null) return false;
+        AccessLevel accessLevel = webPath.accessLevel();
         AccessState result = getAccessState(user, accessLevel, request);
 
         AccessManagerEvent event = new AccessManagerEvent(result, path, request);
@@ -124,10 +132,9 @@ public class AccessManager {
 
         // Permission listeners may grant fine-grained access, but they must not
         // override the account-level active mode of a dual teacher/admin session.
-        if (user != null && user.isTeacher() && user.isAdmin()) {
-            String mode = Server.getInstance().getWebServer().getSessionManager().getActiveMode(request);
-            if (accessLevel == AccessLevel.ADMIN && !"admin".equals(mode)) return false;
-            if (accessLevel == AccessLevel.TEACHER && !"teacher".equals(mode)) return false;
+        if (dualRole) {
+            if (accessLevel == AccessLevel.ADMIN && !"admin".equals(activeMode)) return false;
+            if (accessLevel == AccessLevel.TEACHER && !"teacher".equals(activeMode)) return false;
         }
 
         return result == AccessState.AUTHORIZED || result == AccessState.PERMITTED;

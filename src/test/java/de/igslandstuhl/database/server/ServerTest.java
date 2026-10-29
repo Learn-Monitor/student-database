@@ -46,6 +46,10 @@ public class ServerTest {
         SchoolClass.addClass("5a", 5);
         Student.registerStudentWithPassword(0, "Max", "Mustermann", "max@muster.mann", "12345", SchoolClass.get(1), GraduationLevel.LEVEL1);
         assertFalse(server.isValidUser("anamethatnostudentwillevergetbecauseitistoolongtoputintotheloginfield", "password"));
+        assertFalse(server.isValidUser("", "password"));
+        assertFalse(server.isValidUser("   ", "password"));
+        assertFalse(server.isValidUser(null, "password"));
+        assertFalse(server.isValidUser("max@muster.mann", null));
         assertFalse(server.isValidUser("max@muster.mann", "123456")); // Test student set up by StudentTest
         assertTrue(server.isValidUser("max@muster.mann", "12345"));
     }

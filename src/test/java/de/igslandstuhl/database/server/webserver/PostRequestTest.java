@@ -84,6 +84,23 @@ public class PostRequestTest {
     }
 
     @Test
+    void malformedFormEncodingIsRejectedAtTheFormBoundary() {
+        PostRequest malformedEncoding = new PostRequest(
+                "POST /login HTTP/1.1\r\nContent-Length: 13\r\nContent-Type: application/x-www-form-urlencoded",
+                "username=%ZZ", LOCALHOST, true);
+        PostRequest malformedFragment = new PostRequest(
+                "POST /login HTTP/1.1\r\nContent-Length: 9\r\nContent-Type: application/x-www-form-urlencoded",
+                "username", LOCALHOST, true);
+        PostRequest trailingFragment = new PostRequest(
+                "POST /login HTTP/1.1\r\nContent-Length: 10\r\nContent-Type: application/x-www-form-urlencoded",
+                "username=&", LOCALHOST, true);
+
+        assertThrows(IllegalArgumentException.class, malformedEncoding::getFormData);
+        assertThrows(IllegalArgumentException.class, malformedFragment::getFormData);
+        assertThrows(IllegalArgumentException.class, trailingFragment::getFormData);
+    }
+
+    @Test
     void testGetJson() {
         Map<String,Object> json = postRequestJson.getJson();
         assertTrue(json.containsKey("id"));

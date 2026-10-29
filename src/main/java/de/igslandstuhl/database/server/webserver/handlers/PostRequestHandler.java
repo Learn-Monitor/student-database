@@ -443,10 +443,14 @@ public class PostRequestHandler {
         CurriculumRequestHandler.registerHandlers();
         LOGGER.info("Registering Post Request Handlers...");
         HttpHandler.registerPostRequestHandler("/login", AccessLevel.PUBLIC, (rq) -> {
-            String username = prepare(rq.getString("username"), false);
+            String rawUsername = rq.getString("username");
+            if (rawUsername == null || rawUsername.isBlank())
+                return PostResponse.badRequest("Benutzername ist erforderlich.", rq);
+            String username = prepare(rawUsername, false);
             // Do not sanitize / url-decode password to allow special characters like %
             // This is safe as we calculate the hash value anyways
             String password = rq.getString("password");
+            if (password == null) return PostResponse.badRequest("Passwort ist erforderlich.", rq);
             final String next;
             try { next = rq.containsKey("next") ? safeLoginNext(rq.getString("next")) : "/dashboard"; }
             catch (IllegalArgumentException e) { return PostResponse.badRequest("Ungültiges Weiterleitungsziel", rq); }

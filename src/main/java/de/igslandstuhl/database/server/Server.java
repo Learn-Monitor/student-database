@@ -198,8 +198,9 @@ public final class Server implements AutoCloseable {
      * @return true if the user is valid, false otherwise.
      */
     public boolean isValidUser(String username, String password) {
+        if (username == null || username.isBlank() || password == null) return false;
         User user = User.getUser(username);
-        if (user != null && user.getPasswordHash().equals(DigestUtils.sha1Hex(password))) {
+        if (user != null && user != User.ANONYMOUS && user.getPasswordHash().equals(DigestUtils.sha1Hex(password))) {
             return true;
         } else {
             return false;

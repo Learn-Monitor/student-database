@@ -73,6 +73,30 @@ public class SessionManagerTest {
     }
 
     @Test
+    void dualTeacherAdminModeSwitchIsAvailableFromBothModes() throws Exception {
+        PreConditions.setupDatabase();
+        String login = "mode-transition-" + UUID.randomUUID() + "@example.test";
+        Teacher teacher = Teacher.registerTeacher("Mode", "Transition", login, "password");
+        Admin.createWithPasswordHash(login, teacher.getPasswordHash());
+
+        SessionManager modes = new SessionManager(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        PostRequest initial = new PostRequest("POST /login HTTP/1.1", null, LOCALHOST, true);
+        Session session = modes.getSession(initial);
+        modes.addSessionUser(session, login);
+        String cookie = session.createSessionCookie().toString();
+        PostRequest authenticated = new PostRequest("POST /switch-mode HTTP/1.1\r\nCookie: " + cookie,
+                "x=1", LOCALHOST, true);
+
+        assertTrue(modes.setActiveMode(authenticated, "teacher"));
+        assertTrue(modes.resetToModeSelection(authenticated));
+        assertEquals("pending", modes.getActiveMode(authenticated));
+        assertTrue(modes.setActiveMode(authenticated, "admin"));
+        assertTrue(modes.resetToModeSelection(authenticated));
+        assertEquals("pending", modes.getActiveMode(authenticated));
+        assertTrue(modes.setActiveMode(authenticated, "teacher"));
+    }
+
+    @Test
     void removingAdminRoleNormalizesExistingAdminModeToTeacher() throws Exception {
         PreConditions.setupDatabase();
         String login = "role-removal-" + UUID.randomUUID() + "@example.test";

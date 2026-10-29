@@ -140,13 +140,16 @@ public class PostRequest implements HttpRequest {
         else if (!Character.isLetter(body.charAt(0))) throw new IllegalArgumentException("No Form Data");
         Map<String, String> params = new HashMap<>();
         // Parse body as form data: key1=value1&key2=value2
-        String[] pairs = body.split("&");
+        String[] pairs = body.split("&", -1);
         for (String pair : pairs) {
             String[] kv = pair.split("=", 2);
-            if (kv.length == 2) {
-                params.put(URLDecoder.decode(kv[0], StandardCharsets.UTF_8), URLDecoder.decode(kv[1], StandardCharsets.UTF_8));
-            } else {
+            if (kv.length != 2 || kv[0].isEmpty()) {
                 throw new IllegalArgumentException("No form data");
+            }
+            try {
+                params.put(URLDecoder.decode(kv[0], StandardCharsets.UTF_8), URLDecoder.decode(kv[1], StandardCharsets.UTF_8));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid form encoding", e);
             }
         }
         return params;

@@ -3,7 +3,6 @@ package de.igslandstuhl.database.server;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.SocketException;
-import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -179,8 +178,11 @@ public class WebServer implements Runnable {
                         || requestContentType.toLowerCase(Locale.ROOT).startsWith("application/pdf"))) {
                     rawBody = bodyBytes;
                 } else {
-                    String raw = new String(bodyBytes, bodyCharset);
-                    body = URLDecoder.decode(raw, bodyCharset.name());
+                    // Keep the wire representation intact.  PostRequest is the
+                    // single form-decoding boundary; decoding here would both
+                    // double-decode form fields and turn malformed percent
+                    // escapes into an uncaught server exception.
+                    body = new String(bodyBytes, bodyCharset);
                 }
             }
             PostRequest parsedRequest = rawBody == null
