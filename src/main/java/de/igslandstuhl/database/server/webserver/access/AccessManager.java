@@ -111,9 +111,8 @@ public class AccessManager {
         // Mode switching is a session transition, not an admin resource.  It
         // must remain reachable from both valid modes, but only for a real
         // teacher/admin dual-role account.
-        if (dualRole && plainPath.equals("/switch-mode")) return true;
-        if (dualRole && "pending".equals(activeMode)
-                && (plainPath.equals("/select-mode") || plainPath.equals("/logout"))) {
+        if (dualRole && (plainPath.equals("/select-mode") || plainPath.equals("/switch-mode"))) return true;
+        if (dualRole && "pending".equals(activeMode) && plainPath.equals("/logout")) {
             return true;
         }
         if (dualRole && "pending".equals(activeMode)) {
