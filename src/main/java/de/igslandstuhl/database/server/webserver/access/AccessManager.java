@@ -144,9 +144,14 @@ public class AccessManager {
             // client asset. Loading that script is not a teacher-mode switch
             // and must not grant access to any teacher endpoint.
             if (accessLevel == AccessLevel.TEACHER && !"teacher".equals(activeMode)
-                    && !("admin".equals(activeMode) && plainPath.equals("/curriculum.js"))) return false;
+                    && !("admin".equals(activeMode) && sharedAdminTeacherPath(plainPath))) return false;
         }
 
         return result == AccessState.AUTHORIZED || result == AccessState.PERMITTED;
+    }
+
+    /** Shared read assets used by the admin curriculum view, not a mode switch. */
+    private static boolean sharedAdminTeacherPath(String path) {
+        return path.equals("/curriculum.js") || path.equals("/curriculum-catalog");
     }
 }
