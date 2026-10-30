@@ -140,7 +140,11 @@ public class AccessManager {
         // override the account-level active mode of a dual teacher/admin session.
         if (dualRole) {
             if (accessLevel == AccessLevel.ADMIN && !"admin".equals(activeMode)) return false;
-            if (accessLevel == AccessLevel.TEACHER && !"teacher".equals(activeMode)) return false;
+            // The admin dashboard reuses the curriculum editor's shared
+            // client asset. Loading that script is not a teacher-mode switch
+            // and must not grant access to any teacher endpoint.
+            if (accessLevel == AccessLevel.TEACHER && !"teacher".equals(activeMode)
+                    && !("admin".equals(activeMode) && plainPath.equals("/curriculum.js"))) return false;
         }
 
         return result == AccessState.AUTHORIZED || result == AccessState.PERMITTED;
