@@ -116,6 +116,8 @@ public class AccessManager {
             return true;
         }
         if (dualRole && "pending".equals(activeMode)) {
+            WebPath pendingPath = Registry.webPathRegistry().get(WebPath.PathInfo.get(path, requestType));
+            if (pendingPath != null && pendingPath.accessLevel() == AccessLevel.PUBLIC) return true;
             return false;
         }
 
