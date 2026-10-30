@@ -764,7 +764,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!await allowed('curriculum_view')) throw Error(permissionDenied);
             const manageAssignments = catalog.admin === true && await allowed('curriculum_assign_context');
             const manageFlexible = await allowed('curriculum_manage_flexible');
-            const manageCentral = catalog.admin === true && await allowed('curriculum_manage_central');
+            const manageCentral = (catalog.admin === true || catalog.centralEditor === true)
+                && (catalog.admin === true ? await allowed('curriculum_manage_central') : await allowed('curriculum_manage_faculty'));
             const context = selectedTeacherContext();
             if (teacherMode && !context) { message.textContent='Für diese Auswahl ist kein Unterrichtskontext zugewiesen.'; return; }
             const scope = teacherMode
@@ -816,8 +817,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const isAssignment = path === '/assign-curriculum-context' || path === '/transfer-curriculum-context';
                 const isFlexible = ['/add-flexible-task','/edit-flexible-task','/add-flexible-topic','/rename-flexible-topic','/delete-flexible-task','/delete-flexible-topic'].includes(path);
                 if (current !== version) throw Error('Die Auswahl wurde geändert. Bitte das aktuelle Formular verwenden.');
-                if ((!isFlexible && catalog.admin !== true) || !await allowed('curriculum_view') ||
-                    !await allowed(isAssignment ? 'curriculum_assign_context' : isFlexible ? 'curriculum_manage_flexible' : 'curriculum_manage_central')) {
+                const centralEdit = !isFlexible && !isAssignment && path !== '/set-curriculum-release';
+                const canCentralEdit = catalog.admin === true
+                    ? await allowed('curriculum_manage_central')
+                    : catalog.centralEditor === true && await allowed('curriculum_manage_faculty');
+                if ((!isFlexible && !isAssignment && catalog.admin !== true && catalog.centralEditor !== true) || !await allowed('curriculum_view') ||
+                    !(isAssignment ? await allowed('curriculum_assign_context') : isFlexible ? await allowed('curriculum_manage_flexible') : centralEdit ? canCentralEdit : await allowed('curriculum_manage_central'))) {
                     await refresh(); throw Error(permissionDenied);
                 }
                 const result = await post(path, data);
@@ -1032,7 +1037,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         reloadCurriculum = refresh;
         async function mountCentralImport() {
-            if(!catalog.admin || !await allowed('curriculum_manage_central'))return;
+            if(!(catalog.admin || catalog.centralEditor) || !(catalog.admin ? await allowed('curriculum_manage_central') : await allowed('curriculum_manage_faculty')))return;
             const panel=el('section');panel.className='central-curriculum-import';root.append(panel);
             panel.append(el('h3','Zentrales Curriculum importieren'));
             const controls=el('div');panel.append(controls);
@@ -1087,7 +1092,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (schoolClass) schoolClass.addEventListener('change',()=>{refresh().catch(showError);});
         for(const node of [subject,semester,teacher,grade].filter(Boolean))node.addEventListener('change',()=>refresh().catch(showError));
         load.addEventListener('click',()=>refresh().catch(showError));await refresh().catch(showError);
-        await mountCentralImport();
+        // CSV import and the administrative central overview remain admin-only.
+        // Fachleitungen use the shared topic/stage editor above, but must not
+        // trigger an intentional 403 by loading an administrator endpoint.
+        if (catalog.admin) await mountCentralImport();
         // B4 keeps admin semester/tutor controls in the compact dashboard.
         // Never fall back to mounting the retired enrollment editor into the
         // central curriculum mount when the legacy enrollment mount is absent.

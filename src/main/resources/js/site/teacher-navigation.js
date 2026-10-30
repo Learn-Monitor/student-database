@@ -144,6 +144,8 @@
 
     function activeDestination() {
         if (location.pathname === '/attendance') return '/attendance';
+        if (location.pathname === '/freistellung') return '/freistellung';
+        if (location.pathname === '/freistellung-bearbeitung') return '/freistellung-bearbeitung';
         if (location.pathname === '/student') return '/dashboard#student-progress';
         if (location.pathname !== '/dashboard') return null;
 

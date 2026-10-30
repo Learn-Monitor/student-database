@@ -5,6 +5,8 @@ import de.igslandstuhl.database.api.SchoolYear;
 import de.igslandstuhl.database.api.curriculum.*;
 import de.igslandstuhl.database.server.webserver.Status;
 import de.igslandstuhl.database.server.webserver.access.AccessLevel;
+import de.igslandstuhl.database.server.webserver.access.AccessManager;
+import de.igslandstuhl.database.server.webserver.requests.RequestType;
 import de.igslandstuhl.database.server.webserver.requests.APIPostRequest;
 import de.igslandstuhl.database.server.webserver.responses.PostResponse;
 import java.sql.SQLException;
@@ -19,7 +21,9 @@ public final class CurriculumRequestHandler {
                 "/flexible-curriculum-structure","/add-flexible-topic","/rename-flexible-topic","/curriculum-releases","/set-curriculum-release",
                 "/curriculum-teacher-roster","/my-tutor-classes","/curriculum-learning-group-sheet","/curriculum-nansteine","/add-nanstein","/edit-nanstein","/nanstein-delete-preview","/delete-nanstein","/archive-nanstein","/assign-nanstein","/complete-nanstein","/ranking-top50"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
-        for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task",
+        for(String path:List.of("/rename-topic","/edit-task","/add-curriculum-topic","/add-curriculum-task"))
+            HttpHandler.registerPostRequestHandler(path,AccessLevel.TEACHER,CurriculumRequestHandler::handle);
+        for(String path:List.of(
                 "/central-curriculum-overview","/preview-central-curriculum-import","/import-central-curriculum",
                 "/curriculum-students","/assign-curriculum-context","/curriculum-transfer-preview","/transfer-curriculum-context","/curriculum-enrollment-catalog","/curriculum-individual-student-matrix","/assign-curriculum-individual-subject","/add-subject-with-type","/curriculum-course-groups","/curriculum-tutor-assignments","/set-curriculum-subject-type","/remove-grade-curriculum-subject","/assign-grade-curriculum","/assign-class-subject-teacher","/assign-individual-grade-teacher","/assign-class-tutors","/create-curriculum-semester","/activate-curriculum-semester"))
             HttpHandler.registerPostRequestHandler(path,AccessLevel.ADMIN,CurriculumRequestHandler::handle);
@@ -91,6 +95,10 @@ public final class CurriculumRequestHandler {
         if (semester==null)
             throw new CurriculumException(409,"current_semester_unavailable","No current semester is configured.");
         return semester.getId();
+    }
+    private static boolean centralEditor(APIPostRequest rq) {
+        if (rq.getUser() == null || !rq.getUser().isTeacher() || rq.getUser().isAdmin()) return false;
+        return AccessManager.getInstance().hasAccess(rq.getUser(), "/add-curriculum-topic", rq, RequestType.POST);
     }
     public static PostResponse handle(APIPostRequest rq) {
         try {
@@ -167,7 +175,7 @@ public final class CurriculumRequestHandler {
                 Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
                 return PostResponse.jsonWithNulls(service.changeTutorGraduation(actor,integer(rq,"studentId"),integer(rq,"semesterId"),integer(rq,"graduationLevel")),rq);
             }
-            Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
+            Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser(), centralEditor(rq));
             if(rq.getPath().equals("/curriculum-teacher-roster") && rq.getJson().isEmpty())
                 return PostResponse.jsonWithNulls(service.schoolwideStageOverview(actor),rq);
             CurriculumEnrollment enrollment=new CurriculumEnrollment(service);
@@ -324,7 +332,7 @@ public final class CurriculumRequestHandler {
                 case "/edit-task" -> {service.editTask(actor,integer(rq,"taskId"),name(rq),integer(rq,"tokens"));result=Map.of("ok",true);}
                 case "/add-curriculum-topic" -> result=Map.of("id",service.createTopic(actor,integer(rq,"subjectId"),integer(rq,"grade"),integer(rq,"semesterId"),integer(rq,"number"),name(rq)));
                 case "/add-curriculum-task" -> {
-                    if(!actor.admin()) throw new CurriculumException(403,"forbidden","Administrator required.");
+                    if(!actor.admin() && !actor.centralEditor()) throw new CurriculumException(403,"forbidden","Administrator or Fachleitung required.");
                     int level=rq.containsKey("level") ? integer(rq,"level") : TaskLevel.LEVEL1.getNumber();
                     int stageNumber=rq.containsKey("stageNumber") ? integer(rq,"stageNumber") : 0;
                     result=Map.of("id",service.createCentralTaskDerived(integer(rq,"topicId"),name(rq),stageNumber,integer(rq,"tokens")));

@@ -209,8 +209,8 @@ table tr:last-child td {
   --admin-text:#2d2522;
   --admin-muted:#6d5b55;
   --admin-danger:#8b3028;
-  max-width:none;
-  width:max-content;
+  max-width:100%;
+  width:100%;
   margin:0 auto;
   padding:clamp(1rem, 2.5vw, 2rem);
   box-sizing:border-box;
@@ -670,6 +670,8 @@ main.attendance.teacher-dashboard #manual:focus { background:#17324d; }
 .teacher-main-menu a:focus-visible, .teacher-quick-links a:focus-visible, .teacher-dashboard button:focus-visible, .teacher-dashboard select:focus-visible, .teacher-dashboard input:focus-visible { outline:3px solid #ffbf47; outline-offset:2px; }
 .teacher-main-menu .teacher-main-menu-logout-item { margin-left:auto; }
 .teacher-main-menu-logout-item form { margin:0; }
+.teacher-role-control { display:inline-flex; align-items:center; gap:.25rem; margin:.15rem .45rem .15rem 0; white-space:nowrap; font-size:.9rem; }
+.admin-data-table td:nth-last-child(2) { min-width:14rem; }
 .teacher-main-menu .teacher-main-menu-logout-item button {
   display:inline-flex;
   align-items:center;

@@ -338,25 +338,25 @@
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "admin"
+        "access_level": "teacher"
     },
     "/edit-task": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "admin"
+        "access_level": "teacher"
     },
     "/add-curriculum-topic": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "admin"
+        "access_level": "teacher"
     },
     "/add-curriculum-task": {
         "type": "POST",
         "handler_type": "PostRequestHandler",
         "namespaces": [],
-        "access_level": "admin"
+        "access_level": "teacher"
     },
     "/central-curriculum-overview": {
         "type": "POST",

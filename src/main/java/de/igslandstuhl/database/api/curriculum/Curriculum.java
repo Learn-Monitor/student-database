@@ -15,12 +15,17 @@ public final class Curriculum {
     public Curriculum(SQLiteConnection database) { this.database = database; }
     public static Curriculum current() { return new Curriculum(Server.getInstance().getConnection()); }
 
-    public record Actor(boolean admin, int teacherId) {
+    public record Actor(boolean admin, int teacherId, boolean centralEditor) {
+        public Actor(boolean admin, int teacherId) { this(admin, teacherId, false); }
         public static Actor from(User user) {
             if (user == null || user == User.ANONYMOUS) throw error(401, "unauthorized", "Please sign in.");
-            if (user.isAdmin()) return new Actor(true, 0);
-            if (user.isTeacher()) return new Actor(false, user.asTeacher().getId());
+            if (user.isAdmin()) return new Actor(true, 0, false);
+            if (user.isTeacher()) return new Actor(false, user.asTeacher().getId(), false);
             throw error(403, "forbidden", "Teacher or administrator required.");
+        }
+        public static Actor from(User user, boolean centralEditor) {
+            Actor actor = from(user);
+            return actor.admin() ? actor : new Actor(false, actor.teacherId(), centralEditor);
         }
     }
     public record Scope(int teacherId, int subjectId, int classId, int semesterId, Integer courseGroupId) {
@@ -389,7 +394,10 @@ public final class Curriculum {
         return value;
     }
     static void admin(Actor actor) {
-        if (!actor.admin()) throw error(403, "forbidden", "Only administrators may change central curriculum.");
+        if (!actor.admin()) throw error(403, "forbidden", "Only administrators may change this curriculum administration action.");
+    }
+    static void centralEditor(Actor actor) {
+        if (!actor.admin() && !actor.centralEditor()) throw error(403, "forbidden", "Only administrators or Fachleitungen may edit central curriculum content.");
     }
     static List<Map<String,Object>> rows(Connection c, String sql, Object... args) throws SQLException {
         try (PreparedStatement s=c.prepareStatement(sql)) {
@@ -526,11 +534,11 @@ public final class Curriculum {
         return transaction(c->{int grade=authorize(c,actor,scope,false);return Budget.of(scope,grade,central(c,scope.subjectId(),grade,scope.semesterId()),flexible(c,scope));});
     }
     public void renameTopic(Actor actor,int id,String name) throws SQLException {
-        admin(actor);String value=validName(name);
+        centralEditor(actor);String value=validName(name);
         transaction(c->{require(c,"SELECT id FROM topics WHERE id=?",id);write(c,"UPDATE topics SET name=? WHERE id=?",value,id);return null;}, ignored -> Topic.refreshName(id,value));
     }
     public void editTask(Actor actor,int id,String name,int tokenValue) throws SQLException {
-        admin(actor);String value=validName(name);tokens(tokenValue);
+        centralEditor(actor);String value=validName(name);tokens(tokenValue);
         TaskLevel[] changedLevel={TaskLevel.LEVEL1};
         transaction(c->{var old=require(c,"SELECT topic,tokens,niveau FROM tasks WHERE id=?",id);
             var topic=require(c,"SELECT grade,number FROM topics WHERE id=?",integer(old,"topic"));
@@ -574,7 +582,7 @@ public final class Curriculum {
             return (int)number(c,"SELECT last_insert_rowid()");}); Topic.invalidateTaskLists(topicId); return id;
     }
     public int createTopic(Actor actor,int subject,int grade,int semester,int number,String name) throws SQLException {
-        admin(actor);String value=validName(name);
+        centralEditor(actor);String value=validName(name);
         if(grade<1 || grade>13 || number<1) throw error(400,"invalid_input","Invalid grade or topic number.");
         return transaction(c->{require(c,"SELECT id FROM subjects WHERE id=?",subject);require(c,"SELECT id FROM semesters WHERE id=?",semester);
             write(c,"INSERT INTO topics(subject,grade,semester,number,name) VALUES(?,?,?,?,?)",subject,grade,semester,number,value);
@@ -2015,9 +2023,32 @@ public final class Curriculum {
 
     /** Fresh catalog restricted to the actor's assignments; no credentials or student data. */
     public Map<String,Object> catalog(Actor actor) throws SQLException {
-        return transaction(c->{Map<String,Object> out=new LinkedHashMap<>();out.put("admin",actor.admin());out.put("enrollmentEnabled",true);out.put("teacherId",actor.teacherId());
-            out.put("subjects",rows(c,actor.admin()?"SELECT id,name FROM subjects ORDER BY name":"SELECT s.id,s.name FROM subjects s JOIN teacher_subjects t ON t.subject_id=s.id WHERE t.teacher_id=? ORDER BY s.name",actor.admin()?new Object[]{}:new Object[]{actor.teacherId()}));
-            out.put("classes",rows(c,actor.admin()?"SELECT id,label,grade FROM classes WHERE active=1 AND id<>0 ORDER BY grade,label":"SELECT s.id,s.label,s.grade FROM classes s JOIN teacher_classes t ON t.class_id=s.id WHERE t.teacher_id=? AND s.active=1 AND s.id<>0 ORDER BY s.grade,s.label",actor.admin()?new Object[]{}:new Object[]{actor.teacherId()}));
+        return transaction(c->{Map<String,Object> out=new LinkedHashMap<>();out.put("admin",actor.admin());out.put("centralEditor",actor.centralEditor());out.put("enrollmentEnabled",true);out.put("teacherId",actor.teacherId());
+            List<Map<String,Object>> subjects;
+            List<Map<String,Object>> classes;
+            if (actor.admin()) {
+                subjects=rows(c,"SELECT id,name FROM subjects ORDER BY name");
+                classes=rows(c,"SELECT id,label,grade FROM classes WHERE active=1 AND id<>0 ORDER BY grade,label");
+            } else {
+                // Semester-scoped teaching contexts are authoritative. The legacy
+                // teacher_subjects/teacher_classes tables are not sufficient for
+                // the visible teacher catalog and may be stale after a semester
+                // reassignment.
+                Map<Integer,Map<String,Object>> subjectIndex=new LinkedHashMap<>();
+                Map<Integer,Map<String,Object>> classIndex=new LinkedHashMap<>();
+                for (Map<String,Object> context : teacherContexts(c,actor.teacherId())) {
+                    int subjectId=integer(context,"subjectId");
+                    subjectIndex.putIfAbsent(subjectId,new LinkedHashMap<>(Map.of("id",subjectId,"name",context.get("subjectName"))));
+                    int classId=integer(context,"classId");
+                    classIndex.putIfAbsent(classId,new LinkedHashMap<>(Map.of("id",classId,"label",context.get("classLabel"),"grade",context.get("grade"))));
+                }
+                subjects=new ArrayList<>(subjectIndex.values());
+                subjects.sort(Comparator.comparing(row->String.valueOf(row.get("name"))));
+                classes=new ArrayList<>(classIndex.values());
+                classes.sort(Comparator.comparingInt((Map<String,Object> row)->((Number)row.get("grade")).intValue()).thenComparing(row->String.valueOf(row.get("label"))));
+            }
+            out.put("subjects",subjects);
+            out.put("classes",classes);
             out.put("semesters",rows(c,"SELECT s.id,s.label,s.school_year AS schoolYearId,y.label AS schoolYearLabel,"
                     + "COALESCE(s.archived,0) AS archived,CASE WHEN y.current_semester=s.id THEN 1 ELSE 0 END AS active "
                     + "FROM semesters s JOIN school_years y ON y.id=s.school_year ORDER BY s.school_year,s.position"));

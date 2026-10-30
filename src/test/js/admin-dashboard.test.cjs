@@ -75,7 +75,6 @@ for (const [hash,section,label] of [
   ['#schuljahr', 'schuljahr', 'Schuljahr & Zuordnungen'],
   ['#curriculum', 'curriculum-admin', 'Zentrales Curriculum'],
   ['#anwesenheit', 'anwesenheit', 'Anwesenheit'],
-  ['#rechte', 'rechte', 'Rechte'],
   ['#system', 'system', 'System']
 ]) test(`admin dashboard hash ${hash || 'default'} opens ${section}`,()=>{
   const dom=setup(hash);

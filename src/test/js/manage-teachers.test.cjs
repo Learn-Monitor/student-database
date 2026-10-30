@@ -47,6 +47,12 @@ async function setup(options={}) {
     assert.equal(url,'/teachers');
     return options.teachers || teachers;
   };
+  dom.window.fetch=async url=>{
+    if (url==='/get-teacher-visible-roles') return {ok:true,status:200,json:async()=>teachers.map(teacher=>({username:teacher.email,admin:false,orga:false,sl:false,fachleitung:false}))};
+    if (url==='/freistellung-mail-admin-data') return {ok:true,status:200,json:async()=>({profiles:[]})};
+    if (url==='/set-teacher-visible-role' || url==='/freistellung-mail-profile') return {ok:true,status:200,json:async()=>({saved:true})};
+    throw new Error(`Unexpected endpoint ${url}`);
+  };
   dom.window.postDataAndDownload=(url,data,filename)=>calls.downloads.push({url,data,filename});
   dom.window.viewTeacher=teacher=>calls.viewed.push(teacher);
   dom.window.eval(teacherScript);
@@ -85,7 +91,7 @@ test('teacher table starts with Nachname before Vorname and sorts by last then f
   try {
     assert.deepEqual(
       [...dom.window.document.querySelectorAll('#teacherTable th')].map(th=>th.textContent.trim()),
-      ['Nachname','Vorname','Loginname','Aktionen']
+      ['Nachname','Vorname','Loginname','Benachrichtigungs-Mail','Zusatzrollen','Aktionen']
     );
     assert.deepEqual(rowTexts(dom.window.document).map(cells=>cells.slice(0,2)),[
       ['Albrecht','Ada'],

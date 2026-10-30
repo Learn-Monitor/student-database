@@ -27,7 +27,7 @@ test('adminDashboardShowsConfiguredSections',()=>{
   const dom=new JSDOM(`<!doctype html><body>${dashboardHtml()}</body>`);
   try {
     assert.deepEqual([...dom.window.document.querySelectorAll('.admin-function-page')].map(node=>node.id),[
-      'uebersicht','schuldaten','schuljahr','curriculum-admin','anwesenheit','rechte','system'
+      'uebersicht','schuldaten','schuljahr','curriculum-admin','anwesenheit','system'
     ]);
     assert.equal(dom.window.document.querySelectorAll('.admin-action-card').length,4);
     assert.match(dom.window.document.querySelector('#schuldaten').textContent,/Fächer/);
@@ -62,7 +62,7 @@ test('adminDashboardDoesNotExposeDuplicatePrimaryNavigation',()=>{
   try {
     const links=[...dom.window.document.querySelectorAll('.admin-main-menu-sections a')];
     assert.deepEqual(links.map(link=>link.textContent.trim()),[
-      'Übersicht','Schuldaten','Schuljahr & Zuordnungen','Zentrales Curriculum','Anwesenheit','Rechte','System'
+      'Übersicht','Schuldaten','Schuljahr & Zuordnungen','Zentrales Curriculum','Anwesenheit','System'
     ]);
     assert.equal(new Set(links.map(link=>link.getAttribute('href'))).size,links.length);
     assert.equal(dom.window.document.querySelectorAll('.admin-main-menu-logout').length,1);
