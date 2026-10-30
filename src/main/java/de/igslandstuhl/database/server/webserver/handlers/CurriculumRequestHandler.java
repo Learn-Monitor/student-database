@@ -97,7 +97,9 @@ public final class CurriculumRequestHandler {
         return semester.getId();
     }
     private static boolean centralEditor(APIPostRequest rq) {
-        if (rq.getUser() == null || !rq.getUser().isTeacher() || rq.getUser().isAdmin()) return false;
+        if (rq.getUser() == null || !rq.getUser().isTeacher()) return false;
+        if ("admin".equals(de.igslandstuhl.database.server.Server.getInstance()
+                .getWebServer().getSessionManager().getActiveMode(rq))) return false;
         return AccessManager.getInstance().hasAccess(rq.getUser(), "/add-curriculum-topic", rq, RequestType.POST);
     }
     public static PostResponse handle(APIPostRequest rq) {

@@ -25,6 +25,11 @@ public final class Curriculum {
         }
         public static Actor from(User user, boolean centralEditor) {
             Actor actor = from(user);
+            // A dual teacher/admin account may deliberately work in teacher
+            // mode.  A Fachleitung grant is a teacher-mode capability and
+            // must therefore not be converted into the general admin actor.
+            if (centralEditor && user.isTeacher())
+                return new Actor(false, user.asTeacher().getId(), true);
             return actor.admin() ? actor : new Actor(false, actor.teacherId(), centralEditor);
         }
     }
