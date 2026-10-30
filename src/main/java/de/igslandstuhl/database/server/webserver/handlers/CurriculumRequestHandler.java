@@ -102,6 +102,13 @@ public final class CurriculumRequestHandler {
                 .getWebServer().getSessionManager().getActiveMode(rq))) return false;
         return AccessManager.getInstance().hasAccess(rq.getUser(), "/add-curriculum-topic", rq, RequestType.POST);
     }
+    private static Curriculum.Actor actor(APIPostRequest rq) {
+        String mode = de.igslandstuhl.database.server.Server.getInstance()
+                .getWebServer().getSessionManager().getActiveMode(rq);
+        if ("teacher".equals(mode) && rq.getUser() != null && rq.getUser().isTeacher())
+            return Curriculum.Actor.from(rq.getUser(), centralEditor(rq));
+        return Curriculum.Actor.from(rq.getUser(), false);
+    }
     public static PostResponse handle(APIPostRequest rq) {
         try {
             if (rq.getJson() == null) throw new CurriculumException(400,"invalid_input","JSON object required.");
@@ -144,7 +151,7 @@ public final class CurriculumRequestHandler {
                 if(!rq.getJson().keySet().containsAll(required) || rq.getJson().size()>required.size()+1
                         || (rq.getJson().size()==required.size()+1 && !rq.containsKey("awardedTokens")))
                     throw new CurriculumException(400,"invalid_input","Assessment payload contains unexpected or missing fields.");
-                Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
+                Curriculum.Actor actor=actor(rq);
                 if(actor.admin()) throw new CurriculumException(403,"forbidden","Teacher required for student assessment.");
                 Curriculum.StageAssessment assessment=service.setStageAssessment(actor,integer(rq,"studentId"),scope(rq,actor),
                         Curriculum.ActiveStageType.valueOf(string(rq,"stageType")),integer(rq,"stageId"),
@@ -159,25 +166,25 @@ public final class CurriculumRequestHandler {
                 Set<String> allowed=Set.of("studentId","subjectId","classId","semesterId");
                 if(!allowed.containsAll(rq.getJson().keySet()) || rq.getJson().size()!=allowed.size())
                     throw new CurriculumException(400,"invalid_input","Student progress payload contains unexpected or missing fields.");
-                Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
+                Curriculum.Actor actor=actor(rq);
                 if(actor.admin()) throw new CurriculumException(403,"forbidden","Teacher session required.");
                 return PostResponse.jsonWithNulls(service.studentProgressDetail(actor,integer(rq,"studentId"),scope(rq,actor)),rq);
             }
             if(rq.getPath().equals("/curriculum-weekly-conversations")) {
                 if(!rq.getJson().keySet().equals(Set.of("semesterId","classId"))) throw new CurriculumException(400,"invalid_input","semesterId and classId are required.");
-                Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
+                Curriculum.Actor actor=actor(rq);
                 return PostResponse.jsonWithNulls(service.weeklyConversationOverview(actor,integer(rq,"semesterId"),integer(rq,"classId")),rq);
             }
             if(rq.getPath().equals("/teacher-schoolwide-stage-overview")) {
                 if(!rq.getJson().isEmpty()) throw new CurriculumException(400,"invalid_input","No selection is accepted.");
-                return PostResponse.jsonWithNulls(service.schoolwideStageOverview(Curriculum.Actor.from(rq.getUser())),rq);
+                return PostResponse.jsonWithNulls(service.schoolwideStageOverview(actor(rq)),rq);
             }
             if(rq.getPath().equals("/change-tutor-graduation")) {
                 if(!rq.getJson().keySet().equals(Set.of("studentId","semesterId","graduationLevel"))) throw new CurriculumException(400,"invalid_input","studentId, semesterId and graduationLevel are required.");
-                Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser());
+                Curriculum.Actor actor=actor(rq);
                 return PostResponse.jsonWithNulls(service.changeTutorGraduation(actor,integer(rq,"studentId"),integer(rq,"semesterId"),integer(rq,"graduationLevel")),rq);
             }
-            Curriculum.Actor actor=Curriculum.Actor.from(rq.getUser(), centralEditor(rq));
+            Curriculum.Actor actor=actor(rq);
             if(rq.getPath().equals("/curriculum-teacher-roster") && rq.getJson().isEmpty())
                 return PostResponse.jsonWithNulls(service.schoolwideStageOverview(actor),rq);
             CurriculumEnrollment enrollment=new CurriculumEnrollment(service);
