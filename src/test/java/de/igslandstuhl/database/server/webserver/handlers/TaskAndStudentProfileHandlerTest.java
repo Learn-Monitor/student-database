@@ -341,9 +341,13 @@ class TaskAndStudentProfileHandlerTest {
             exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", first, "Deutsch-" + id);
             exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", second, "Englisch-" + id);
             exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", old, "Sport-" + id);
+            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?)", id + 5, "Deutsch-altjahrgang-" + id);
             exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, first, id, id, id);
             exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, second, id, id, id);
             exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,5)", id, old, id + 1, id, id);
+            // A stale but otherwise policy-valid context from another grade must
+            // remain stored and must not leak into the current student view.
+            exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,6)", id, id + 5, id, id, id);
             return null;
         });
         var response = post("/my-curriculum-subjects", "{}", sessionCookieFor(Student.get(id).getUsername()));
@@ -358,6 +362,24 @@ class TaskAndStudentProfileHandlerTest {
             assertEquals(Status.BAD_REQUEST, post("/my-curriculum-subjects", "{\"" + field + "\":1}", sessionCookieFor(Student.get(id).getUsername())).getStatus());
         assertEquals(Status.FORBIDDEN, post("/my-curriculum-subjects", "{}", sessionCookieFor(Teacher.get(id).getUsername())).getStatus());
         assertEquals(Status.FORBIDDEN, post("/my-curriculum-subjects", "{}", sessionCookieFor(Admin.create("subjects-admin-" + id, "synthetic-test-only").getUsername())).getStatus());
+    }
+
+    @Test
+    void myCurriculumSubjectsUsesCanonicalSubjectDisplayOrder() throws Exception {
+        db.writeTransaction(c -> {
+            exec(c, "UPDATE classes SET grade=7 WHERE id=?", id);
+            exec(c, "UPDATE student_curriculum_contexts SET grade=7 WHERE student=? AND semester=?", id, id);
+            exec(c, "INSERT INTO subjects(id,name) VALUES(?,?),(?,?)", id + 6, "Bildende Kunst-" + id, id + 7, "Deutsch-ord-" + id);
+            exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,7)", id, id + 6, id, id, id);
+            exec(c, "INSERT INTO student_curriculum_contexts(student,subject,semester,teacher,class,grade) VALUES(?,?,?,?,?,7)", id, id + 7, id, id, id);
+            return null;
+        });
+        var response = post("/my-curriculum-subjects", "{}", sessionCookieFor(Student.get(id).getUsername()));
+        assertEquals(Status.OK, response.getStatus());
+        var json = com.google.gson.JsonParser.parseString(responseBody(response).split("\\r\\n\\r\\n", 2)[1]).getAsJsonArray();
+        assertEquals("Deutsch-ord-" + id, json.get(0).getAsJsonObject().get("name").getAsString());
+        assertEquals("Mathematik-" + id, json.get(1).getAsJsonObject().get("name").getAsString());
+        assertEquals("Bildende Kunst-" + id, json.get(2).getAsJsonObject().get("name").getAsString());
     }
 
     @Test

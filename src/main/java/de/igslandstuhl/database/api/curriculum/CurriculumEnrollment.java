@@ -590,16 +590,26 @@ public final class CurriculumEnrollment {
         return curriculum.transaction(c->{
             boolean managed=number(c,"SELECT COUNT(*) FROM curriculum_enrolled_students WHERE student=? AND semester=?",student,semester)>0;
             if(!managed)return null;
-            List<Integer> result=new ArrayList<>();
-            for (var row : rows(c,"SELECT a.subject,a.grade,t.mode,t.assignment_group FROM student_curriculum_contexts a LEFT JOIN curriculum_subject_types t ON t.subject=a.subject WHERE a.student=? AND a.semester=? ORDER BY a.subject",student,semester)) {
+            List<Map<String,Object>> visible=new ArrayList<>();
+            for (var row : rows(c,"SELECT a.subject,a.grade,subj.name,t.mode,t.assignment_group FROM student_curriculum_contexts a "
+                    + "JOIN students st ON st.id=a.student JOIN classes cl ON cl.id=st.class "
+                    + "JOIN subjects subj ON subj.id=a.subject "
+                    + "LEFT JOIN curriculum_subject_types t ON t.subject=a.subject "
+                    + "WHERE a.student=? AND a.semester=? AND COALESCE(st.active,1)=1 AND cl.active=1 AND cl.id<>0 "
+                    + "AND a.class=st.class AND a.grade=cl.grade",student,semester)) {
                 int subject = integer(row,"subject");
                 if ("INDIVIDUAL".equals(row.get("mode"))
                         && number(c,"SELECT COUNT(*) FROM curriculum_individual_assignments WHERE student=? AND semester=? AND assignment_group=? AND subject=?",student,semester,row.get("assignment_group"),subject)==0)
                     continue;
                 if (!SolSubjectPolicy.isManagedGrade(integer(row,"grade"))
                         || SolSubjectPolicy.isAllowed(c,integer(row,"grade"),subject))
-                    result.add(subject);
+                    visible.add(row);
             }
+            visible.sort(Comparator.comparingInt((Map<String,Object> row) -> Subject.displayOrder(String.valueOf(row.get("name"))))
+                    .thenComparing(row -> Subject.displayName(String.valueOf(row.get("name"))), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparingInt(row -> integer(row,"subject")));
+            List<Integer> result=new ArrayList<>();
+            for (var row : visible) result.add(integer(row,"subject"));
             return result;
         });
     }

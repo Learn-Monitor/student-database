@@ -1019,14 +1019,18 @@ public final class Curriculum {
             int semester = currentSemester(c);
             List<StudentSubject> result=new ArrayList<>();
             for (var row : rows(c,"SELECT DISTINCT s.id,s.name,x.grade FROM student_curriculum_contexts x "
-                    + "JOIN subjects s ON s.id=x.subject LEFT JOIN curriculum_subject_types st ON st.subject=x.subject "
-                    + "WHERE x.student=? AND x.semester=? "
-                    + "AND (st.mode IS NULL OR st.mode='REGULAR' OR EXISTS (SELECT 1 FROM curriculum_individual_assignments ia WHERE ia.student=x.student AND ia.semester=x.semester AND ia.assignment_group=st.assignment_group AND ia.subject=x.subject)) "
-                    + "ORDER BY s.name,s.id",studentId,semester)) {
+                    + "JOIN students st ON st.id=x.student JOIN classes cl ON cl.id=st.class "
+                    + "JOIN subjects s ON s.id=x.subject LEFT JOIN curriculum_subject_types stype ON stype.subject=x.subject "
+                    + "WHERE x.student=? AND x.semester=? AND COALESCE(st.active,1)=1 AND cl.active=1 AND cl.id<>0 "
+                    + "AND x.class=st.class AND x.grade=cl.grade "
+                    + "AND (stype.mode IS NULL OR stype.mode='REGULAR' OR EXISTS (SELECT 1 FROM curriculum_individual_assignments ia WHERE ia.student=x.student AND ia.semester=x.semester AND ia.assignment_group=stype.assignment_group AND ia.subject=x.subject))",studentId,semester)) {
                 if (!SolSubjectPolicy.isManagedGrade(integer(row,"grade"))
                         || SolSubjectPolicy.isAllowed(c,integer(row,"grade"),integer(row,"id")))
                     result.add(new StudentSubject(integer(row,"id"),(String) row.get("name")));
             }
+            result.sort(Comparator.comparingInt((StudentSubject subject) -> Subject.displayOrder(subject.name()))
+                    .thenComparing(subject -> Subject.displayName(subject.name()), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparingInt(StudentSubject::id));
             return result;
         });
     }

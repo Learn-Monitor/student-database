@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 /** Migration and domain tests for the additive subject identity foundation. */
 class SubjectGradeActivationTest {
     private static final Path MIGRATION = Path.of("src/main/resources/sql/migrations/027_subject_grade_activation_and_identity.sql");
+    private static final Path RELIGION_MIGRATION = Path.of("src/main/resources/sql/migrations/032_religion_ethik_grade_activation.sql");
 
     @Test
     void prodLikeBackfillDoesNotRequireCoreTypeRows() throws Exception {
@@ -118,6 +119,19 @@ class SubjectGradeActivationTest {
         }
     }
 
+    @Test
+    void religionEthikActivationIsAddedForBothManagedGradesWithoutChangingWpfPolicy() throws Exception {
+        try (Connection c = database()) {
+            seed(c, false);
+            applyMigration(c);
+            applyScript(c, RELIGION_MIGRATION);
+            applyScript(c, RELIGION_MIGRATION);
+            assertEquals(10, scalar(c, "SELECT COUNT(*) FROM subject_grade_activation a JOIN curriculum_subject_types t ON t.subject=a.subject WHERE t.assignment_group='RELIGION_ETHIK'"));
+            assertEquals(0, scalar(c, "SELECT COUNT(*) FROM subject_grade_activation WHERE grade=5 AND subject IN (SELECT subject FROM curriculum_subject_types WHERE assignment_group='WPF')"));
+            assertEquals(6, scalar(c, "SELECT COUNT(*) FROM subject_grade_activation WHERE grade=6 AND subject IN (SELECT subject FROM curriculum_subject_types WHERE assignment_group='WPF')"));
+        }
+    }
+
     private static Connection database() throws SQLException {
         Connection c = DriverManager.getConnection("jdbc:sqlite::memory:");
         c.createStatement().execute("PRAGMA foreign_keys=ON");
@@ -150,9 +164,13 @@ class SubjectGradeActivationTest {
     }
 
     private static void applyMigration(Connection c) throws Exception {
+        applyScript(c, MIGRATION);
+    }
+
+    private static void applyScript(Connection c, Path migration) throws Exception {
         c.setAutoCommit(false);
         try (Statement s = c.createStatement()) {
-            for (String statement : Files.readString(MIGRATION).split(";")) {
+            for (String statement : Files.readString(migration).split(";")) {
                 if (!statement.isBlank()) s.executeUpdate(statement);
             }
             c.commit();

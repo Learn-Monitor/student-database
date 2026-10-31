@@ -120,8 +120,8 @@ class SubjectManagementServiceTest {
         assertEquals(1, german.get("regularEligible"));
         @SuppressWarnings("unchecked")
         Map<String, Object> active = (Map<String, Object>) catalog.get("activeSubjectIdsByGrade");
-        assertEquals(List.of(1, 2, 3, 4, 5), active.get("5"));
-        assertEquals(List.of(1, 2, 3, 4, 5, 10), active.get("6"));
+        assertEquals(List.of(1, 2, 3, 4, 5, 12), active.get("5"));
+        assertEquals(List.of(1, 2, 3, 4, 5, 10, 12), active.get("6"));
     }
 
     @Test

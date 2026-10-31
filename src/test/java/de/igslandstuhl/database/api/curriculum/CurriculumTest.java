@@ -2348,7 +2348,7 @@ class CurriculumTest {
         assertThrows(CurriculumException.class,()->enrollment.assignGrade(teacher,13,id,List.of(id),teachingMappings()));
         assertEquals(0,scalar("SELECT COUNT(*) FROM curriculum_enrolled_students WHERE semester=?",id));
     }
-    @Test void solGradeFiveAcceptsOnlyCoreAndRejectsWpfAndReligion() throws Exception {
+    @Test void solGradeFiveAcceptsOnlyCoreAndRejectsWpfAndReligionInLegacyFixture() throws Exception {
         var enrollment=enrollmentFixture();
         moveFixtureToGrade5();
         db.writeTransaction(c->{exec(c,"INSERT INTO subjects(id,name) VALUES(?,?)",id+4,"Sport "+id);return null;});
