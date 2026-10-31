@@ -62,6 +62,21 @@ public class AccessManager {
                 || !sessionUser.getUsername().equals(user.getUsername())) return true;
         return "admin".equals(Server.getInstance().getWebServer().getSessionManager().getActiveMode(request));
     }
+
+    /**
+     * Returns whether the request is for a registered ADMIN route and the
+     * authenticated identity is currently using the server-side admin mode.
+     *
+     * Permission Manager listeners may refine non-admin access, but must not
+     * turn an already authorized account-level admin decision into a denial
+     * because a stale fine-grained snapshot is missing an admin route.
+     */
+    public boolean isAdminRouteAuthorized(User user, String path, HttpRequest request) {
+        if (user == null || user == User.ANONYMOUS || !user.isAdmin()) return false;
+        WebPath webPath = Registry.webPathRegistry().get(
+                WebPath.PathInfo.get(path.split("\\?", 2)[0], request.getRequestType()));
+        return webPath != null && webPath.accessLevel() == AccessLevel.ADMIN && adminMode(request, user);
+    }
     /**
      * Checks if a user has access to a specific web path
      * @param user the username of the user, can be null to indicate no user logged in
