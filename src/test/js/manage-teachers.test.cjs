@@ -48,7 +48,7 @@ async function setup(options={}) {
     return options.teachers || teachers;
   };
   dom.window.fetch=async url=>{
-    if (url==='/get-teacher-visible-roles') return {ok:true,status:200,json:async()=>teachers.map(teacher=>({username:teacher.email,admin:false,orga:false,sl:false,fachleitung:false}))};
+    if (url==='/get-teacher-visible-roles') return {ok:true,status:200,json:async()=>options.visibleRoles || teachers.map(teacher=>({username:teacher.email,admin:false,orga:false,sl:false,fachleitung:false}))};
     if (url==='/freistellung-mail-admin-data') return {ok:true,status:200,json:async()=>({profiles:[]})};
     if (url==='/set-teacher-visible-role' || url==='/freistellung-mail-profile') return {ok:true,status:200,json:async()=>({saved:true})};
     throw new Error(`Unexpected endpoint ${url}`);
@@ -91,7 +91,7 @@ test('teacher table starts with Nachname before Vorname and sorts by last then f
   try {
     assert.deepEqual(
       [...dom.window.document.querySelectorAll('#teacherTable th')].map(th=>th.textContent.trim()),
-      ['Nachname','Vorname','Loginname','Benachrichtigungs-Mail','Zusatzrollen','Aktionen']
+      ['Nachname','Vorname','Loginname','Benachrichtigungs-Mail','Admin','Orgaleitung','Schulleitung','Fachleitung','Aktionen']
     );
     assert.deepEqual(rowTexts(dom.window.document).map(cells=>cells.slice(0,2)),[
       ['Albrecht','Ada'],
@@ -101,6 +101,32 @@ test('teacher table starts with Nachname before Vorname and sorts by last then f
   } finally {
     dom.window.close();
   }
+});
+
+test('teacher rows expose four separate visible role controls with server-loaded state',async()=>{
+  const {dom}=await setup({visibleRoles:[
+    {username:'zoe@example.test',admin:true,orga:false,sl:false,fachleitung:true},
+    {username:'berta@example.test',admin:false,orga:true,sl:false,fachleitung:false},
+    {username:'ada.login@example.test',admin:false,orga:false,sl:true,fachleitung:false}
+  ]});
+  try {
+    const row=dom.window.document.querySelector('#teacherTableBody tr');
+    assert.equal(row.querySelectorAll('input[type="checkbox"][data-role]').length,4);
+    for (const role of ['admin','orga','sl','fachleitung']) {
+      const control=row.querySelector(`input[data-role="${role}"]`);
+      assert.ok(control,`missing ${role} control`);
+      assert.match(control.getAttribute('aria-label'),new RegExp(role === 'admin' ? 'Admin' : role === 'orga' ? 'Orgaleitung' : role === 'sl' ? 'Schulleitung' : 'Fachleitung'));
+      assert.equal(control.dataset.username,'ada.login@example.test');
+    }
+    assert.equal(row.querySelector('input[data-role="admin"]').checked,false);
+    assert.equal(row.querySelector('input[data-role="orga"]').checked,false);
+    assert.equal(row.querySelector('input[data-role="sl"]').checked,true);
+    assert.equal(row.querySelector('input[data-role="fachleitung"]').checked,false);
+    assert.equal(dom.window.document.querySelectorAll('[data-role-column="admin"]').length,4);
+    assert.equal(dom.window.document.querySelectorAll('[data-role-column="orga"]').length,4);
+    assert.equal(dom.window.document.querySelectorAll('[data-role-column="sl"]').length,4);
+    assert.equal(dom.window.document.querySelectorAll('[data-role-column="fachleitung"]').length,4);
+  } finally { dom.window.close(); }
 });
 
 test('teacher rows are rendered safely without innerHTML or inline onclick',async()=>{

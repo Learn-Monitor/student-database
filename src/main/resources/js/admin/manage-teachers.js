@@ -43,16 +43,19 @@
         const row = document.createElement('tr');
         cell(row, lastName(teacher)); cell(row, firstName(teacher)); cell(row, login(teacher));
         notificationCell(row, teacher);
-        const rolesCell = cell(row, '');
         const roles = visibleRoles.get(login(teacher)) || {admin:false, orga:false, sl:false, fachleitung:false};
         [['admin','Admin'],['orga','Orgaleitung'],['sl','Schulleitung'],['fachleitung','Fachleitung']].forEach(([key,label]) => {
+          const rolesCell = document.createElement('td');
+          rolesCell.dataset.roleColumn = key;
           const wrapper = document.createElement('label');
           wrapper.className = 'teacher-role-control';
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox'; checkbox.checked = roles[key] === true;
-          checkbox.dataset.role = key; checkbox.setAttribute('aria-label', `${label} für ${login(teacher)}`);
+          checkbox.dataset.role = key; checkbox.dataset.username = login(teacher);
+          checkbox.setAttribute('aria-label', `${label} für ${login(teacher)}`);
           checkbox.addEventListener('change', () => saveVisibleRole(teacher, key, checkbox));
           wrapper.append(checkbox, document.createTextNode(label)); rolesCell.append(wrapper);
+          row.append(rolesCell);
         });
         const action = cell(row, '');
         const button = document.createElement('button');
