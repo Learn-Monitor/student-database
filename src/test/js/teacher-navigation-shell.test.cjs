@@ -177,6 +177,47 @@ test('teacher navigation uses safe static DOM updates only',()=>{
   assert.doesNotMatch(navigationScript,/innerHTML|outerHTML|insertAdjacentHTML|onclick/i);
 });
 
+test('freistellung links are inserted as one deterministic block before logout',async()=>{
+  const dom=new JSDOM(`<!doctype html><html><body><nav class="teacher-main-menu"><div class="teacher-main-menu-sections"><ul><li><a href="/dashboard#overview">Übersicht</a></li><li><a href="/dashboard#student-progress">Schülerfortschritt</a></li><li class="teacher-main-menu-logout-item"><button>Ausloggen</button></li></ul></div></nav>`,{
+    url:'https://school.example.invalid/freistellung-bearbeitung',runScripts:'outside-only'
+  });
+  dom.window.fetch=async url=>url==='/freistellung-role-info'
+    ? {ok:true,status:200,json:async()=>({apply:true,orga:true,sl:true})}
+    : {ok:true,status:200,json:async()=>[]};
+  dom.window.eval(navigationScript);
+  dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  try {
+    const items=[...dom.window.document.querySelectorAll('[data-freistellung-nav]')].filter(node=>node.matches('li'));
+    assert.deepEqual(items.map(item=>item.querySelector('a')?.textContent),[
+      'Freistellungen','Freistellungen – Orga-Leitung','Freistellungen – Schulleitung'
+    ]);
+    assert.equal(items.at(-1)?.nextElementSibling?.className,'teacher-main-menu-logout-item');
+    assert.equal(dom.window.document.querySelectorAll('li[data-freistellung-nav]').length,3);
+  } finally { dom.window.close(); }
+});
+
+test('all asynchronous teacher navigation additions keep one stable order',async()=>{
+  const dom=new JSDOM(`<!doctype html><html><body><nav class="teacher-main-menu"><div class="teacher-main-menu-sections"><ul><li><a href="/dashboard#overview">Übersicht</a></li><li><a href="/dashboard#curriculum">Themen &amp; Etappen</a></li><li><a href="/dashboard#student-progress">Schülerfortschritt</a></li><li><a href="/attendance">Anwesenheit</a></li><li class="teacher-main-menu-logout-item"><button>Ausloggen</button></li></ul></div></nav></body></html>`,{
+    url:'https://school.example.invalid/dashboard',runScripts:'outside-only'
+  });
+  dom.window.fetch=async url=>url==='/freistellung-role-info'
+    ? {ok:true,status:200,json:async()=>({apply:true,orga:true,sl:true})}
+    : {ok:true,status:200,json:async()=>[{semesterId:4,classId:7}]};
+  dom.window.eval(navigationScript);
+  dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
+  await new Promise(resolve=>setTimeout(resolve,10));
+  try {
+    const links=[...dom.window.document.querySelectorAll('.teacher-main-menu a[href]')].map(link=>link.getAttribute('href'));
+    assert.deepEqual(links,[
+      '/dashboard#overview','/dashboard#curriculum','/dashboard#student-progress',
+      '/dashboard#tutor-area','/dashboard#schoolwide-stage-overview',
+      '/freistellung','/freistellung-bearbeitung','/freistellung-bearbeitung','/attendance'
+    ]);
+    assert.equal(dom.window.document.querySelectorAll('li[data-freistellung-nav]').length,3);
+  } finally { dom.window.close(); }
+});
+
 test('attendance class multi-select becomes a collapsible checkbox picker kept in sync',async()=>{
   const dom=shell('https://school.example.invalid/attendance',
     `<main class="attendance"><nav>${navigation}</nav><form id="filters"><label>Datum<input id="date" type="date"></label><label>Klassen<select id="classes" multiple size="4"></select></label><label class="search">Schüler suchen<input id="search" type="search"></label><div class="actions"><button type="button" id="reset">Filter zurücksetzen</button></div></form><table><tbody id="rows"></tbody></table></main><p id="outside">x</p>`);

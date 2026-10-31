@@ -18,6 +18,7 @@
         if (!studentProgressLink) return null;
 
         const item = document.createElement('li');
+        item.dataset.teacherNavItem = 'tutor';
         const link = document.createElement('a');
         link.href = tutorAreaPath;
         link.textContent = 'Tutorenbereich';
@@ -32,48 +33,85 @@
             .find(link => link.getAttribute('href') === '/dashboard#student-progress');
         if (!progress) return;
         const item = document.createElement('li');
+        item.dataset.teacherNavItem = 'schoolwide';
         const link = document.createElement('a'); link.href = '/dashboard#schoolwide-stage-overview'; link.textContent = 'Gelingensnachweise';
         item.append(link); progress.closest('li')?.after(item);
     }
 
-    function freistellungItem(navigation, href, label) {
-        const progress = [...navigation.querySelectorAll('a[href]')]
-            .find(link => link.getAttribute('href') === '/dashboard#student-progress');
-        if (!progress) return;
-        const item = document.createElement('li');
-        const link = document.createElement('a'); link.href = href; link.textContent = label;
-        item.append(link); progress.closest('li')?.after(item);
+    function removeFreistellungItems() {
+        document.querySelectorAll('[data-freistellung-nav]').forEach(element => {
+            if (element.matches('li')) element.remove();
+        });
     }
 
-    function removeFreistellungItems() {
-        document.querySelectorAll('a[data-freistellung-nav]').forEach(link => {
-            const item = link.closest('li');
-            if (item) item.remove(); else link.remove();
+    function stabilizeTeacherNavigation(navigation) {
+        const list = navigation?.querySelector('.teacher-main-menu-sections > ul, .teacher-main-menu > ul');
+        if (!list) return;
+        const byHref = href => [...list.querySelectorAll(`a[href="${href}"]`)].map(link => link.closest('li') || link).filter(Boolean);
+        const dynamic = [
+            ...byHref(tutorAreaPath),
+            ...byHref('/dashboard#schoolwide-stage-overview'),
+            ...[...list.querySelectorAll('li[data-freistellung-nav]')]
+                .sort((a, b) => ({apply: 0, orga: 1, sl: 2}[a.dataset.freistellungNav] ?? 99) - ({apply: 0, orga: 1, sl: 2}[b.dataset.freistellungNav] ?? 99))
+        ];
+        const progress = [...list.querySelectorAll('a[href]')]
+            .find(link => link.getAttribute('href') === '/dashboard#student-progress')?.closest('li');
+        if (!progress) return;
+        let anchor = progress;
+        for (const item of dynamic) {
+            if (item === anchor || item.parentElement !== list) continue;
+            anchor.after(item);
+            anchor = item;
+        }
+        const order = {
+            '/dashboard#overview': 10,
+            '/dashboard#curriculum': 20,
+            '/dashboard#student-progress': 30,
+            tutor: 40,
+            schoolwide: 50,
+            apply: 60,
+            orga: 70,
+            sl: 80,
+            '/attendance': 90
+        };
+        [...list.children].forEach((item, index) => {
+            const link = item.querySelector('a[href]');
+            const key = item.dataset.teacherNavItem || item.dataset.freistellungNav || link?.getAttribute('href');
+            item.style.order = String(item.classList.contains('teacher-main-menu-logout-item') ? 100 : (order[key] ?? 200 + index));
         });
     }
 
     async function updateFreistellungVisibility(navigation) {
         if (!navigation) return;
+        const updateToken = String(Number(navigation.dataset.freistellungUpdateToken || 0) + 1);
+        navigation.dataset.freistellungUpdateToken = updateToken;
         removeFreistellungItems();
         try {
             const response = await fetch('/freistellung-role-info', {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+                credentials: 'same-origin', cache: 'no-store'
             });
             if (!response.ok) return;
             const rights = await response.json();
-            if (rights.apply) {
-                freistellungItem(navigation, '/freistellung', 'Freistellungen');
-                navigation.querySelector('a[href="/freistellung"]')?.setAttribute('data-freistellung-nav', 'apply');
+            if (navigation.dataset.freistellungUpdateToken !== updateToken) return;
+            const items = [
+                rights.apply && ['/freistellung', 'Freistellungen', 'apply'],
+                rights.orga && ['/freistellung-bearbeitung', 'Freistellungen – Orga-Leitung', 'orga'],
+                rights.sl && ['/freistellung-bearbeitung', 'Freistellungen – Schulleitung', 'sl']
+            ].filter(Boolean);
+            const list = navigation.querySelector('.teacher-main-menu-sections > ul, .teacher-main-menu > ul');
+            if (!list) return;
+            const logout = list.querySelector('.teacher-main-menu-logout-item');
+            for (const [href, label, kind] of items) {
+                const item = document.createElement('li');
+                item.dataset.freistellungNav = kind;
+                item.dataset.teacherNavItem = kind;
+                const link = document.createElement('a'); link.href = href; link.textContent = label; link.dataset.freistellungNav = kind;
+                item.append(link);
+                if (logout) logout.before(item); else list.append(item);
             }
-            if (rights.orga) {
-                freistellungItem(navigation, '/freistellung-bearbeitung', 'Freistellungen – Orga-Leitung');
-                navigation.querySelector('a[href="/freistellung-bearbeitung"]')?.setAttribute('data-freistellung-nav', 'orga');
-            }
-            if (rights.sl) {
-                freistellungItem(navigation, '/freistellung-bearbeitung', 'Freistellungen – Schulleitung');
-                const links = [...navigation.querySelectorAll('a[href="/freistellung-bearbeitung"]')];
-                links.at(-1)?.setAttribute('data-freistellung-nav', 'sl');
-            }
+            stabilizeTeacherNavigation(navigation);
+            markActive();
         } catch { /* fehlendes Freistellungsmodul darf das Dashboard nicht brechen */ }
     }
 
@@ -119,6 +157,7 @@
             const allowed = Array.isArray(classes) && classes.length > 0;
             if (allowed) tutorAreaItem(navigation);
             else removeTutorAreaItem();
+            stabilizeTeacherNavigation(navigation);
             setTutorAreaAccess(allowed);
             markActive();
         } catch {
@@ -174,14 +213,29 @@
         }
 
         const navigation = document.querySelector('.teacher-main-menu');
-        if (navigation) { integrateTeacherLogout(navigation); schoolwideOverviewItem(navigation); updateFreistellungVisibility(navigation); }
+        if (navigation) {
+            if (navigation.dataset.teacherNavigationStarted === 'true') {
+                markActive();
+                return;
+            }
+            navigation.dataset.teacherNavigationStarted = 'true';
+            integrateTeacherLogout(navigation);
+            schoolwideOverviewItem(navigation);
+            stabilizeTeacherNavigation(navigation);
+            const tutorPromise = !tutorLookupStarted
+                ? (tutorLookupStarted = true, Promise.race([
+                    updateTutorAreaVisibility(navigation),
+                    new Promise(resolve => window.setTimeout(resolve, 3000))
+                ]))
+                : Promise.resolve();
+            Promise.all([updateFreistellungVisibility(navigation), tutorPromise]).finally(() => {
+                stabilizeTeacherNavigation(navigation);
+                navigation.dataset.teacherNavigationReady = 'true';
+                markActive();
+            });
+        }
 
         markActive();
-
-        if (navigation && window.location.pathname !== '/login' && !tutorLookupStarted) {
-            tutorLookupStarted = true;
-            updateTutorAreaVisibility(navigation);
-        }
     }
 
     // Die Attendance-Seite liefert die Klassenwahl als offene Mehrfachliste (<select multiple>).
