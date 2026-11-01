@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 /** Migration and domain tests for the additive subject identity foundation. */
 class SubjectGradeActivationTest {
     private static final Path MIGRATION = Path.of("src/main/resources/sql/migrations/027_subject_grade_activation_and_identity.sql");
-    private static final Path RELIGION_MIGRATION = Path.of("src/main/resources/sql/migrations/032_religion_ethik_grade_activation.sql");
 
     @Test
     void prodLikeBackfillDoesNotRequireCoreTypeRows() throws Exception {
@@ -120,16 +119,29 @@ class SubjectGradeActivationTest {
     }
 
     @Test
-    void religionEthikActivationIsAddedForBothManagedGradesWithoutChangingWpfPolicy() throws Exception {
+    void religionEthikActivationIsSupportedWhenDatabaseConfigurationProvidesBothGrades() throws Exception {
         try (Connection c = database()) {
             seed(c, false);
             applyMigration(c);
-            applyScript(c, RELIGION_MIGRATION);
-            applyScript(c, RELIGION_MIGRATION);
+            exec(c, "INSERT OR IGNORE INTO subject_grade_activation(subject,grade) "
+                    + "SELECT t.subject, g.grade FROM curriculum_subject_types t "
+                    + "CROSS JOIN (SELECT 5 AS grade UNION ALL SELECT 6 AS grade) g "
+                    + "WHERE t.assignment_group='RELIGION_ETHIK'");
+            exec(c, "INSERT OR IGNORE INTO subject_grade_activation(subject,grade) "
+                    + "SELECT t.subject, g.grade FROM curriculum_subject_types t "
+                    + "CROSS JOIN (SELECT 5 AS grade UNION ALL SELECT 6 AS grade) g "
+                    + "WHERE t.assignment_group='RELIGION_ETHIK'");
             assertEquals(10, scalar(c, "SELECT COUNT(*) FROM subject_grade_activation a JOIN curriculum_subject_types t ON t.subject=a.subject WHERE t.assignment_group='RELIGION_ETHIK'"));
             assertEquals(0, scalar(c, "SELECT COUNT(*) FROM subject_grade_activation WHERE grade=5 AND subject IN (SELECT subject FROM curriculum_subject_types WHERE assignment_group='WPF')"));
             assertEquals(6, scalar(c, "SELECT COUNT(*) FROM subject_grade_activation WHERE grade=6 AND subject IN (SELECT subject FROM curriculum_subject_types WHERE assignment_group='WPF')"));
+            assertTrue(SolSubjectPolicy.isAllowed(c, 5, 16));
+            assertTrue(SolSubjectPolicy.isAllowed(c, 6, 16));
         }
+    }
+
+    @Test
+    void religionEthikStartupMigrationIsIntentionallyAbsent() {
+        assertFalse(Files.exists(Path.of("src/main/resources/sql/migrations/032_religion_ethik_grade_activation.sql")));
     }
 
     private static Connection database() throws SQLException {
