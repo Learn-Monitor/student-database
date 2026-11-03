@@ -1933,7 +1933,9 @@ public final class Curriculum {
                 task.put("active",active);
                 boolean inProgress=activeStage!=null && activeStage.type()==ActiveStageType.CENTRAL
                         && activeStage.taskId()==integer(task,"id");
-                if(active || centralDone.contains(integer(task,"id")) || inProgress)visibleCentral.add(task);
+                var assessment=assessmentByStage.get("CENTRAL:"+integer(task,"id"));
+                if(active || centralDone.contains(integer(task,"id")) || inProgress
+                        || assessmentKeepsStudentCatalogStageVisible(assessment))visibleCentral.add(task);
             }
             centralTasks=visibleCentral;
             var visibleTopics=new ArrayList<Map<String,Object>>();
@@ -1950,7 +1952,9 @@ public final class Curriculum {
                 task.put("active",active);
                 boolean inProgress=activeStage!=null && activeStage.type()==ActiveStageType.FLEXIBLE
                         && activeStage.taskId()==taskId;
-                if(active || flexibleDone.contains(taskId) || inProgress)visibleFlexibleTasks.add(task);
+                var assessment=assessmentByStage.get("FLEXIBLE:"+taskId);
+                if(active || flexibleDone.contains(taskId) || inProgress
+                        || assessmentKeepsStudentCatalogStageVisible(assessment))visibleFlexibleTasks.add(task);
             }
             flexibleTasks=visibleFlexibleTasks;
             var flexibleTopics=flexibleTopics(c,scope);
@@ -2028,6 +2032,14 @@ public final class Curriculum {
             out.put("forecast",forecast);
             return out;
         });
+    }
+
+    private static boolean assessmentKeepsStudentCatalogStageVisible(Map<String,Object> assessment) {
+        if(assessment==null) return false;
+        return switch(String.valueOf(assessment.get("status"))) {
+            case "FAILED_ONCE", "FAILED_TWICE", "LOCKED" -> true;
+            default -> false;
+        };
     }
 
     /** Fresh catalog restricted to the actor's assignments; no credentials or student data. */

@@ -2084,6 +2084,57 @@ class CurriculumTest {
         assertFalse(byId.get(passed).has("assessmentStatus"));
     }
 
+    @Test void studentCatalogKeepsAssessedCentralStagesVisibleAfterReleaseIsRevoked() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        var enrollment=new CurriculumEnrollment(service);
+        enrollment.release(teacher,scope,topic,null,true);
+        int once=centralNamed("Synthetic failed once",5);
+        int twice=centralNamed("Synthetic failed twice",5);
+        int locked=centralNamed("Synthetic locked",5);
+        int completed=centralNamed("Synthetic completed",5);
+        int unassessed=centralNamed("Synthetic unreleased",5);
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,once,Curriculum.AssessmentStatus.FAILED_ONCE);
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,twice,Curriculum.AssessmentStatus.FAILED_TWICE);
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.CENTRAL,locked,Curriculum.AssessmentStatus.LOCKED);
+        Student.get(id).changeTaskStatus(Task.get(completed),Task.STATUS_COMPLETED);
+        enrollment.release(teacher,scope,topic,null,false);
+
+        var tasks=rows(service.studentCatalog(Student.get(id),id,id),"centralTasks");
+        Map<Integer,Map<String,Object>> byId=new java.util.HashMap<>();
+        for(var task:tasks)byId.put(((Number)task.get("id")).intValue(),task);
+        assertEquals("FAILED_ONCE",byId.get(once).get("assessmentStatus"));
+        assertEquals("FAILED_TWICE",byId.get(twice).get("assessmentStatus"));
+        assertEquals("LOCKED",byId.get(locked).get("assessmentStatus"));
+        assertTrue((Boolean)byId.get(completed).get("completed"));
+        assertFalse(byId.containsKey(unassessed));
+    }
+
+    @Test void studentCatalogKeepsAssessedFlexibleStagesVisibleAfterReleaseIsRevoked() throws Exception {
+        db.writeTransaction(c->{exec(c,"INSERT INTO curriculum_class_teachers(semester,class,subject,teacher) VALUES(?,?,?,?)",id,id,id,id);return null;});
+        var enrollment=new CurriculumEnrollment(service);
+        int flexibleTopic=service.createFlexibleTopic(teacher,scope,"Synthetic flexible topic");
+        var once=service.create(teacher,scope,"Synthetic flexible failed once",5,flexibleTopic);
+        var twice=service.create(teacher,scope,"Synthetic flexible failed twice",5,flexibleTopic);
+        var locked=service.create(teacher,scope,"Synthetic flexible locked",5,flexibleTopic);
+        var completed=service.create(teacher,scope,"Synthetic flexible completed",5,flexibleTopic);
+        var unassessed=service.create(teacher,scope,"Synthetic flexible unreleased",5,flexibleTopic);
+        enrollment.release(teacher,scope,null,null,flexibleTopic,null,true);
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,once.id(),Curriculum.AssessmentStatus.FAILED_ONCE);
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,twice.id(),Curriculum.AssessmentStatus.FAILED_TWICE);
+        service.setStageAssessment(teacher,id,scope,Curriculum.ActiveStageType.FLEXIBLE,locked.id(),Curriculum.AssessmentStatus.LOCKED);
+        service.complete(teacher,completed.id(),id);
+        enrollment.release(teacher,scope,null,null,flexibleTopic,null,false);
+
+        var tasks=rows(service.studentCatalog(Student.get(id),id,id),"flexibleTasks");
+        Map<Integer,Map<String,Object>> byId=new java.util.HashMap<>();
+        for(var task:tasks)byId.put(((Number)task.get("id")).intValue(),task);
+        assertEquals("FAILED_ONCE",byId.get(once.id()).get("assessmentStatus"));
+        assertEquals("FAILED_TWICE",byId.get(twice.id()).get("assessmentStatus"));
+        assertEquals("LOCKED",byId.get(locked.id()).get("assessmentStatus"));
+        assertTrue((Boolean)byId.get(completed.id()).get("completed"));
+        assertFalse(byId.containsKey(unassessed.id()));
+    }
+
     @Test void catalogEnforcesStudentSessionAndNeverReturnsMissingContextsAsZero() throws Exception {
         for(String field:List.of("studentId","teacherId","classId","grade"))
             assertEquals(Status.BAD_REQUEST,request(Student.get(id),"/my-curriculum-catalog",body().replace("}",",\""+field+"\":1}")).getStatus());
